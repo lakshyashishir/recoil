@@ -66,7 +66,7 @@ function App() {
   const [selectedActions, setSelectedActions] = useState(['upgrade'])
   const [selectedNode, setSelectedNode] = useState('release')
   const [backendStatus, setBackendStatus] = useState('checking')
-  const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0 })
+  const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0, lastDecision: null })
   const [graph, setGraph] = useState({ nodes: NODES, edges: EDGES })
   const [events, setEvents] = useState(EVENTS)
 
@@ -120,6 +120,7 @@ function App() {
           collectors: payload.ingestion?.collectors || [],
           hydra: payload.hydra?.status || 'skipped',
           recallChunks: 0,
+          lastDecision: null,
         })
         return fetch('/api/scenarios/0017/recall', {
           method: 'POST',
@@ -138,7 +139,7 @@ function App() {
     setSelectedActions(['upgrade'])
     setGraph({ nodes: NODES, edges: EDGES })
     setEvents(EVENTS)
-    setMesh({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0 })
+    setMesh({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0, lastDecision: null })
     fetch('/api/scenarios/0017/reset', { method: 'POST' }).catch(() => {})
   }
 
@@ -149,15 +150,18 @@ function App() {
   }
 
   function toggleAction(id) {
-    setSelectedActions((current) => {
-      const next = toggleScenarioAction({ selectedActions: current }, id).selectedActions
-      fetch('/api/scenarios/0017/action', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id }),
-      }).catch(() => {})
-      return next
-    })
+    setSelectedActions((current) => toggleScenarioAction({ selectedActions: current }, id).selectedActions)
+    fetch('/api/scenarios/0017/action', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Decision failed')))
+      .then((payload) => setMesh((current) => ({
+        ...current,
+        hydra: payload.hydra?.status || current.hydra,
+        lastDecision: payload.hydra?.lastDecision || current.lastDecision,
+      })))
+      .catch(() => setMesh((current) => ({ ...current, lastDecision: { status: 'local-only', action: id } })))
   }
 
   return (
@@ -329,6 +333,14 @@ function App() {
               )
             })}
           </div>
+
+          {mesh.lastDecision && (
+            <div className="decision-log">
+              <div className="decision-log-head"><span className="section-label">Latest defender action</span><span className="decision-status">{mesh.lastDecision.status}</span></div>
+              <strong>{INTERVENTIONS.find((action) => action.id === mesh.lastDecision.result?.action || action.id === mesh.lastDecision.action)?.title || 'Response updated'}</strong>
+              <span>{mesh.lastDecision.status === 'queued' ? 'Decision accepted by HydraDB; graph state updated locally.' : 'Decision recorded and graph state updated.'}</span>
+            </div>
+          )}
 
           <div className="report-card">
             <div className="report-card-head"><span className="section-label">Decision summary</span><span className="confidence"><span /> {mesh.recallChunks ? 'evidence linked' : 'awaiting trace'}</span></div>

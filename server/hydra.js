@@ -222,7 +222,7 @@ export async function persistDecision({ scenarioId, queryText, action, selectedA
     },
   })
   const result = await ingest([decision], signal)
-  return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', memoryCount: 1, result }
+  return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', action, memoryCount: 1, result }
 }
 
 export async function recall(queryText, signal, scenarioId = '0017') {
