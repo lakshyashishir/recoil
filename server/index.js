@@ -17,6 +17,22 @@ import { hydraStatus, persistIngestion, recall } from './hydra.js'
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
 
+function buildGraph(ingestion) {
+  const packageName = ingestion?.package || 'ua-parser-js'
+  const repository = ingestion?.collectors?.find((collector) => collector.collector === 'repository-extractor')
+  const resolvedVersion = repository?.manifest?.resolved?.[packageName] || ingestion?.target?.version || 'unresolved'
+  const registry = ingestion?.collectors?.find((collector) => collector.collector === 'registry-resolver')
+  const advisory = ingestion?.target?.advisoryId || registry?.latest || 'advisory target'
+  return {
+    nodes: NODES.map((node) => {
+      if (node.id === 'release') return { ...node, label: `${packageName}@${resolvedVersion}`, meta: advisory === 'CVE-2021-4229' ? 'compromised release' : 'resolved package target' }
+      if (node.id === 'repo') return { ...node, label: repository?.repository || 'fixture / storefront-api', meta: repository?.synthetic ? 'synthetic demo repo' : 'public repository' }
+      return node
+    }),
+    edges: EDGES,
+  }
+}
+
 function json(res, status, payload) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
@@ -32,7 +48,7 @@ function snapshot(record) {
   return {
     id: record.id,
     scenario: { ...SCENARIO, query: record.query, mode: record.mode },
-    graph: { nodes: NODES, edges: EDGES, activeNodeIds: [...getActiveNodeIds(state)] },
+    graph: { ...record.graph, activeNodeIds: [...getActiveNodeIds(state)] },
     events: EVENTS,
     interventions: INTERVENTIONS,
     state,
@@ -54,6 +70,7 @@ function getOrCreate(id = '0017', body = {}) {
       query: body.query || SCENARIO.query,
       mode: body.mode || 'incident',
       state: createInitialState(),
+      graph: { nodes: NODES, edges: EDGES },
       ingestion: { status: 'not_started', collectors: [] },
       hydra: { status: 'not_started', memoryCount: 0, recall: null },
     })
@@ -89,6 +106,7 @@ function route(req, res) {
     if (req.method === 'GET' && !action) return json(res, 200, snapshot(record))
     if (req.method === 'POST' && action === 'reset') {
       record.state = createInitialState()
+      record.graph = { nodes: NODES, edges: EDGES }
       record.ingestion = { status: 'not_started', collectors: [] }
       record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
       return json(res, 200, snapshot(record))
@@ -97,6 +115,7 @@ function route(req, res) {
       record.ingestion = { status: 'running', collectors: [] }
       return runIngestion({ query: record.query, scenarioId: record.id }).then((result) => {
         record.ingestion = result
+        record.graph = buildGraph(result)
         return persistIngestion(result).then((persisted) => {
           record.hydra = { ...record.hydra, ...persisted, persistedAt: persisted.status === 'persisted' ? new Date().toISOString() : null }
           return json(res, 200, snapshot(record))

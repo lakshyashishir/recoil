@@ -61,6 +61,7 @@ function App() {
   const [selectedNode, setSelectedNode] = useState('release')
   const [backendStatus, setBackendStatus] = useState('checking')
   const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0 })
+  const [graph, setGraph] = useState({ nodes: NODES, edges: EDGES })
 
   const completed = isComplete({ eventIndex })
   const exposure = getExposure({ eventIndex, selectedActions })
@@ -92,6 +93,7 @@ function App() {
     }).then(() => fetch('/api/scenarios/0017/ingest', { method: 'POST' }))
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('Ingestion failed')))
       .then((payload) => {
+        setGraph({ nodes: payload.graph?.nodes || NODES, edges: payload.graph?.edges || EDGES })
         setMesh({
           status: payload.ingestion?.status || 'partial',
           collectors: payload.ingestion?.collectors || [],
@@ -113,6 +115,7 @@ function App() {
     setRunning(false)
     setEventIndex(0)
     setSelectedActions(['upgrade'])
+    setGraph({ nodes: NODES, edges: EDGES })
     setMesh({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0 })
     fetch('/api/scenarios/0017/reset', { method: 'POST' }).catch(() => {})
   }
@@ -214,8 +217,8 @@ function App() {
               <h1>Where can the compromise travel?</h1>
             </div>
             <div className="panel-header-actions">
-              <div className="graph-stat"><span className="muted">nodes</span><strong>{String(NODES.length).padStart(2, '0')}</strong></div>
-              <div className="graph-stat"><span className="muted">edges</span><strong>{String(EDGES.length).padStart(2, '0')}</strong></div>
+              <div className="graph-stat"><span className="muted">nodes</span><strong>{String(graph.nodes.length).padStart(2, '0')}</strong></div>
+              <div className="graph-stat"><span className="muted">edges</span><strong>{String(graph.edges.length).padStart(2, '0')}</strong></div>
               <button className="reset-button" onClick={resetSimulation}><RotateCcw size={14} /> reset</button>
             </div>
           </div>
@@ -224,16 +227,16 @@ function App() {
             <div className="canvas-watermark">RECOIL / GRAPH 0017</div>
             <div className="grid-lines" />
             <svg className="edge-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              {EDGES.map(([from, to]) => {
-                const start = NODES.find((node) => node.id === from)
-                const end = NODES.find((node) => node.id === to)
+              {graph.edges.map(([from, to]) => {
+                const start = graph.nodes.find((node) => node.id === from)
+                const end = graph.nodes.find((node) => node.id === to)
                 const isActive = activeNodes.has(from) && activeNodes.has(to) && eventIndex >= 2
-                return <line key={`${from}-${to}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={isActive ? 'graph-edge active' : 'graph-edge'} />
+                return start && end ? <line key={`${from}-${to}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={isActive ? 'graph-edge active' : 'graph-edge'} /> : null
               })}
             </svg>
             <div className="graph-axis axis-x">DEPENDENCY DIRECTION  →</div>
             <div className="graph-axis axis-y">TRUST SURFACE</div>
-            {NODES.map((node) => {
+            {graph.nodes.map((node) => {
               const isActive = activeNodes.has(node.id)
               const isSelected = selectedNode === node.id
               return (
