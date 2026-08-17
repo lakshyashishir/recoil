@@ -127,8 +127,11 @@ function route(req, res) {
       }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
     }
     if (req.method === 'POST' && action === 'run') {
-      record.state = { ...record.state, running: true, eventIndex: 0 }
-      return json(res, 202, snapshot(record))
+      return body(req).then((payload) => {
+        if (typeof payload.query === 'string' && payload.query.trim()) record.query = payload.query.trim()
+        record.state = { ...record.state, running: true, eventIndex: 0 }
+        return json(res, 202, snapshot(record))
+      }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
     }
   }
   return json(res, 404, { error: 'Not found' })

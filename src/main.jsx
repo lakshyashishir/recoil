@@ -60,6 +60,7 @@ function App() {
   const [selectedActions, setSelectedActions] = useState(['upgrade'])
   const [selectedNode, setSelectedNode] = useState('release')
   const [backendStatus, setBackendStatus] = useState('checking')
+  const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0 })
 
   const completed = isComplete({ eventIndex })
   const exposure = getExposure({ eventIndex, selectedActions })
@@ -76,22 +77,50 @@ function App() {
   useEffect(() => {
     fetch('/api/health')
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('API unavailable')))
-      .then(() => setBackendStatus('ready'))
+      .then((payload) => setBackendStatus(payload.hydra?.status === 'ready' ? 'ready' : 'offline'))
       .catch(() => setBackendStatus('offline'))
   }, [])
 
   function startSimulation() {
     setEventIndex(0)
     setRunning(true)
-    fetch('/api/scenarios/0017/run', { method: 'POST' }).catch(() => {})
-    fetch('/api/scenarios/0017/ingest', { method: 'POST' }).catch(() => {})
+    setMesh({ status: 'running', collectors: [], hydra: 'running', recallChunks: 0 })
+    fetch('/api/scenarios/0017/run', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query }),
+    }).then(() => fetch('/api/scenarios/0017/ingest', { method: 'POST' }))
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Ingestion failed')))
+      .then((payload) => {
+        setMesh({
+          status: payload.ingestion?.status || 'partial',
+          collectors: payload.ingestion?.collectors || [],
+          hydra: payload.hydra?.status || 'skipped',
+          recallChunks: 0,
+        })
+        return fetch('/api/scenarios/0017/recall', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query }),
+        })
+      })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Recall failed')))
+      .then((payload) => setMesh((current) => ({ ...current, recallChunks: payload.hydra?.recall?.chunks?.length || 0 })))
+      .catch(() => setMesh((current) => ({ ...current, status: 'failed', hydra: 'failed' })))
   }
 
   function resetSimulation() {
     setRunning(false)
     setEventIndex(0)
     setSelectedActions(['upgrade'])
+    setMesh({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0 })
     fetch('/api/scenarios/0017/reset', { method: 'POST' }).catch(() => {})
+  }
+
+  function collectorStatus(name) {
+    const collector = mesh.collectors.find((item) => item.collector === name)
+    if (collector) return collector.status
+    return mesh.status === 'running' ? 'working' : 'ready'
   }
 
   function toggleAction(id) {
@@ -166,9 +195,10 @@ function App() {
 
           <div className="rail-section source-section">
             <div className="section-label">Evidence sources</div>
-            <div className="source-row"><span className="source-icon orange"><AlertTriangle size={13} /></span><span>OSV advisory</span><span className="source-state">linked</span></div>
-            <div className="source-row"><span className="source-icon blue"><GitBranch size={13} /></span><span>npm registry</span><span className="source-state">linked</span></div>
-            <div className="source-row"><span className="source-icon white"><GitBranch size={13} /></span><span>GitHub manifest</span><span className="source-state">linked</span></div>
+            <div className="source-row"><span className="source-icon orange"><AlertTriangle size={13} /></span><span>OSV advisory</span><span className="source-state">{collectorStatus('advisory-resolver')}</span></div>
+            <div className="source-row"><span className="source-icon blue"><GitBranch size={13} /></span><span>npm registry</span><span className="source-state">{collectorStatus('registry-resolver')}</span></div>
+            <div className="source-row"><span className="source-icon white"><GitBranch size={13} /></span><span>GitHub manifest</span><span className="source-state">{collectorStatus('repository-extractor')}</span></div>
+            <div className="source-row"><span className="source-icon white"><Activity size={13} /></span><span>HydraDB graph</span><span className="source-state">{mesh.hydra === 'persisted' ? `${mesh.recallChunks} recalled` : mesh.hydra}</span></div>
           </div>
 
           <div className="rail-footer">
@@ -279,6 +309,7 @@ function App() {
             <div className="report-line"><span>affected repositories</span><strong>{completed ? (selectedActions.includes('quarantine') ? '01' : '03') : '—'}</strong></div>
             <div className="report-line"><span>services remaining</span><strong>{completed ? (selectedActions.includes('upgrade') ? '01' : '03') : '—'}</strong></div>
             <div className="report-line"><span>unknown deployment records</span><strong>02</strong></div>
+            <div className="report-line"><span>HydraDB evidence context</span><strong>{mesh.recallChunks ? `${mesh.recallChunks} chunks` : '—'}</strong></div>
           </div>
 
           <div className="right-footer"><ShieldCheck size={15} /><span>Defensive simulation only. No package code is executed.</span></div>
