@@ -23,13 +23,17 @@ const scenarios = new Map()
 function buildGraph(ingestion) {
   const packageName = ingestion?.package || 'ua-parser-js'
   const repository = ingestion?.collectors?.find((collector) => collector.collector === 'repository-extractor')
+  const requestedRepository = ingestion?.target?.repository?.slug || ingestion?.target?.repository?.url
   const resolvedVersion = repository?.manifest?.resolved?.[packageName] || ingestion?.target?.version || 'unresolved'
   const registry = ingestion?.collectors?.find((collector) => collector.collector === 'registry-resolver')
   const advisory = ingestion?.target?.advisoryId || registry?.latest || 'advisory target'
   const nodes = NODES.map((node) => {
       if (node.id === 'release') return { ...node, label: `${packageName}@${resolvedVersion}`, meta: advisory === 'CVE-2021-4229' ? 'compromised release' : 'resolved package target' }
       if (node.id === 'maintainer' && registry?.maintainers?.[0]) return { ...node, label: `maintainer: ${registry.maintainers[0]}`, meta: 'registry publisher' }
-      if (node.id === 'repo') return { ...node, label: repository?.repository || 'fixture / storefront-api', meta: repository?.synthetic ? 'synthetic demo repo' : 'public repository' }
+      if (node.id === 'repo') {
+        if (repository?.status === 'failed') return { ...node, label: requestedRepository || 'repository unavailable', meta: 'collection failed' }
+        return { ...node, label: repository?.repository || 'fixture / storefront-api', meta: repository?.synthetic ? 'synthetic demo repo' : 'public repository' }
+      }
       return node
     })
   const edges = [...EDGES]
@@ -55,6 +59,16 @@ function buildGraph(ingestion) {
       edges.push([manifestId, id])
       if (isTarget) edges.push([id, 'release'])
     })
+    if (manifest.ciSignals?.workflowFiles?.length) {
+      const ciId = 'observed:ci'
+      nodes.push({ id: ciId, label: `GitHub Actions · ${manifest.ciSignals.workflowFiles.length}`, type: 'infra', meta: manifest.ciSignals.runners.join(', ') || 'workflow evidence', x: 36, y: 88, activeAt: 5 })
+      edges.push(['repo', ciId], [ciId, 'ci'])
+    }
+    if (manifest.deploymentSignals?.length) {
+      const runtimeId = 'observed:runtime'
+      nodes.push({ id: runtimeId, label: `${manifest.deploymentSignals.length} container manifest${manifest.deploymentSignals.length > 1 ? 's' : ''}`, type: 'artifact', meta: 'repository evidence', x: 64, y: 94, activeAt: 6 })
+      edges.push(['repo', runtimeId], [runtimeId, 'artifact'])
+    }
   }
   return { nodes, edges }
 }
@@ -88,9 +102,11 @@ function buildReport(record) {
       advisoryRecord: advisory?.targetAdvisory ? { id: advisory.targetAdvisory.id, summary: advisory.targetAdvisory.summary, references: advisory.targetAdvisory.references?.length || 0 } : null,
       affectedVersions: registry?.affectedVersions || [],
       fixedVersions: registry?.fixedVersions || [],
-      repository: repository?.repository || null,
+      repository: repository?.repository || ingestion.target?.repository?.slug || null,
       repositorySynthetic: repository?.synthetic ?? null,
       resolvedVersion: repository?.manifest?.resolved?.[ingestion.package] || null,
+      ciSignals: repository?.manifest?.ciSignals || null,
+      deploymentSignals: repository?.manifest?.deploymentSignals || [],
     },
     modeled: {
       graphNodes: record.graph.nodes.length,
@@ -103,6 +119,7 @@ function buildReport(record) {
     recommendation: recommended,
     uncertainty: [
       repository?.synthetic ? 'Deployment and service fan-out are synthetic demo records.' : null,
+      repository?.status === 'failed' ? `Repository evidence collection failed: ${repository.error || 'unknown error'}.` : null,
       repository && !repository.manifest?.lockfile ? 'The public repository did not expose a lockfile; dependency resolution is range-based.' : null,
       'No package code or exploit payload was executed.',
     ].filter(Boolean),

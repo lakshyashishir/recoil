@@ -407,6 +407,7 @@ function App() {
             <p>{report?.conclusion || (completed ? 'The selected controls disconnect the highest-risk paths from the compromised release.' : 'Start an investigation to calculate the reachable path and expose response points.')}</p>
             <div className="report-line"><span>repository target</span><strong>{report?.observed?.repository || 'fixture'}</strong></div>
             <div className="report-line"><span>modeled graph</span><strong>{report ? `${report.modeled.graphNodes}n / ${report.modeled.graphEdges}e` : '—'}</strong></div>
+            <div className="report-line"><span>observed CI / runtime</span><strong>{report?.observed ? `${report.observed.ciSignals?.workflowFiles?.length || 0} / ${report.observed.deploymentSignals?.length || 0}` : '—'}</strong></div>
             <div className="report-line"><span>active nodes at peak</span><strong>{report ? report.modeled.activeNodes : '—'}</strong></div>
             <div className="report-line"><span>uncertainties</span><strong>{report ? report.uncertainty.length : '—'}</strong></div>
             <div className="report-line"><span>HydraDB evidence context</span><strong>{mesh.recallChunks ? `${mesh.recallChunks} chunks` : '—'}</strong></div>

@@ -22,13 +22,14 @@ This keeps the demo reliable and protects API credits:
 
 1. Try a direct registry or advisory API first.
 2. Use GitHub raw/API access for repository files.
+   If the unauthenticated Contents API is rate-limited, fall back to raw GitHub files and a bounded workflow filename probe; never silently replace a failed public repository with the synthetic fixture.
 3. Use Firecrawl for a small allowlist of incident pages.
 4. Use Browser Use only for visible proof and a live evidence moment.
 5. Use Apify only when discovery or blocked pages justify it.
 
 ## Target resolution
 
-The scenario input is part of the ingestion contract. Recoil extracts an npm package and optional version from inputs such as `npm:lodash@4.17.21`; CVE/GHSA identifiers are preserved as advisory targets. When no package is present, the ua-parser-js seed remains the deterministic fallback. Registry and OSV results are therefore real for the requested package, while the deployment graph remains explicitly synthetic until a public repository or user-provided manifest is supplied.
+The scenario input is part of the ingestion contract. Recoil extracts an npm package and optional version from inputs such as `npm:lodash@4.17.21`, or infers a package from a public GitHub repository URL. CVE/GHSA identifiers are preserved as advisory targets. When no package is present, the ua-parser-js seed remains the deterministic fallback. Public repositories contribute real manifest, lockfile, workflow, and container signals when available; deployment fan-out remains explicitly synthetic unless a repository exposes stronger runtime evidence.
 
 ## Shared event contract
 

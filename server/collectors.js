@@ -30,15 +30,40 @@ function parseGitHubRepository(query = '') {
 }
 
 async function readGitHubFile(repository, path) {
-  const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/contents/${path}`, {
-    headers: { accept: 'application/vnd.github+json' },
-  })
-  if (!payload || payload.type !== 'file' || !payload.content) return null
-  return {
-    path,
-    sourceUrl: `https://github.com/${repository.slug}/blob/HEAD/${path}`,
-    text: Buffer.from(payload.content.replace(/\s/g, ''), 'base64').toString('utf8'),
+  try {
+    const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/contents/${path}`, {
+      headers: { accept: 'application/vnd.github+json' },
+    })
+    if (payload?.type === 'file' && payload.content) {
+      return {
+        path,
+        sourceUrl: `https://github.com/${repository.slug}/blob/HEAD/${path}`,
+        text: Buffer.from(payload.content.replace(/\s/g, ''), 'base64').toString('utf8'),
+      }
+    }
+    if (payload) return null
+  } catch (error) {
+    if (!error.message.includes('403')) throw error
   }
+
+  const rawResponse = await fetch(`https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`, { headers: { 'user-agent': 'Recoil-HackHydra/0.1' } })
+  if (rawResponse.status === 404) return null
+  if (!rawResponse.ok) throw new Error(`${rawResponse.status} ${rawResponse.statusText}`)
+  return { path, sourceUrl: `https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`, text: await rawResponse.text() }
+}
+
+async function readGitHubDirectory(repository, path) {
+  try {
+    const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/contents/${path}`, {
+      headers: { accept: 'application/vnd.github+json' },
+    })
+    if (Array.isArray(payload)) return payload.filter((entry) => entry.type === 'file').slice(0, 12)
+    if (payload) return []
+  } catch (error) {
+    if (!error.message.includes('403')) throw error
+  }
+  const commonWorkflowNames = ['ci.yml', 'codeql.yml', 'legacy.yml', 'scorecard.yml', 'release.yml', 'deploy.yml', 'test.yml']
+  return commonWorkflowNames.map((name) => ({ name, type: 'file' }))
 }
 
 function packageDependencies(packageJson) {
@@ -65,6 +90,16 @@ async function collectRepository(repository, requestedPackage) {
   const lockFile = await readGitHubFile(repository, 'package-lock.json')
     || await readGitHubFile(repository, 'npm-shrinkwrap.json')
   const lockfile = lockFile ? JSON.parse(lockFile.text) : null
+  const workflowEntries = await readGitHubDirectory(repository, '.github/workflows')
+  const workflowFiles = (await Promise.all(workflowEntries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`)))).filter(Boolean)
+  const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path)))).filter(Boolean)
+  const workflowText = workflowFiles.map((file) => file.text).join('\n')
+  const ciSignals = {
+    workflowFiles: workflowFiles.map((file) => file.path),
+    runners: [...new Set([...workflowText.matchAll(/runs-on:\s*([^\s#]+)/g)].map((match) => match[1].includes('${{') ? 'matrix' : match[1]))],
+    deployHints: [...new Set(workflowText.split('\n').filter((line) => !line.trim().startsWith('#') && /\b(deploy|publish|release|production|staging)\b/i.test(line)).map((line) => line.trim()).filter(Boolean).slice(0, 12))],
+  }
+  const deploymentSignals = containerFiles.map((file) => ({ path: file.path, kind: file.path.toLowerCase().includes('compose') ? 'compose' : 'container' }))
   const resolvedVersion = resolveFromLockfile(lockfile, inferredPackage)
   const lockPackages = Object.entries(lockfile?.packages || {})
     .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
@@ -74,7 +109,7 @@ async function collectRepository(repository, requestedPackage) {
     collector: 'repository-extractor',
     status: 'completed',
     sourceUrl: packageFile.sourceUrl,
-    entities: Object.keys(dependencies).length + lockPackages.length,
+    entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length,
     repository: repository.slug,
     repositoryUrl: repository.url,
     synthetic: false,
@@ -86,7 +121,10 @@ async function collectRepository(repository, requestedPackage) {
       resolved: inferredPackage ? { [inferredPackage]: resolvedVersion || 'range-only' } : {},
       lockfile: lockFile?.path || null,
       lockPackages,
+      ciSignals,
+      deploymentSignals,
     },
+    sources: [packageFile, lockFile, ...workflowFiles, ...containerFiles].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
     observedAt: new Date().toISOString(),
   }
 }
