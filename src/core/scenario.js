@@ -92,8 +92,8 @@ export function createInitialState() {
   }
 }
 
-export function isComplete(state) {
-  return state.eventIndex >= EVENTS.length
+export function isComplete(state, eventCount = EVENTS.length) {
+  return state.eventIndex >= eventCount
 }
 
 export function getSpent(state) {
@@ -127,6 +127,24 @@ export function evaluateInterventions(state, graphNodes = NODES) {
     })
   }
   return plans.sort((left, right) => left.exposure - right.exposure || left.cost - right.cost || left.activeNodes - right.activeNodes)
+}
+
+export function startDefenseRound(state, events, actionId, graphNodes = NODES) {
+  const action = INTERVENTIONS.find((item) => item.id === actionId)
+  if (!action || state.eventIndex < events.length) return { state, events, round: 0 }
+  const round = Math.floor((events.length - EVENTS.length) / 3) + 1
+  const activeNodes = getActiveNodeIds({ ...state, eventIndex: events.length }, graphNodes).size
+  const prefix = `round-${round}-${events.length}`
+  return {
+    state: { ...state, running: true },
+    events: [
+      ...events,
+      { id: `${prefix}-control`, side: 'defense', actor: 'defender operator', intent: 'apply a control', label: 'Control applied', detail: `${action.title} reduced modeled exposure to ${getExposure(state)}%` },
+      { id: `${prefix}-countermove`, side: 'attack', actor: 'attack planner', intent: 'test the residual route', label: 'Residual route tested', detail: `The attacker searched the remaining graph after round ${round}` },
+      { id: `${prefix}-recomputed`, side: 'system', actor: 'orchestrator', intent: 'rebuild reachability', label: 'Path recalculated', detail: `${activeNodes} active nodes remain; the next response window is ready` },
+    ],
+    round,
+  }
 }
 
 export function getActiveNodeIds(state, graphNodes = NODES) {
@@ -180,8 +198,8 @@ export function getActiveNodeIds(state, graphNodes = NODES) {
   return active
 }
 
-export function advanceState(state) {
-  return { ...state, eventIndex: Math.min(EVENTS.length, state.eventIndex + 1), running: state.eventIndex + 1 < EVENTS.length }
+export function advanceState(state, eventCount = EVENTS.length) {
+  return { ...state, eventIndex: Math.min(eventCount, state.eventIndex + 1), running: state.eventIndex + 1 < eventCount }
 }
 
 export function toggleAction(state, id) {

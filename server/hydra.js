@@ -205,13 +205,13 @@ export async function persistIngestion(ingestion, signal) {
   return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', memoryCount: memories.length, result }
 }
 
-export async function persistDecision({ scenarioId, queryText, action, selectedActions, exposure, activeNodeIds }, signal) {
+export async function persistDecision({ scenarioId, queryText, action, selectedActions, exposure, activeNodeIds, round = 0 }, signal) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
-  const decisionKey = `${scenarioId}:${queryText}:${action}:${selectedActions.join(',')}`
+  const decisionKey = `${scenarioId}:${queryText}:round-${round}:${action}:${selectedActions.join(',')}`
   const decision = memory({
     id: `recoil:decision:${stableId(decisionKey)}`,
     title: `Recoil response decision · ${action}`,
-    text: `# Recoil response decision\n\n- Scenario: ${scenarioId}\n- Query: ${queryText}\n- Control selected: ${action}\n- Selected controls: ${selectedActions.join(', ') || 'none'}\n- Reachable exposure after decision: ${exposure}%\n- Active graph nodes after decision: ${activeNodeIds.join(', ') || 'none'}\n- This record describes a defensive state change; no package code was executed.`,
+    text: `# Recoil response decision\n\n- Scenario: ${scenarioId}\n- Query: ${queryText}\n- Control selected: ${action}\n- Selected controls: ${selectedActions.join(', ') || 'none'}\n- Reachable exposure after decision: ${exposure}%\n- Active graph nodes after decision: ${activeNodeIds.join(', ') || 'none'}\n- Defense round: ${round}\n- This record describes a defensive state change; no package code was executed.`,
     additionalMetadata: {
       recoil_kind: 'defense_decision',
       recoil_scenario_id: scenarioId,
@@ -220,6 +220,7 @@ export async function persistDecision({ scenarioId, queryText, action, selectedA
       recoil_selected_actions: selectedActions.join(','),
       recoil_exposure: exposure,
       recoil_active_node_ids: activeNodeIds.join(','),
+      recoil_round: round,
     },
   })
   const result = await ingest([decision], signal)

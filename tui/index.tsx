@@ -17,6 +17,7 @@ import {
   getExposure,
   getSpent,
   isComplete,
+  startDefenseRound,
   toggleAction,
 } from '../src/core/scenario.js'
 
@@ -48,38 +49,62 @@ function Label({ children }) {
 function App() {
   const renderer = useRenderer()
   const [state, setState] = useState(createInitialState())
+  const [events, setEvents] = useState(EVENTS)
   const [mode, setMode] = useState('incident')
 
   const compact = renderer.width < 126
-  const complete = isComplete(state)
+  const complete = isComplete(state, events.length)
+  const round = Math.floor((events.length - EVENTS.length) / 3)
   const activeNodes = getActiveNodeIds(state)
   const exposure = getExposure(state)
   const reduction = 100 - exposure
   const remainingBudget = Math.max(0, RESPONSE_BUDGET - getSpent(state))
-  const currentEvent = EVENTS[Math.min(state.eventIndex, EVENTS.length - 1)]
+  const currentEvent = events[Math.min(state.eventIndex, events.length - 1)]
   const bestPlan = evaluateInterventions(state)[0]
 
   useEffect(() => {
     if (!state.running || complete) return undefined
     const timer = setTimeout(() => {
       setState((current) => {
-        const next = advanceState(current)
-        return { ...next, running: !isComplete(next) }
+        const next = advanceState(current, events.length)
+        return { ...next, running: !isComplete(next, events.length) }
       })
     }, 700)
     return () => clearTimeout(timer)
-  }, [state.running, state.eventIndex, complete])
+  }, [state.running, state.eventIndex, complete, events.length])
+
+  function applyAction(action) {
+    setState((current) => {
+      const next = toggleAction(current, action.id)
+      if (next === current) return current
+      if (current.eventIndex >= events.length) {
+        const round = startDefenseRound(next, events, action.id)
+        setEvents(round.events)
+        return round.state
+      }
+      return next
+    })
+  }
 
   useKeyboard((key) => {
     if (key.name === 'q' || key.name === 'escape') process.exit(0)
-    if (key.name === 's') setState((current) => ({ ...current, running: true, eventIndex: 0 }))
-    if (key.name === 'space') setState((current) => ({ ...advanceState(current), running: !isComplete(advanceState(current)) }))
-    if (key.name === 'r') setState(createInitialState())
+    if (key.name === 's') {
+      setEvents(EVENTS)
+      setState((current) => ({ ...current, running: true, eventIndex: 0 }))
+    }
+    if (key.name === 'space') setState((current) => {
+      const next = advanceState(current, events.length)
+      return { ...next, running: !isComplete(next, events.length) }
+    })
+    if (key.name === 'r') {
+      setEvents(EVENTS)
+      setState(createInitialState())
+    }
     if (key.name === 'i') setMode('incident')
     if (key.name === 'c') setMode('ctf')
     if (['1', '2', '3'].includes(key.name)) {
       const action = INTERVENTIONS[Number(key.name) - 1]
-      if (action) setState((current) => toggleAction(current, action.id))
+      if (action) applyAction(action)
     }
   })
 
@@ -142,7 +167,7 @@ function App() {
       </box>
       <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <text fg={C.faint}>attack source ●  reachable ●  observed ●</text>
-        <text fg={C.muted}>events {state.eventIndex}/{EVENTS.length}</text>
+        <text fg={C.muted}>events {state.eventIndex}/{events.length}</text>
       </box>
     </Panel>
   )
@@ -202,9 +227,9 @@ function App() {
         )}
       </box>
 
-      <Panel title="ATTACK / DEFENSE SEQUENCE" style={{ height: compact ? 3 : 8 }}>
-        {compact ? <text fg={currentEvent.side === 'attack' ? C.orange : currentEvent.side === 'defense' ? C.green : C.muted}>{state.eventIndex}/{EVENTS.length} · {currentEvent.side.toUpperCase()} · {currentEvent.label} · {currentEvent.detail}</text> : <box style={{ flexDirection: 'row', gap: 2 }}>
-          {EVENTS.map((event, index) => {
+      <Panel title={`ATTACK / DEFENSE SEQUENCE · ROUND ${round}`} style={{ height: compact ? 3 : 8 }}>
+        {compact ? <text fg={currentEvent.side === 'attack' ? C.orange : currentEvent.side === 'defense' ? C.green : C.muted}>{state.eventIndex}/{events.length} · {currentEvent.side.toUpperCase()} · {currentEvent.label} · {currentEvent.detail}</text> : <box style={{ flexDirection: 'row', gap: 2 }}>
+          {events.map((event, index) => {
             const completeEvent = index < state.eventIndex
             return <box key={event.id} style={{ flexDirection: 'column', flexGrow: 1 }}>
               <text fg={completeEvent ? C.green : index === state.eventIndex ? C.orange : C.faint}>{completeEvent ? '✓' : index === state.eventIndex ? '●' : '○'} {event.label}</text>

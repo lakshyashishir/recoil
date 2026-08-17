@@ -32,7 +32,6 @@ import {
   getActiveNodeIds,
   getExposure,
   getSpent,
-  isComplete,
   toggleAction as toggleScenarioAction,
 } from './core/scenario.js'
 import './style.css'
@@ -68,6 +67,7 @@ function App() {
   const [query, setQuery] = useState(SCENARIO.query)
   const [running, setRunning] = useState(false)
   const [eventIndex, setEventIndex] = useState(0)
+  const [round, setRound] = useState(0)
   const [selectedActions, setSelectedActions] = useState(['upgrade'])
   const [selectedNode, setSelectedNode] = useState('release')
   const [backendStatus, setBackendStatus] = useState('checking')
@@ -77,7 +77,7 @@ function App() {
   const [recommendation, setRecommendation] = useState(null)
   const [report, setReport] = useState(null)
 
-  const completed = isComplete({ eventIndex })
+  const completed = eventIndex >= events.length
   const exposure = getExposure({ eventIndex, selectedActions })
   const reduction = 100 - exposure
   const currentEvent = events[Math.min(eventIndex, events.length - 1)]
@@ -121,10 +121,13 @@ function App() {
 
   function startSimulation() {
     setEventIndex(0)
+    setRound(0)
     setRunning(true)
     setSelectedActions(['upgrade'])
     setRecommendation(null)
     setReport(null)
+    setEvents(EVENTS)
+    setGraph({ nodes: NODES, edges: EDGES })
     setMesh({ status: 'running', collectors: [], hydra: 'running', recallChunks: 0, lastDecision: null })
     fetch('/api/scenarios/0017/run', {
       method: 'POST',
@@ -135,6 +138,7 @@ function App() {
       .then((payload) => {
         setGraph({ nodes: payload.graph?.nodes || NODES, edges: payload.graph?.edges || EDGES })
         setEvents(payload.events || EVENTS)
+        setRound(payload.scenario?.round || 0)
         setMesh({
           status: payload.ingestion?.status || 'partial',
           collectors: payload.ingestion?.collectors || [],
@@ -156,6 +160,7 @@ function App() {
   function resetSimulation() {
     setRunning(false)
     setEventIndex(0)
+    setRound(0)
     setSelectedActions(['upgrade'])
     setGraph({ nodes: NODES, edges: EDGES })
     setEvents(EVENTS)
@@ -177,15 +182,19 @@ function App() {
     const desired = recommendation.actions || []
     const changes = [...new Set([...selectedActions, ...desired])].filter((id) => selectedActions.includes(id) !== desired.includes(id))
     setSelectedActions(desired)
-    changes.forEach((id) => {
-      fetch('/api/scenarios/0017/action', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id }),
-      }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Decision failed')))
-        .then((payload) => setMesh((current) => ({ ...current, hydra: payload.hydra?.status || current.hydra, lastDecision: payload.hydra?.lastDecision || current.lastDecision })))
-        .catch(() => {})
-    })
+    changes.reduce((chain, id) => chain.then(() => fetch('/api/scenarios/0017/action', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Decision failed')))
+      .then((payload) => {
+        setSelectedActions(payload.state?.selectedActions || desired)
+        setEvents(payload.events || EVENTS)
+        setEventIndex(payload.state?.eventIndex ?? eventIndex)
+        setRunning(Boolean(payload.state?.running))
+        setRound(payload.scenario?.round || 0)
+        setMesh((current) => ({ ...current, hydra: payload.hydra?.status || current.hydra, lastDecision: payload.hydra?.lastDecision || current.lastDecision }))
+      })), Promise.resolve()).catch(() => {})
   }
 
   function collectorStatus(name) {
@@ -201,11 +210,18 @@ function App() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ id }),
     }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Decision failed')))
-      .then((payload) => setMesh((current) => ({
-        ...current,
-        hydra: payload.hydra?.status || current.hydra,
-        lastDecision: payload.hydra?.lastDecision || current.lastDecision,
-      })))
+      .then((payload) => {
+        setEvents(payload.events || EVENTS)
+        setEventIndex(payload.state?.eventIndex ?? eventIndex)
+        setRunning(Boolean(payload.state?.running))
+        setSelectedActions(payload.state?.selectedActions || [])
+        setRound(payload.scenario?.round || 0)
+        setMesh((current) => ({
+          ...current,
+          hydra: payload.hydra?.status || current.hydra,
+          lastDecision: payload.hydra?.lastDecision || current.lastDecision,
+        }))
+      })
       .catch(() => setMesh((current) => ({ ...current, lastDecision: { status: 'local-only', action: id } })))
   }
 
@@ -284,7 +300,7 @@ function App() {
         <section className="graph-panel">
           <div className="panel-header">
             <div>
-              <div className="eyebrow">ATTACK PATH  /  REACHABILITY</div>
+              <div className="eyebrow">ATTACK PATH  /  REACHABILITY  /  ROUND {round}</div>
               <h1>Package to deployment surface</h1>
               <p className="phase-detail">{currentEvent.detail}</p>
               <div className="phase-meta"><span>{currentEvent.actor}</span><span>intent: {currentEvent.intent}</span></div>
@@ -298,7 +314,7 @@ function App() {
           </div>
 
           <div className="graph-canvas">
-            <div className="canvas-watermark">CASE 0017  ·  RESOLVED GRAPH</div>
+            <div className="canvas-watermark">CASE 0017  ·  LIVE REACHABILITY MODEL</div>
             <div className="grid-lines" />
             <svg className="edge-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               {graph.edges.map(([from, to]) => {
@@ -334,14 +350,15 @@ function App() {
           </div>
 
           <div className="event-strip">
-            <div className="event-strip-head"><span className="section-label">Attack / defense sequence</span><span className="event-count">{eventIndex} / {events.length} steps</span></div>
+            <div className="event-strip-head"><span className="section-label">Attack / defense sequence</span><span className="event-count">round {round} · {eventIndex} / {events.length} steps</span></div>
+            <div className="loop-legend"><span>observe</span><i>→</i><span>choose control</span><i>→</i><span>test residual path</span><i>→</i><span>recalculate</span></div>
             <div className="timeline-track">
               {events.map((event, index) => {
                 const Icon = eventIcons[event.id] || Activity
                 const isComplete = index < eventIndex
                 const isCurrent = index === eventIndex && running
                 return (
-                  <div className={`timeline-event ${event.side} ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`} key={event.label}>
+                  <div className={`timeline-event ${event.side} ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`} key={event.id}>
                     <div className="timeline-marker">{isComplete ? <Check size={12} /> : <Icon size={12} />}</div>
                     <div><strong>{event.label}</strong><span>{event.actor} · {event.detail}</span></div>
                   </div>
@@ -381,6 +398,7 @@ function App() {
           )}
 
           <div className="intervention-list">
+            <div className="response-window">{completed ? `Round ${round} complete · choose a control to open the next attack test.` : 'Controls are applied when the response window opens.'}</div>
             {INTERVENTIONS.map((action) => {
               const Icon = actionIcons[action.id]
               const isSelected = selectedActions.includes(action.id)

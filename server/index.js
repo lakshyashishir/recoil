@@ -12,6 +12,7 @@ import {
   evaluateInterventions,
   getActiveNodeIds,
   getExposure,
+  startDefenseRound,
   toggleAction,
 } from '../src/core/scenario.js'
 import { runIngestion } from './collectors.js'
@@ -114,6 +115,7 @@ function buildReport(record) {
       activeNodes: activeNodeIds.length,
       reachableExposure: getExposure(record.state),
       eventCount: record.events.length,
+      defenseRounds: record.round || 0,
       completed: record.state.eventIndex >= record.events.length,
     },
     recommendation: recommended,
@@ -143,7 +145,7 @@ function snapshot(record) {
   const sourceStatus = (collectorName) => collectors.get(collectorName)?.status || (record.ingestion?.status === 'running' ? 'working' : 'ready')
   return {
     id: record.id,
-    scenario: { ...SCENARIO, query: record.query, mode: record.mode },
+    scenario: { ...SCENARIO, query: record.query, mode: record.mode, round: record.round || 0 },
     graph: { ...record.graph, activeNodeIds: [...getActiveNodeIds(state, record.graph.nodes)] },
     events: record.events,
     interventions: INTERVENTIONS,
@@ -170,6 +172,7 @@ function getOrCreate(id = '0017', body = {}) {
       state: createInitialState(),
       graph: { nodes: NODES, edges: EDGES },
       events: EVENTS,
+      round: 0,
       ingestion: { status: 'not_started', collectors: [] },
       hydra: { status: 'not_started', memoryCount: 0, recall: null },
     })
@@ -210,11 +213,14 @@ function route(req, res) {
       record.state = createInitialState()
       record.graph = { nodes: NODES, edges: EDGES }
       record.events = EVENTS
+      record.round = 0
       record.ingestion = { status: 'not_started', collectors: [] }
       record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
       return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'ingest') {
+      record.state = { ...createInitialState(), running: true }
+      record.round = 0
       record.ingestion = { status: 'running', collectors: [] }
       return runIngestion({ query: record.query, scenarioId: record.id }).then((result) => {
         record.ingestion = result
@@ -249,6 +255,13 @@ function route(req, res) {
         const changed = nextState !== record.state
         record.state = nextState
         if (!changed) return json(res, 200, snapshot(record))
+        const wasComplete = record.state.eventIndex >= record.events.length
+        if (wasComplete) {
+          const round = startDefenseRound(record.state, record.events, payload.id, record.graph.nodes)
+          record.state = round.state
+          record.events = round.events
+          record.round = round.round
+        }
         return persistDecision({
           scenarioId: record.id,
           queryText: record.query,
@@ -256,6 +269,7 @@ function route(req, res) {
           selectedActions: record.state.selectedActions,
           exposure: getExposure(record.state),
           activeNodeIds: [...getActiveNodeIds(record.state, record.graph.nodes)],
+          round: record.round || 0,
         }).then((persisted) => {
           record.hydra = { ...record.hydra, lastDecision: persisted }
           return json(res, 200, snapshot(record))
@@ -269,11 +283,14 @@ function route(req, res) {
       return body(req).then((payload) => {
         if (typeof payload.query === 'string' && payload.query.trim()) record.query = payload.query.trim()
         record.state = { ...createInitialState(), running: true }
+        record.graph = { nodes: NODES, edges: EDGES }
+        record.events = EVENTS
+        record.round = 0
         return json(res, 202, snapshot(record))
       }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
     }
     if (req.method === 'POST' && action === 'advance') {
-      record.state = advanceState(record.state)
+      record.state = advanceState(record.state, record.events.length)
       return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'evaluate') {
