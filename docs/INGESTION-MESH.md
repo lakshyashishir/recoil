@@ -26,6 +26,10 @@ This keeps the demo reliable and protects API credits:
 4. Use Browser Use only for visible proof and a live evidence moment.
 5. Use Apify only when discovery or blocked pages justify it.
 
+## Target resolution
+
+The scenario input is part of the ingestion contract. Recoil extracts an npm package and optional version from inputs such as `npm:lodash@4.17.21`; CVE/GHSA identifiers are preserved as advisory targets. When no package is present, the ua-parser-js seed remains the deterministic fallback. Registry and OSV results are therefore real for the requested package, while the deployment graph remains explicitly synthetic until a public repository or user-provided manifest is supplied.
+
 ## Shared event contract
 
 Every collector emits the same event shape:

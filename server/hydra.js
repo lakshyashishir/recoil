@@ -97,15 +97,18 @@ function memory({ id, title, text, additionalMetadata = {} }) {
 }
 
 function buildMemories(ingestion) {
+  const scenarioId = ingestion.scenarioId || '0017'
+  const packageName = ingestion.package || 'ua-parser-js'
+  const advisoryId = ingestion.target?.advisoryId || 'not specified'
   const memories = [memory({
-    id: `recoil:scenario:${stableId('0017')}`,
-    title: 'Recoil incident anchor · ua-parser-js compromise',
-    text: `# Recoil incident anchor\n\n- Scenario: 0017\n- Query: CVE-2021-4229 / fixture/storefront-api\n- Package: ua-parser-js\n- Compromised releases: 0.7.29, 0.8.0, 1.0.0\n- Fixed releases: 0.7.30, 0.8.1, 1.0.1\n- Synthetic deployment data is explicitly marked synthetic.\n- No package code is executed by Recoil.`,
+    id: `recoil:scenario:${stableId(`${scenarioId}:${ingestion.query || packageName}`)}`,
+    title: `Recoil incident anchor · ${packageName}`,
+    text: `# Recoil incident anchor\n\n- Scenario: ${scenarioId}\n- Query: ${ingestion.query || packageName}\n- Package: ${packageName}\n- Advisory target: ${advisoryId}\n- Synthetic deployment data is explicitly marked synthetic.\n- No package code is executed by Recoil.`,
     additionalMetadata: {
       recoil_kind: 'incident',
-      recoil_scenario_id: '0017',
-      recoil_package: 'ua-parser-js',
-      recoil_advisory: 'CVE-2021-4229',
+      recoil_scenario_id: scenarioId,
+      recoil_package: packageName,
+      recoil_advisory: advisoryId,
       recoil_graph_node_id: 'release',
     },
   })]
@@ -123,7 +126,7 @@ function buildMemories(ingestion) {
         recoil_status: collector.status,
         recoil_source_url: sourceUrl,
         recoil_synthetic: Boolean(collector.synthetic),
-        recoil_scenario_id: '0017',
+        recoil_scenario_id: scenarioId,
         recoil_graph_node_id: collector.collector,
         recoil_graph_edges: JSON.stringify(collector.collector === 'repository-extractor'
           ? [['release', 'repo'], ['repo', 'payments'], ['repo', 'gateway']]
@@ -159,7 +162,7 @@ export async function persistIngestion(ingestion, signal) {
   return { status: 'persisted', memoryCount: memories.length, result }
 }
 
-export async function recall(queryText, signal) {
+export async function recall(queryText, signal, scenarioId = '0017') {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', chunks: [], graphContext: null }
   const result = await query({
     database: databaseId(),
@@ -172,7 +175,7 @@ export async function recall(queryText, signal) {
     numRelatedChunks: 3,
     graphContext: true,
     recencyBias: 0.2,
-    metadataFilters: { additionalMetadata: { recoil_scenario_id: '0017' } },
+    metadataFilters: { additionalMetadata: { recoil_scenario_id: scenarioId } },
     additionalContext: 'This is a software supply-chain attack-defense investigation. Prioritize packages, advisories, repositories, maintainers, source provenance, dates, propagation edges, and contradictions.',
   }, signal)
   return {

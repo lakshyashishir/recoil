@@ -1,4 +1,6 @@
-const PACKAGE_NAME = 'ua-parser-js'
+const DEFAULT_PACKAGE = 'ua-parser-js'
+const DEFAULT_ADVISORY = 'CVE-2021-4229'
+const KNOWN_AFFECTED_VERSIONS = ['0.7.29', '0.8.0', '1.0.0']
 
 const incidentSources = [
   { label: 'CERT-EU advisory', url: 'https://cert.europa.eu/publications/security-advisories/2021-057/' },
@@ -12,28 +14,46 @@ async function readJson(url, options) {
   return response.json()
 }
 
-async function collectRegistry() {
-  const payload = await readJson(`https://registry.npmjs.org/${PACKAGE_NAME}`)
+function inferTarget(query = '') {
+  const text = String(query)
+  const advisoryId = text.match(/\b(?:CVE-\d{4}-\d+|GHSA-[a-z0-9-]+)\b/i)?.[0]?.toUpperCase() || null
+  const packageCandidates = [...text.matchAll(/(?:npm:)?(@[a-z0-9._-]+\/[a-z0-9._-]+|[a-z0-9][a-z0-9._-]+)(?:@(\d+\.\d+\.\d+))?/gi)]
+  const packageMatch = packageCandidates.find((match) => {
+    const value = match[1].toLowerCase()
+    return !value.startsWith('cve-') && !value.startsWith('ghsa-') && !['fixture', 'storefront-api', 'package', 'npm'].includes(value)
+  })
+  return {
+    packageName: packageMatch?.[1] || DEFAULT_PACKAGE,
+    version: packageMatch?.[2] || null,
+    advisoryId,
+    inferred: Boolean(packageMatch),
+  }
+}
+
+async function collectRegistry(packageName) {
+  const payload = await readJson(`https://registry.npmjs.org/${encodeURIComponent(packageName)}`)
   const versions = Object.keys(payload.versions || {})
   return {
     collector: 'registry-resolver',
     status: 'completed',
-    sourceUrl: `https://registry.npmjs.org/${PACKAGE_NAME}`,
+    sourceUrl: `https://registry.npmjs.org/${packageName}`,
     entities: versions.length,
     package: payload.name,
     latest: payload['dist-tags']?.latest,
-    affectedVersions: versions.filter((version) => ['0.7.29', '0.8.0', '1.0.0'].includes(version)),
-    fixedVersions: ['0.7.30', '0.8.1', '1.0.1'].filter((version) => versions.includes(version)),
+    affectedVersions: packageName === DEFAULT_PACKAGE ? KNOWN_AFFECTED_VERSIONS : [],
+    fixedVersions: packageName === DEFAULT_PACKAGE
+      ? ['0.7.30', '0.8.1', '1.0.1'].filter((version) => versions.includes(version))
+      : [],
     maintainers: (payload.maintainers || []).map((maintainer) => maintainer.name),
     observedAt: new Date().toISOString(),
   }
 }
 
-async function collectAdvisories() {
+async function collectAdvisories(packageName, advisoryId) {
   const payload = await readJson('https://api.osv.dev/v1/query', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ package: { ecosystem: 'npm', name: PACKAGE_NAME } }),
+    body: JSON.stringify({ package: { ecosystem: 'npm', name: packageName } }),
   })
   const vulnerabilities = payload.vulns || []
   return {
@@ -41,6 +61,7 @@ async function collectAdvisories() {
     status: 'completed',
     sourceUrl: 'https://api.osv.dev/v1/query',
     entities: vulnerabilities.length,
+    targetAdvisory: vulnerabilities.find((vulnerability) => vulnerability.id?.toUpperCase() === advisoryId) || null,
     vulnerabilities: vulnerabilities.map((vulnerability) => ({
       id: vulnerability.id,
       summary: vulnerability.summary,
@@ -52,8 +73,14 @@ async function collectAdvisories() {
   }
 }
 
-async function collectIncidentSources() {
-  const results = await Promise.all(incidentSources.map(async (source) => {
+async function collectIncidentSources(packageName) {
+  const sources = packageName === DEFAULT_PACKAGE
+    ? incidentSources
+    : [
+        { label: 'npm package page', url: `https://www.npmjs.com/package/${encodeURIComponent(packageName)}` },
+        { label: 'OSV package query', url: `https://osv.dev/list?q=${encodeURIComponent(packageName)}` },
+      ]
+  const results = await Promise.all(sources.map(async (source) => {
     try {
       const response = await fetch(source.url, { headers: { 'user-agent': 'Recoil-HackHydra/0.1' } })
       const html = await response.text()
@@ -72,7 +99,9 @@ async function collectIncidentSources() {
   }
 }
 
-function collectRepositoryFixture() {
+function collectRepositoryFixture(packageName, version) {
+  const dependencyRange = version ? `^${version}` : packageName === DEFAULT_PACKAGE ? '^0.7.28' : '*'
+  const resolvedVersion = version || (packageName === DEFAULT_PACKAGE ? '0.7.29' : 'registry-latest')
   return {
     collector: 'repository-extractor',
     status: 'completed',
@@ -81,8 +110,8 @@ function collectRepositoryFixture() {
     repository: 'fixture/storefront-api',
     synthetic: true,
     manifest: {
-      dependencies: { 'ua-parser-js': '^0.7.28' },
-      resolved: { 'ua-parser-js': '0.7.29' },
+      dependencies: { [packageName]: dependencyRange },
+      resolved: { [packageName]: resolvedVersion },
       deploymentEvents: [
         { service: 'storefront-web', region: 'us-east-1', deployedAt: '2021-10-22T14:10:00Z' },
         { service: 'checkout-worker', region: 'eu-west-1', deployedAt: '2021-10-22T15:40:00Z' },
@@ -92,7 +121,9 @@ function collectRepositoryFixture() {
   }
 }
 
-export async function runIngestion() {
+export async function runIngestion({ query = `${DEFAULT_ADVISORY} / fixture/storefront-api`, scenarioId = '0017' } = {}) {
+  const target = inferTarget(query)
+  const packageName = target.packageName
   const collectors = []
   const run = async (name, fn) => {
     try {
@@ -102,14 +133,17 @@ export async function runIngestion() {
     }
   }
 
-  await run('registry-resolver', collectRegistry)
-  await run('advisory-resolver', collectAdvisories)
-  await run('incident-researcher', collectIncidentSources)
-  collectors.push(collectRepositoryFixture())
+  await run('registry-resolver', () => collectRegistry(packageName))
+  await run('advisory-resolver', () => collectAdvisories(packageName, target.advisoryId))
+  await run('incident-researcher', () => collectIncidentSources(packageName))
+  collectors.push(collectRepositoryFixture(packageName, target.version))
 
   return {
     status: collectors.some((collector) => collector.status === 'failed') ? 'partial' : 'completed',
-    package: PACKAGE_NAME,
+    query,
+    scenarioId,
+    package: packageName,
+    target,
     collectors,
     completedAt: new Date().toISOString(),
   }

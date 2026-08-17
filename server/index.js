@@ -95,7 +95,7 @@ function route(req, res) {
     }
     if (req.method === 'POST' && action === 'ingest') {
       record.ingestion = { status: 'running', collectors: [] }
-      return runIngestion().then((result) => {
+      return runIngestion({ query: record.query, scenarioId: record.id }).then((result) => {
         record.ingestion = result
         return persistIngestion(result).then((persisted) => {
           record.hydra = { ...record.hydra, ...persisted, persistedAt: persisted.status === 'persisted' ? new Date().toISOString() : null }
@@ -114,7 +114,7 @@ function route(req, res) {
       }).catch((error) => json(res, 502, { error: error.message, hydra: hydraStatus() }))
     }
     if (req.method === 'POST' && action === 'recall') {
-      return body(req).then((payload) => recall(payload.query || record.query)).then((result) => {
+      return body(req).then((payload) => recall(payload.query || record.query, undefined, record.id)).then((result) => {
         record.hydra = { ...record.hydra, recall: result, recalledAt: new Date().toISOString() }
         return json(res, 200, snapshot(record))
       }).catch((error) => json(res, 502, { error: error.message, hydra: hydraStatus() }))
