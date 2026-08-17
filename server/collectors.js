@@ -56,14 +56,22 @@ async function collectAdvisories(packageName, advisoryId) {
     body: JSON.stringify({ package: { ecosystem: 'npm', name: packageName } }),
   })
   const vulnerabilities = payload.vulns || []
+  const normalizedAdvisory = advisoryId?.toUpperCase()
+  const targetAdvisory = vulnerabilities.find((vulnerability) => {
+    if (!normalizedAdvisory) return false
+    return vulnerability.id?.toUpperCase() === normalizedAdvisory
+      || (vulnerability.aliases || []).some((alias) => alias.toUpperCase() === normalizedAdvisory)
+      || (vulnerability.references || []).some((reference) => reference.url?.toUpperCase().includes(normalizedAdvisory))
+  }) || null
   return {
     collector: 'advisory-resolver',
     status: 'completed',
     sourceUrl: 'https://api.osv.dev/v1/query',
     entities: vulnerabilities.length,
-    targetAdvisory: vulnerabilities.find((vulnerability) => vulnerability.id?.toUpperCase() === advisoryId) || null,
+    targetAdvisory,
     vulnerabilities: vulnerabilities.map((vulnerability) => ({
       id: vulnerability.id,
+      aliases: vulnerability.aliases,
       summary: vulnerability.summary,
       published: vulnerability.published,
       modified: vulnerability.modified,

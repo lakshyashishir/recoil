@@ -27,9 +27,11 @@ import {
   EVENTS,
   INTERVENTIONS,
   NODES,
+  RESPONSE_BUDGET,
   SCENARIO,
   getActiveNodeIds,
   getExposure,
+  getSpent,
   isComplete,
   toggleAction as toggleScenarioAction,
 } from './core/scenario.js'
@@ -45,8 +47,11 @@ const eventIcons = {
 
 const actionIcons = {
   upgrade: ArrowDownRight,
+  'block-promotion': ShieldCheck,
   quarantine: LockKeyhole,
   revoke: Shield,
+  'rotate-secrets': LockKeyhole,
+  restore: RotateCcw,
 }
 
 function formatPct(value) {
@@ -63,16 +68,30 @@ function App() {
   const [backendStatus, setBackendStatus] = useState('checking')
   const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0 })
   const [graph, setGraph] = useState({ nodes: NODES, edges: EDGES })
+  const [events, setEvents] = useState(EVENTS)
 
   const completed = isComplete({ eventIndex })
   const exposure = getExposure({ eventIndex, selectedActions })
   const reduction = 100 - exposure
+  const currentEvent = events[Math.min(eventIndex, events.length - 1)]
 
   useEffect(() => {
     if (!running || completed) return undefined
-    const timer = window.setTimeout(() => setEventIndex((value) => value + 1), 680)
+    const timer = window.setTimeout(() => {
+      fetch('/api/scenarios/0017/advance', { method: 'POST' })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('Advance failed')))
+        .then((payload) => {
+          setEventIndex(payload.state?.eventIndex ?? events.length)
+          setRunning(Boolean(payload.state?.running))
+        })
+        .catch(() => setEventIndex((value) => {
+          const next = Math.min(events.length, value + 1)
+          if (next >= events.length) setRunning(false)
+          return next
+        }))
+    }, 780)
     return () => window.clearTimeout(timer)
-  }, [running, eventIndex, completed])
+  }, [running, eventIndex, completed, events])
 
   const activeNodes = useMemo(() => getActiveNodeIds({ eventIndex, selectedActions }), [eventIndex, selectedActions])
 
@@ -95,6 +114,7 @@ function App() {
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('Ingestion failed')))
       .then((payload) => {
         setGraph({ nodes: payload.graph?.nodes || NODES, edges: payload.graph?.edges || EDGES })
+        setEvents(payload.events || EVENTS)
         setMesh({
           status: payload.ingestion?.status || 'partial',
           collectors: payload.ingestion?.collectors || [],
@@ -117,6 +137,7 @@ function App() {
     setEventIndex(0)
     setSelectedActions(['upgrade'])
     setGraph({ nodes: NODES, edges: EDGES })
+    setEvents(EVENTS)
     setMesh({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0 })
     fetch('/api/scenarios/0017/reset', { method: 'POST' }).catch(() => {})
   }
@@ -143,18 +164,18 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-lockup">
-          <div className="brand-mark"><span /><span /><span /><span /></div>
+            <div className="brand-mark" aria-hidden="true"><span /></div>
           <div>
             <div className="brand-name">RECOIL</div>
-            <div className="brand-subtitle">software supply-chain defense</div>
+            <div className="brand-subtitle">incident operations</div>
           </div>
         </div>
 
         <div className="topbar-center">
           <span className="live-dot" />
-          <span>simulation environment</span>
+          <span>live case workspace</span>
           <span className="topbar-separator">/</span>
-          <span className="muted">public evidence only</span>
+          <span className="muted">evidence-led analysis</span>
         </div>
 
         <div className="topbar-actions">
@@ -165,40 +186,40 @@ function App() {
 
       <main className="workspace">
         <aside className="left-rail">
-          <div className="eyebrow">CASE FILE  /  0017</div>
-          <div className="case-heading">Dependency<br /><em>aftershock</em></div>
-          <p className="case-summary">Model a compromise, trace its blast radius, then find the smallest defensive move.</p>
+          <div className="eyebrow">CASE 0017  /  ACTIVE</div>
+          <div className="case-heading">Supply-chain<br /><em>exposure</em></div>
+          <p className="case-summary">Trace the package from publication to the services and data it can reach.</p>
 
           <div className="rail-section">
-            <div className="section-label">Scenario</div>
+            <div className="section-label">Investigation target</div>
             <div className="scenario-input-wrap">
               <Terminal size={15} />
               <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Scenario input" />
             </div>
             <button className="run-button" onClick={startSimulation} disabled={running && !completed}>
               <Play size={15} fill="currentColor" />
-              {running && !completed ? 'Simulating path' : 'Run simulation'}
+              {running && !completed ? 'Tracing attack path' : 'Start investigation'}
               <ChevronRight size={15} />
             </button>
           </div>
 
           <div className="rail-section mode-section">
-            <div className="section-label">Operating mode</div>
+            <div className="section-label">Operating context</div>
             <div className="mode-switch">
               <button className={mode === 'incident' ? 'active' : ''} onClick={() => setMode('incident')}>
-                <ShieldCheck size={14} /> Incident
+                <ShieldCheck size={14} /> Evidence review
               </button>
               <button className={mode === 'simulation' ? 'active' : ''} onClick={() => setMode('simulation')}>
-                <Crosshair size={14} /> CTF mode
+                <Crosshair size={14} /> Adversarial drill
               </button>
             </div>
             <p className="mode-note">
-              {mode === 'incident' ? 'Start from an observed advisory or package event.' : 'Choose the attack. Defend with a fixed response budget.'}
+              {mode === 'incident' ? 'Start with an observed advisory or package event.' : 'Advance the attacker and spend controls to contain it.'}
             </p>
           </div>
 
           <div className="rail-section source-section">
-            <div className="section-label">Evidence sources</div>
+            <div className="section-label">Collection status</div>
             <div className="source-row"><span className="source-icon orange"><AlertTriangle size={13} /></span><span>OSV advisory</span><span className="source-state">{collectorStatus('advisory-resolver')}</span></div>
             <div className="source-row"><span className="source-icon blue"><GitBranch size={13} /></span><span>npm registry</span><span className="source-state">{collectorStatus('registry-resolver')}</span></div>
             <div className="source-row"><span className="source-icon white"><GitBranch size={13} /></span><span>GitHub manifest</span><span className="source-state">{collectorStatus('repository-extractor')}</span></div>
@@ -214,10 +235,12 @@ function App() {
         <section className="graph-panel">
           <div className="panel-header">
             <div>
-              <div className="eyebrow">LIVE GRAPH / ATTACK PATH</div>
-              <h1>Where can the compromise travel?</h1>
+              <div className="eyebrow">ATTACK PATH  /  REACHABILITY</div>
+              <h1>Package to deployment surface</h1>
+              <p className="phase-detail">{currentEvent.detail}</p>
             </div>
             <div className="panel-header-actions">
+              <div className={`phase-summary ${currentEvent.side}`}><span className="phase-kicker">NOW</span><strong>{currentEvent.side === 'attack' ? 'ATTACKER' : currentEvent.side === 'defense' ? 'DEFENDER' : 'SYSTEM'}</strong><span>{currentEvent.label}</span></div>
               <div className="graph-stat"><span className="muted">nodes</span><strong>{String(graph.nodes.length).padStart(2, '0')}</strong></div>
               <div className="graph-stat"><span className="muted">edges</span><strong>{String(graph.edges.length).padStart(2, '0')}</strong></div>
               <button className="reset-button" onClick={resetSimulation}><RotateCcw size={14} /> reset</button>
@@ -225,7 +248,7 @@ function App() {
           </div>
 
           <div className="graph-canvas">
-            <div className="canvas-watermark">RECOIL / GRAPH 0017</div>
+            <div className="canvas-watermark">CASE 0017  ·  RESOLVED GRAPH</div>
             <div className="grid-lines" />
             <svg className="edge-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               {graph.edges.map(([from, to]) => {
@@ -235,8 +258,8 @@ function App() {
                 return start && end ? <line key={`${from}-${to}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={isActive ? 'graph-edge active' : 'graph-edge'} /> : null
               })}
             </svg>
-            <div className="graph-axis axis-x">DEPENDENCY DIRECTION  →</div>
-            <div className="graph-axis axis-y">TRUST SURFACE</div>
+            <div className="graph-axis axis-x">dependency → service → data</div>
+            <div className="graph-axis axis-y">trust boundary</div>
             {graph.nodes.map((node) => {
               const isActive = activeNodes.has(node.id)
               const isSelected = selectedNode === node.id
@@ -261,14 +284,14 @@ function App() {
           </div>
 
           <div className="event-strip">
-            <div className="event-strip-head"><span className="section-label">Investigation log</span><span className="event-count">{eventIndex} / {EVENTS.length} events</span></div>
+            <div className="event-strip-head"><span className="section-label">Attack / defense sequence</span><span className="event-count">{eventIndex} / {events.length} steps</span></div>
             <div className="timeline-track">
-              {EVENTS.map((event, index) => {
-                const Icon = eventIcons[event.id]
+              {events.map((event, index) => {
+                const Icon = eventIcons[event.id] || Activity
                 const isComplete = index < eventIndex
                 const isCurrent = index === eventIndex && running
                 return (
-                  <div className={`timeline-event ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`} key={event.label}>
+                  <div className={`timeline-event ${event.side} ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`} key={event.label}>
                     <div className="timeline-marker">{isComplete ? <Check size={12} /> : <Icon size={12} />}</div>
                     <div><strong>{event.label}</strong><span>{event.detail}</span></div>
                   </div>
@@ -280,9 +303,9 @@ function App() {
 
         <aside className="right-panel">
           <div className="right-panel-header">
-            <div className="eyebrow">DEFENSE LAB</div>
-            <h2>Find containment.</h2>
-            <p>Choose interventions. Recoil will compare the resulting graph state.</p>
+            <div className="eyebrow">RESPONSE PLAN  /  DEFENDER</div>
+            <h2>Cut the reachable path.</h2>
+            <p>Controls change the active graph. Use the smallest response that closes the exposed route.</p>
           </div>
 
           <div className="impact-summary">
@@ -291,7 +314,7 @@ function App() {
             <div className="impact-bottom"><span>baseline 100%</span><span className="reduction-label">-{reduction}% contained</span></div>
           </div>
 
-          <div className="budget-row"><span><Target size={14} /> response budget</span><strong>{Math.max(0, 5 - selectedActions.reduce((sum, id) => sum + (INTERVENTIONS.find((item) => item.id === id)?.cost || 0), 0))} pts left</strong></div>
+          <div className="budget-row"><span><Target size={14} /> response budget</span><strong>{Math.max(0, RESPONSE_BUDGET - getSpent({ selectedActions }))} pts left</strong></div>
 
           <div className="intervention-list">
             {INTERVENTIONS.map((action) => {
@@ -308,15 +331,15 @@ function App() {
           </div>
 
           <div className="report-card">
-            <div className="report-card-head"><span className="section-label">Current finding</span><span className="confidence"><span /> modeled</span></div>
-            <p>{completed ? 'The selected interventions disconnect the highest-risk paths from the compromised release.' : 'Run the simulation to calculate the full propagation path.'}</p>
+            <div className="report-card-head"><span className="section-label">Decision summary</span><span className="confidence"><span /> {mesh.recallChunks ? 'evidence linked' : 'awaiting trace'}</span></div>
+            <p>{completed ? 'The selected controls disconnect the highest-risk paths from the compromised release.' : 'Start an investigation to calculate the reachable path and expose response points.'}</p>
             <div className="report-line"><span>affected repositories</span><strong>{completed ? (selectedActions.includes('quarantine') ? '01' : '03') : '—'}</strong></div>
             <div className="report-line"><span>services remaining</span><strong>{completed ? (selectedActions.includes('upgrade') ? '01' : '03') : '—'}</strong></div>
             <div className="report-line"><span>unknown deployment records</span><strong>02</strong></div>
             <div className="report-line"><span>HydraDB evidence context</span><strong>{mesh.recallChunks ? `${mesh.recallChunks} chunks` : '—'}</strong></div>
           </div>
 
-          <div className="right-footer"><ShieldCheck size={15} /><span>Defensive simulation only. No package code is executed.</span></div>
+          <div className="right-footer"><ShieldCheck size={15} /><span>Analysis only. Recoil never executes package code.</span></div>
         </aside>
       </main>
     </div>

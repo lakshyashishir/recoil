@@ -1,3 +1,5 @@
+import { EDGES, NODES, createEvents } from '../src/core/scenario.js'
+
 const DEFAULT_API_URL = 'https://api.hydradb.com'
 
 function databaseId() {
@@ -31,29 +33,44 @@ function unwrap(payload) {
   return payload?.data?.inner || payload?.data || payload
 }
 
+function annotateIndexing(result) {
+  const statuses = result?.results || []
+  const completed = statuses.length > 0 && statuses.every((item) => ['completed', 'complete'].includes(item.status))
+  return { ...result, indexingStatus: completed ? 'completed' : 'queued' }
+}
+
 async function ingest(memories, signal) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const form = new FormData()
-    form.append('database', databaseId())
-    form.append('collection', collectionId())
-    form.append('type', 'memory')
-    form.append('memories', JSON.stringify(memories))
-    form.append('upsert', 'true')
+  const results = []
+  let lastResult = {}
+  for (let offset = 0; offset < memories.length; offset += 2) {
+    const batch = memories.slice(offset, offset + 2)
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const form = new FormData()
+      form.append('database', databaseId())
+      form.append('collection', collectionId())
+      form.append('type', 'memory')
+      form.append('memories', JSON.stringify(batch))
+      form.append('upsert', 'true')
 
-    const response = await fetch(`${apiBase()}/context/ingest`, {
-      method: 'POST',
-      headers: headers(false),
-      body: form,
-      signal,
-    })
-    const payload = await response.json().catch(() => ({}))
-    if (response.ok) return unwrap(payload)
+      const response = await fetch(`${apiBase()}/context/ingest`, {
+        method: 'POST',
+        headers: headers(false),
+        body: form,
+        signal,
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (response.ok) {
+        lastResult = unwrap(payload)
+        if (Array.isArray(lastResult.results)) results.push(...lastResult.results)
+        break
+      }
 
-    const retryable = [429, 500, 502, 503, 504].includes(response.status)
-    if (!retryable || attempt === 2) throw new Error(`${response.status}: ${errorMessage(payload, response)}`)
-    await new Promise((resolve) => setTimeout(resolve, 250 * (2 ** attempt)))
+      const retryable = [429, 500, 502, 503, 504].includes(response.status)
+      if (!retryable || attempt === 2) throw new Error(`${response.status}: ${errorMessage(payload, response)}`)
+      await new Promise((resolve) => setTimeout(resolve, 250 * (2 ** attempt)))
+    }
   }
-  throw new Error('HydraDB ingest failed after retries')
+  return annotateIndexing({ ...lastResult, results })
 }
 
 async function query(body, signal) {
@@ -100,6 +117,9 @@ function buildMemories(ingestion) {
   const scenarioId = ingestion.scenarioId || '0017'
   const packageName = ingestion.package || 'ua-parser-js'
   const advisoryId = ingestion.target?.advisoryId || 'not specified'
+  const events = createEvents(packageName, advisoryId)
+  const graphNodes = NODES.map((node) => `${node.id}: ${node.label} (${node.meta})`).join('\n')
+  const graphEdges = EDGES.map(([from, to]) => `${from} -> ${to}`).join('\n')
   const memories = [memory({
     id: `recoil:scenario:${stableId(`${scenarioId}:${ingestion.query || packageName}`)}`,
     title: `Recoil incident anchor · ${packageName}`,
@@ -110,6 +130,28 @@ function buildMemories(ingestion) {
       recoil_package: packageName,
       recoil_advisory: advisoryId,
       recoil_graph_node_id: 'release',
+    },
+  }), memory({
+    id: `recoil:graph:${stableId(`${scenarioId}:${packageName}:topology`)}`,
+    title: `Recoil attack graph · ${packageName}`,
+    text: `# Recoil attack graph\n\n## Nodes\n${graphNodes}\n\n## Propagation edges\n${graphEdges}\n\nThis is a temporal reachability model. It describes possible propagation and does not claim that every edge was observed in production.`,
+    additionalMetadata: {
+      recoil_kind: 'graph_topology',
+      recoil_scenario_id: scenarioId,
+      recoil_package: packageName,
+      recoil_graph_node_count: NODES.length,
+      recoil_graph_edge_count: EDGES.length,
+    },
+  }), memory({
+    id: `recoil:timeline:${stableId(`${scenarioId}:${packageName}:timeline`)}`,
+    title: `Recoil attack-defense timeline · ${packageName}`,
+    text: `# Recoil attack-defense timeline\n\n${events.map((event, index) => `${index + 1}. **${event.side.toUpperCase()} — ${event.label}**: ${event.detail}`).join('\n')}`,
+    additionalMetadata: {
+      recoil_kind: 'event_timeline',
+      recoil_scenario_id: scenarioId,
+      recoil_package: packageName,
+      recoil_event_count: events.length,
+      recoil_event_sides: JSON.stringify(events.map((event) => event.side)),
     },
   })]
 
@@ -159,7 +201,28 @@ export async function persistIngestion(ingestion, signal) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
   const memories = buildMemories(ingestion)
   const result = await ingest(memories, signal)
-  return { status: 'persisted', memoryCount: memories.length, result }
+  return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', memoryCount: memories.length, result }
+}
+
+export async function persistDecision({ scenarioId, queryText, action, selectedActions, exposure, activeNodeIds }, signal) {
+  if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
+  const decisionKey = `${scenarioId}:${queryText}:${action}:${selectedActions.join(',')}`
+  const decision = memory({
+    id: `recoil:decision:${stableId(decisionKey)}`,
+    title: `Recoil response decision · ${action}`,
+    text: `# Recoil response decision\n\n- Scenario: ${scenarioId}\n- Query: ${queryText}\n- Control selected: ${action}\n- Selected controls: ${selectedActions.join(', ') || 'none'}\n- Reachable exposure after decision: ${exposure}%\n- Active graph nodes after decision: ${activeNodeIds.join(', ') || 'none'}\n- This record describes a defensive state change; no package code was executed.`,
+    additionalMetadata: {
+      recoil_kind: 'defense_decision',
+      recoil_scenario_id: scenarioId,
+      recoil_query: queryText,
+      recoil_action: action,
+      recoil_selected_actions: selectedActions.join(','),
+      recoil_exposure: exposure,
+      recoil_active_node_ids: activeNodeIds.join(','),
+    },
+  })
+  const result = await ingest([decision], signal)
+  return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', memoryCount: 1, result }
 }
 
 export async function recall(queryText, signal, scenarioId = '0017') {

@@ -6,13 +6,15 @@ import {
   INTERVENTIONS,
   NODES,
   SCENARIO,
+  advanceState,
   createInitialState,
+  createEvents,
   getActiveNodeIds,
   getExposure,
   toggleAction,
 } from '../src/core/scenario.js'
 import { runIngestion } from './collectors.js'
-import { hydraStatus, persistIngestion, recall } from './hydra.js'
+import { hydraStatus, persistDecision, persistIngestion, recall } from './hydra.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
@@ -26,11 +28,16 @@ function buildGraph(ingestion) {
   return {
     nodes: NODES.map((node) => {
       if (node.id === 'release') return { ...node, label: `${packageName}@${resolvedVersion}`, meta: advisory === 'CVE-2021-4229' ? 'compromised release' : 'resolved package target' }
+      if (node.id === 'maintainer' && registry?.maintainers?.[0]) return { ...node, label: `maintainer: ${registry.maintainers[0]}`, meta: 'registry publisher' }
       if (node.id === 'repo') return { ...node, label: repository?.repository || 'fixture / storefront-api', meta: repository?.synthetic ? 'synthetic demo repo' : 'public repository' }
       return node
     }),
     edges: EDGES,
   }
+}
+
+function buildEvents(ingestion) {
+  return createEvents(ingestion?.package || 'ua-parser-js', ingestion?.target?.advisoryId || 'advisory target')
 }
 
 function json(res, status, payload) {
@@ -45,20 +52,24 @@ function json(res, status, payload) {
 function snapshot(record) {
   const state = record.state
   const exposure = getExposure(state)
+  const collectors = new Map((record.ingestion?.collectors || []).map((collector) => [collector.collector, collector]))
+  const sourceStatus = (collectorName) => collectors.get(collectorName)?.status || (record.ingestion?.status === 'running' ? 'working' : 'ready')
   return {
     id: record.id,
     scenario: { ...SCENARIO, query: record.query, mode: record.mode },
     graph: { ...record.graph, activeNodeIds: [...getActiveNodeIds(state)] },
-    events: EVENTS,
+    events: record.events,
     interventions: INTERVENTIONS,
     state,
-    metrics: { exposure, contained: 100 - exposure, eventIndex: state.eventIndex, complete: state.eventIndex >= EVENTS.length },
+    metrics: { exposure, contained: 100 - exposure, eventIndex: state.eventIndex, complete: state.eventIndex >= (record.events?.length || EVENTS.length) },
     ingestion: record.ingestion,
     hydra: record.hydra,
     sources: [
-      { id: 'osv', label: 'OSV advisory', type: 'advisory', status: 'fixture' },
-      { id: 'npm', label: 'npm registry', type: 'registry', status: 'fixture' },
-      { id: 'github', label: 'GitHub manifest', type: 'repository', status: 'fixture' },
+      { id: 'osv', label: 'OSV advisory', type: 'advisory', status: sourceStatus('advisory-resolver') },
+      { id: 'npm', label: 'npm registry', type: 'registry', status: sourceStatus('registry-resolver') },
+      { id: 'incident', label: 'Incident sources', type: 'research', status: sourceStatus('incident-researcher') },
+      { id: 'github', label: 'Repository manifest', type: 'repository', status: sourceStatus('repository-extractor') },
+      { id: 'hydra', label: 'HydraDB memory graph', type: 'memory', status: record.hydra?.status || 'ready' },
     ],
   }
 }
@@ -71,6 +82,7 @@ function getOrCreate(id = '0017', body = {}) {
       mode: body.mode || 'incident',
       state: createInitialState(),
       graph: { nodes: NODES, edges: EDGES },
+      events: EVENTS,
       ingestion: { status: 'not_started', collectors: [] },
       hydra: { status: 'not_started', memoryCount: 0, recall: null },
     })
@@ -107,6 +119,7 @@ function route(req, res) {
     if (req.method === 'POST' && action === 'reset') {
       record.state = createInitialState()
       record.graph = { nodes: NODES, edges: EDGES }
+      record.events = EVENTS
       record.ingestion = { status: 'not_started', collectors: [] }
       record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
       return json(res, 200, snapshot(record))
@@ -116,6 +129,7 @@ function route(req, res) {
       return runIngestion({ query: record.query, scenarioId: record.id }).then((result) => {
         record.ingestion = result
         record.graph = buildGraph(result)
+        record.events = buildEvents(result)
         return persistIngestion(result).then((persisted) => {
           record.hydra = { ...record.hydra, ...persisted, persistedAt: persisted.status === 'persisted' ? new Date().toISOString() : null }
           return json(res, 200, snapshot(record))
@@ -141,8 +155,24 @@ function route(req, res) {
     if (req.method === 'POST' && action === 'action') {
       return body(req).then((payload) => {
         if (!INTERVENTIONS.some((item) => item.id === payload.id)) return json(res, 422, { error: 'Unknown intervention' })
-        record.state = toggleAction(record.state, payload.id)
-        return json(res, 200, snapshot(record))
+        const nextState = toggleAction(record.state, payload.id)
+        const changed = nextState !== record.state
+        record.state = nextState
+        if (!changed) return json(res, 200, snapshot(record))
+        return persistDecision({
+          scenarioId: record.id,
+          queryText: record.query,
+          action: payload.id,
+          selectedActions: record.state.selectedActions,
+          exposure: getExposure(record.state),
+          activeNodeIds: [...getActiveNodeIds(record.state)],
+        }).then((persisted) => {
+          record.hydra = { ...record.hydra, lastDecision: persisted }
+          return json(res, 200, snapshot(record))
+        }).catch((error) => {
+          record.hydra = { ...record.hydra, lastDecision: { status: 'failed', error: error.message } }
+          return json(res, 200, snapshot(record))
+        })
       }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
     }
     if (req.method === 'POST' && action === 'run') {
@@ -151,6 +181,10 @@ function route(req, res) {
         record.state = { ...record.state, running: true, eventIndex: 0 }
         return json(res, 202, snapshot(record))
       }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
+    }
+    if (req.method === 'POST' && action === 'advance') {
+      record.state = advanceState(record.state)
+      return json(res, 200, snapshot(record))
     }
   }
   return json(res, 404, { error: 'Not found' })

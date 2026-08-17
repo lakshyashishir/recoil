@@ -73,4 +73,8 @@ The TUI should show the same events as an operator stream. This is the shared bo
 - Deduplicate package versions, repositories, people, and advisories before writing.
 - Mark synthetic deployment data as synthetic.
 - Store failed or conflicting evidence as first-class warnings rather than silently dropping it.
+- Persist defender controls as decision memories with the selected controls, exposure after the decision, and the active node set so a case can be reconstructed after the live run.
+- Persist one explicit graph-topology memory and one attack/defense timeline memory per case; keep the full topology in the memory body and compact counts/kinds in metadata so HydraDB can retrieve both structure and provenance.
+- Upload memory batches in small idempotent chunks because the hosted per-request memory-token budget is bounded; report the case as queued until every batch is accepted.
+- Treat HydraDB memory ingestion as asynchronous: show accepted/queued in the operator feed and only call it indexed when the API result reports a terminal completed status.
 - Never execute package code while ingesting.

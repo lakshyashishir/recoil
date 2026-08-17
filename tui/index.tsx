@@ -1,18 +1,20 @@
 /** @jsxImportSource @opentui/react */
 
 import { createCliRenderer } from '@opentui/core'
-import { createRoot, useKeyboard } from '@opentui/react'
+import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   EVENTS,
   EDGES,
   INTERVENTIONS,
   NODES,
+  RESPONSE_BUDGET,
   SCENARIO,
   advanceState,
   createInitialState,
   getActiveNodeIds,
   getExposure,
+  getSpent,
   isComplete,
   toggleAction,
 } from '../src/core/scenario.js'
@@ -43,14 +45,17 @@ function Label({ children }) {
 }
 
 function App() {
+  const renderer = useRenderer()
   const [state, setState] = useState(createInitialState())
   const [mode, setMode] = useState('incident')
 
+  const compact = renderer.width < 126
   const complete = isComplete(state)
   const activeNodes = getActiveNodeIds(state)
   const exposure = getExposure(state)
   const reduction = 100 - exposure
-  const remainingBudget = Math.max(0, 5 - state.selectedActions.reduce((sum, id) => sum + (INTERVENTIONS.find((item) => item.id === id)?.cost || 0), 0))
+  const remainingBudget = Math.max(0, RESPONSE_BUDGET - getSpent(state))
+  const currentEvent = EVENTS[Math.min(state.eventIndex, EVENTS.length - 1)]
 
   useEffect(() => {
     if (!state.running || complete) return undefined
@@ -76,14 +81,90 @@ function App() {
     }
   })
 
-  const graphRows = useMemo(() => [
-    { arrow: '◉', label: 'ua-parser-js@0.7.29', meta: 'COMPROMISED RELEASE', color: C.orange, active: activeNodes.has('release') },
-    { arrow: ' ↓', label: 'lockfile resolver', meta: 'TRANSITIVE EDGE', color: activeNodes.has('resolver') ? C.orange : C.faint, active: activeNodes.has('resolver') },
-    { arrow: '  ↓', label: 'fixture / storefront-api', meta: 'SYNTHETIC DEMO REPO', color: activeNodes.has('repo') ? C.orange : C.faint, active: activeNodes.has('repo') },
-    { arrow: '   ├─', label: 'payments-worker', meta: 'DEPLOYED · US-EAST-1', color: activeNodes.has('payments') ? C.blue : C.faint, active: activeNodes.has('payments') },
-    { arrow: '   └─', label: 'api-gateway', meta: 'DEPLOYED · EU-WEST-1', color: activeNodes.has('gateway') ? C.blue : C.faint, active: activeNodes.has('gateway') },
-    { arrow: '  ↘', label: 'github-actions runner', meta: 'SHARED INFRASTRUCTURE', color: activeNodes.has('runner') ? C.blue : C.faint, active: activeNodes.has('runner') },
-  ], [activeNodes])
+  const graphRows = useMemo(() => {
+    const visibleNodes = NODES.filter((node) => activeNodes.has(node.id))
+    const rows = visibleNodes.length ? visibleNodes : [NODES.find((node) => node.id === 'release')]
+    return rows.slice(0, compact ? 8 : 12).map((node, index) => ({
+      arrow: index === 0 ? '◉' : index === rows.length - 1 ? ' └─' : ' ↓',
+      label: compact && node.label.length > 24 ? `${node.label.slice(0, 21)}…` : node.label,
+      meta: compact ? '' : node.meta.toUpperCase(),
+      color: node.type === 'package' || node.type === 'person' ? C.orange : node.type === 'service' || node.type === 'data' ? C.blue : C.muted,
+      active: activeNodes.has(node.id),
+    }))
+  }, [activeNodes, compact])
+
+  const casePanel = (
+    <Panel title="CASE" style={{ width: compact ? 25 : 31 }}>
+      <Label>INVESTIGATION TARGET</Label>
+      <text fg={C.text}>{SCENARIO.query}</text>
+      <text fg={C.muted}>Public evidence only</text>
+      <box style={{ border: true, borderColor: C.orange, padding: 1, marginTop: 1 }}>
+        <text fg={C.orange}>{mode === 'incident' ? 'EVIDENCE REVIEW' : 'ADVERSARIAL DRILL'}</text>
+        <text fg={C.muted}>{mode === 'incident' ? 'Observed package → response' : 'Attacker → defender → path'}</text>
+      </box>
+      <Label>ATTACK SOURCE</Label>
+      <text fg={C.orange}>⚠ ua-parser-js@0.7.29</text>
+      <text fg={C.muted}>CVE-2021-4229 / GHSA</text>
+      <Label>GRAPH SNAPSHOT</Label>
+      <text fg={C.text}>{String(NODES.length).padStart(2, '0')} nodes  /  {String(EDGES.length).padStart(2, '0')} edges</text>
+      <text fg={C.muted}>temporal state {SCENARIO.graphVersion}</text>
+      <box style={{ flexGrow: 1 }} />
+      <text fg={C.faint}>[s] start  [space] step</text>
+      <text fg={C.faint}>[1-3] defend  [r] reset  [q] quit</text>
+    </Panel>
+  )
+
+  const pathPanel = (
+    <Panel title="ATTACK PATH / REACHABILITY" style={{ flexGrow: 1 }}>
+      <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <box style={{ flexDirection: 'column', flexGrow: 1 }}>
+          <text fg={C.text}>Package to deployment surface</text>
+          <text fg={C.muted}>{currentEvent.detail}</text>
+        </box>
+        <text fg={currentEvent.side === 'attack' ? C.orange : currentEvent.side === 'defense' ? C.green : C.muted}>{currentEvent.side.toUpperCase()} · {state.running ? 'MOVING' : complete ? 'WAITING FOR CONTROL' : 'STANDBY'}</text>
+      </box>
+      <box style={{ border: true, borderColor: C.line, backgroundColor: '#0d1011', padding: 1, flexGrow: 1, flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
+        {graphRows.map((row) => (
+          <box key={row.label} style={{ flexDirection: 'row', gap: 1 }}>
+            <text fg={row.color}>{row.arrow}</text>
+            <text fg={row.active ? row.color : C.faint}>{row.label}</text>
+            {row.meta && <text fg={C.faint}>  {row.meta}</text>}
+            {row.active && <text fg={row.color}>  ●</text>}
+          </box>
+        ))}
+        {!compact && <>
+          <text fg={C.faint}> </text>
+          <text fg={C.faint}>────────────────────────────────────────────</text>
+          <text fg={C.muted}>Graph-native path reconstruction · no package code executed</text>
+        </>}
+      </box>
+      <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <text fg={C.faint}>attack source ●  reachable ●  observed ●</text>
+        <text fg={C.muted}>events {state.eventIndex}/{EVENTS.length}</text>
+      </box>
+    </Panel>
+  )
+
+  const responsePanel = (
+    <Panel title="RESPONSE PLAN" style={{ width: compact ? undefined : 36, height: compact ? 9 : undefined }}>
+      <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}><text fg={C.text}>Cut the path.</text><text fg={C.muted}>{remainingBudget} pts</text></box>
+      <box style={{ border: true, borderColor: exposure < 50 ? C.green : C.orange, padding: 1, flexDirection: 'column', gap: 1 }}>
+        <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Label>REACHABLE EXPOSURE</Label><text fg={exposure < 50 ? C.green : C.orange}>{exposure}%</text></box>
+        <text fg={exposure < 50 ? C.green : C.orange}>{'█'.repeat(Math.max(1, Math.round(exposure / 7)))}{'░'.repeat(14 - Math.max(1, Math.round(exposure / 7)))}</text>
+      </box>
+      {!compact && <Label>RESPONSE BUDGET · {remainingBudget} PTS LEFT</Label>}
+      {INTERVENTIONS.slice(0, compact ? 3 : INTERVENTIONS.length).map((action, index) => {
+        const selected = state.selectedActions.includes(action.id)
+        return <box key={action.id} style={{ border: true, borderColor: selected ? C.orange : C.line, backgroundColor: selected ? '#201614' : C.panel2, padding: 1, flexDirection: 'row', gap: 1 }}>
+          <text fg={selected ? C.orange : C.muted}>[{index + 1}]</text>
+          <box style={{ flexDirection: 'column', flexGrow: 1 }}><text fg={selected ? C.text : C.muted}>{action.title}</text><text fg={C.faint}>{compact ? `${action.cost}pt · ${action.reduction}% reduction` : action.description}</text></box>
+          <text fg={selected ? C.green : C.faint}>{selected ? '✓' : `${action.cost}pt`}</text>
+        </box>
+      })}
+      {!compact && <box style={{ flexGrow: 1 }} />}
+      <text fg={C.faint}>{compact ? '[1-3] select controls' : `Mode: ${mode}  /  scenario: ${SCENARIO.id}`}</text>
+    </Panel>
+  )
 
   return (
     <box style={{ width: '100%', height: '100%', backgroundColor: C.bg, padding: 1, flexDirection: 'column', gap: 1 }}>
@@ -101,73 +182,25 @@ function App() {
       </box>
 
       <box style={{ flexDirection: 'row', gap: 1, flexGrow: 1 }}>
-        <Panel title="MISSION" style={{ width: 31 }}>
-          <Label>SCENARIO</Label>
-          <text fg={C.text}>{SCENARIO.query}</text>
-          <text fg={C.muted}>Public evidence only</text>
-          <box style={{ border: true, borderColor: C.orange, padding: 1, marginTop: 1 }}>
-            <text fg={C.orange}>{mode === 'incident' ? 'INCIDENT MODE' : 'CTF MODE'}</text>
-            <text fg={C.muted}>{mode === 'incident' ? 'Observed advisory → response' : 'Attack → defend → score'}</text>
-          </box>
-          <Label>ATTACK SOURCE</Label>
-          <text fg={C.orange}>⚠ ua-parser-js@0.7.29</text>
-          <text fg={C.muted}>CVE-2021-4229 / GHSA</text>
-          <Label>GRAPH SNAPSHOT</Label>
-          <text fg={C.text}>{String(NODES.length).padStart(2, '0')} nodes  /  {String(EDGES.length).padStart(2, '0')} edges</text>
-          <text fg={C.muted}>temporal state {SCENARIO.graphVersion}</text>
-          <box style={{ flexGrow: 1 }} />
-          <text fg={C.faint}>[s] start  [space] step</text>
-          <text fg={C.faint}>[1-3] defend  [r] reset  [q] quit</text>
-        </Panel>
-
-        <Panel title="ATTACK PATH / LIVE GRAPH" style={{ flexGrow: 1 }}>
-          <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <text fg={C.text}>Where can the compromise travel?</text>
-            <text fg={state.running ? C.orange : complete ? C.green : C.muted}>{state.running ? 'PROPAGATING' : complete ? 'PATH RESOLVED' : 'STANDBY'}</text>
-          </box>
-          <box style={{ border: true, borderColor: C.line, backgroundColor: '#0d1011', padding: 1, flexGrow: 1, flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
-            {graphRows.map((row) => (
-              <box key={row.label} style={{ flexDirection: 'row', gap: 1 }}>
-                <text fg={row.color}>{row.arrow}</text>
-                <text fg={row.active ? row.color : C.faint}>{row.label}</text>
-                <text fg={C.faint}>  {row.meta}</text>
-                {row.active && <text fg={row.color}>  ●</text>}
-              </box>
-            ))}
-            <text fg={C.faint}> </text>
-            <text fg={C.faint}>────────────────────────────────────────────</text>
-            <text fg={C.muted}>Graph-native path reconstruction · no package code executed</text>
-          </box>
-          <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <text fg={C.faint}>attack source ●  reachable ●  observed ●</text>
-            <text fg={C.muted}>events {state.eventIndex}/{EVENTS.length}</text>
-          </box>
-        </Panel>
-
-        <Panel title="DEFENSE LAB" style={{ width: 36 }}>
-          <text fg={C.text}>Find containment.</text>
-          <text fg={C.muted}>Select actions and compare the graph state.</text>
-          <box style={{ border: true, borderColor: exposure < 50 ? C.green : C.orange, padding: 1, flexDirection: 'column', gap: 1 }}>
-            <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Label>REACHABLE EXPOSURE</Label><text fg={exposure < 50 ? C.green : C.orange}>{exposure}%</text></box>
-            <text fg={exposure < 50 ? C.green : C.orange}>{'█'.repeat(Math.max(1, Math.round(exposure / 7)))}{'░'.repeat(14 - Math.max(1, Math.round(exposure / 7)))}</text>
-            <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}><text fg={C.faint}>baseline 100%</text><text fg={C.green}>-{reduction}% contained</text></box>
-          </box>
-          <Label>RESPONSE BUDGET · {remainingBudget} PTS LEFT</Label>
-          {INTERVENTIONS.map((action, index) => {
-            const selected = state.selectedActions.includes(action.id)
-            return <box key={action.id} style={{ border: true, borderColor: selected ? C.orange : C.line, backgroundColor: selected ? '#201614' : C.panel2, padding: 1, flexDirection: 'row', gap: 1 }}>
-              <text fg={selected ? C.orange : C.muted}>[{index + 1}]</text>
-              <box style={{ flexDirection: 'column', flexGrow: 1 }}><text fg={selected ? C.text : C.muted}>{action.title}</text><text fg={C.faint}>{action.description}</text></box>
-              <text fg={selected ? C.green : C.faint}>{selected ? '✓' : `${action.cost}pt`}</text>
+        {compact ? (
+          <>
+            {casePanel}
+            <box style={{ flexGrow: 1, flexDirection: 'column', gap: 1 }}>
+              {pathPanel}
+              {responsePanel}
             </box>
-          })}
-          <box style={{ flexGrow: 1 }} />
-          <text fg={C.faint}>Mode: {mode}  /  scenario: {SCENARIO.id}</text>
-        </Panel>
+          </>
+        ) : (
+          <>
+            {casePanel}
+            {pathPanel}
+            {responsePanel}
+          </>
+        )}
       </box>
 
-      <Panel title="INVESTIGATION LOG" style={{ height: 8 }}>
-        <box style={{ flexDirection: 'row', gap: 2 }}>
+      <Panel title="ATTACK / DEFENSE SEQUENCE" style={{ height: compact ? 3 : 8 }}>
+        {compact ? <text fg={currentEvent.side === 'attack' ? C.orange : currentEvent.side === 'defense' ? C.green : C.muted}>{state.eventIndex}/{EVENTS.length} · {currentEvent.side.toUpperCase()} · {currentEvent.label} · {currentEvent.detail}</text> : <box style={{ flexDirection: 'row', gap: 2 }}>
           {EVENTS.map((event, index) => {
             const completeEvent = index < state.eventIndex
             return <box key={event.id} style={{ flexDirection: 'column', flexGrow: 1 }}>
@@ -175,7 +208,7 @@ function App() {
               <text fg={C.faint}>{event.detail}</text>
             </box>
           })}
-        </box>
+        </box>}
       </Panel>
   </box>
   )
