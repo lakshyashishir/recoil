@@ -1,0 +1,72 @@
+# Recoil ingestion mesh
+
+Recoil should show multiple evidence collectors, but each collector must have a distinct job. The system should not launch five browser agents that all perform the same search.
+
+## Collector roles
+
+| Collector | Best tool | Job | Output |
+|---|---|---|---|
+| Registry resolver | npm/PyPI APIs | Versions, ranges, manifests, maintainers, timestamps | Typed package entities and dependency edges |
+| Advisory resolver | OSV/GitHub Advisory APIs | Affected ranges, fixed versions, severity, references | Advisory entities and affected/fixed edges |
+| Repository extractor | GitHub REST/raw files | Public manifests and lockfiles | Repository, lockfile, and resolution edges |
+| Incident researcher | Firecrawl or direct HTTP | Crawl official incident pages and references | Source documents, claims, quotes, timestamps |
+| Browser witness | Browser Use | Open the source in a real browser and capture visible evidence | Evidence event and optional screenshot |
+| Discovery fallback | Apify or search API | Find candidate public repositories or incident pages when APIs are insufficient | Candidate URLs only |
+| Graph curator | Recoil worker + HydraDB | Normalize, deduplicate, attach provenance, resolve conflicts | Canonical graph mutations |
+
+## Tool policy
+
+The deterministic APIs are the critical path. Browser Use, Firecrawl, and Apify are evidence and discovery workers—not dependencies for basic package resolution.
+
+This keeps the demo reliable and protects API credits:
+
+1. Try a direct registry or advisory API first.
+2. Use GitHub raw/API access for repository files.
+3. Use Firecrawl for a small allowlist of incident pages.
+4. Use Browser Use only for visible proof and a live evidence moment.
+5. Use Apify only when discovery or blocked pages justify it.
+
+## Shared event contract
+
+Every collector emits the same event shape:
+
+```json
+{
+  "scenarioId": "0017",
+  "collector": "registry-resolver",
+  "kind": "entity|edge|claim|source|warning",
+  "status": "started|emitted|completed|failed",
+  "entityType": "PackageVersion",
+  "entityId": "npm:ua-parser-js@0.7.29",
+  "sourceUrl": "https://registry.npmjs.org/ua-parser-js",
+  "observedAt": "2021-10-22T12:15:00Z",
+  "confidence": "confirmed",
+  "payload": {}
+}
+```
+
+## Browser-facing live feed
+
+The browser report should show a compact activity rail:
+
+```text
+REGISTRY RESOLVER       38 versions resolved       complete
+ADVISORY RESOLVER       3 affected versions        complete
+REPOSITORY EXTRACTOR    fixture lockfile parsed     complete
+INCIDENT RESEARCHER     6 sources / 11 claims       complete
+BROWSER WITNESS         source page captured        complete
+GRAPH CURATOR           43 nodes / 61 edges         complete
+CONTAINMENT ENGINE      12 interventions evaluated  complete
+```
+
+The TUI should show the same events as an operator stream. This is the shared boundary between the two clients.
+
+## HydraDB write policy
+
+- Write canonical typed entities, not raw page chunks.
+- Keep source URLs and quote spans on claims and edges.
+- Preserve observed time separately from valid time.
+- Deduplicate package versions, repositories, people, and advisories before writing.
+- Mark synthetic deployment data as synthetic.
+- Store failed or conflicting evidence as first-class warnings rather than silently dropping it.
+- Never execute package code while ingesting.

@@ -52,6 +52,7 @@ button { color: inherit; }
 .topbar-separator { color: var(--faint); }
 .muted { color: var(--muted); }
 .live-dot, .status-signal { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(164, 216, 139, .09); }
+.status-signal.offline { background: var(--orange); box-shadow: 0 0 0 3px rgba(255, 99, 56, .09); }
 .topbar-actions { gap: 15px; min-width: 270px; justify-content: flex-end; }
 .icon-button, .reset-button { border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .icon-button:hover, .reset-button:hover { color: var(--text); }

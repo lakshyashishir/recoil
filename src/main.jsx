@@ -21,41 +21,32 @@ import {
   Target,
   Zap,
 } from 'lucide-react'
+import {
+  EDGES,
+  EVENTS,
+  INTERVENTIONS,
+  NODES,
+  SCENARIO,
+  getActiveNodeIds,
+  getExposure,
+  isComplete,
+  toggleAction as toggleScenarioAction,
+} from './core/scenario.js'
 import './style.css'
 
-const graphNodes = [
-  { id: 'release', label: 'parse-server@4.0.0', type: 'package', meta: 'compromised release', x: 16, y: 43 },
-  { id: 'resolver', label: 'lockfile resolver', type: 'resolver', meta: 'transitive edge', x: 36, y: 43 },
-  { id: 'repo', label: 'acme / checkout-api', type: 'repo', meta: 'public repository', x: 56, y: 26 },
-  { id: 'payments', label: 'payments-worker', type: 'service', meta: 'deployed · us-east-1', x: 77, y: 18 },
-  { id: 'gateway', label: 'api-gateway', type: 'service', meta: 'deployed · eu-west-1', x: 77, y: 42 },
-  { id: 'runner', label: 'github-actions runner', type: 'infra', meta: 'shared infrastructure', x: 56, y: 68 },
-  { id: 'maintainer', label: 'maintainer: devtools-labs', type: 'person', meta: 'shared publisher', x: 35, y: 76 },
-]
+const eventIcons = {
+  armed: Crosshair,
+  resolved: GitBranch,
+  propagated: Zap,
+  exposure: Clock3,
+  ready: Target,
+}
 
-const graphEdges = [
-  ['release', 'resolver'],
-  ['resolver', 'repo'],
-  ['repo', 'payments'],
-  ['repo', 'gateway'],
-  ['release', 'runner'],
-  ['runner', 'payments'],
-  ['maintainer', 'release'],
-]
-
-const interventions = [
-  { id: 'upgrade', title: 'Upgrade parse-server', description: 'Move to 4.1.1 or later', cost: 1, reduction: 58, icon: ArrowDownRight },
-  { id: 'quarantine', title: 'Quarantine checkout-api', description: 'Stop release promotion', cost: 2, reduction: 28, icon: LockKeyhole },
-  { id: 'revoke', title: 'Revoke publisher', description: 'Invalidate shared maintainer trust', cost: 3, reduction: 18, icon: Shield },
-]
-
-const timeline = [
-  { label: 'Scenario armed', detail: 'OSV-2025-parse-server seeded as attack source', icon: Crosshair },
-  { label: 'Package graph resolved', detail: '38 package versions · 7 dependency edges', icon: GitBranch },
-  { label: 'Propagation path found', detail: 'parse-server → lockfile → checkout-api', icon: Zap },
-  { label: 'Exposure window calculated', detail: '14 May 09:00 → 16 May 17:42 UTC', icon: Clock3 },
-  { label: 'Containment search ready', detail: '3 interventions · budget 5', icon: Target },
-]
+const actionIcons = {
+  upgrade: ArrowDownRight,
+  quarantine: LockKeyhole,
+  revoke: Shield,
+}
 
 function formatPct(value) {
   return `${Math.max(0, Math.min(100, value))}%`
@@ -63,16 +54,16 @@ function formatPct(value) {
 
 function App() {
   const [mode, setMode] = useState('incident')
-  const [query, setQuery] = useState('OSV-2025-parse-server  /  acme/checkout-api')
+  const [query, setQuery] = useState(SCENARIO.query)
   const [running, setRunning] = useState(false)
   const [eventIndex, setEventIndex] = useState(0)
   const [selectedActions, setSelectedActions] = useState(['upgrade'])
   const [selectedNode, setSelectedNode] = useState('release')
+  const [backendStatus, setBackendStatus] = useState('checking')
 
-  const completed = eventIndex >= timeline.length
-  const baseExposure = 100
-  const reduction = selectedActions.reduce((sum, id) => sum + (interventions.find((item) => item.id === id)?.reduction || 0), 0)
-  const exposure = Math.max(4, baseExposure - reduction)
+  const completed = isComplete({ eventIndex })
+  const exposure = getExposure({ eventIndex, selectedActions })
+  const reduction = 100 - exposure
 
   useEffect(() => {
     if (!running || completed) return undefined
@@ -80,33 +71,39 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [running, eventIndex, completed])
 
-  const activeNodes = useMemo(() => {
-    const active = new Set(['release'])
-    if (eventIndex >= 2) active.add('resolver')
-    if (eventIndex >= 3) active.add('repo')
-    if (eventIndex >= 4) {
-      active.add('payments')
-      active.add('gateway')
-      active.add('runner')
-    }
-    if (selectedActions.includes('upgrade')) active.delete('payments')
-    if (selectedActions.includes('quarantine')) active.delete('repo')
-    return active
-  }, [eventIndex, selectedActions])
+  const activeNodes = useMemo(() => getActiveNodeIds({ eventIndex, selectedActions }), [eventIndex, selectedActions])
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('API unavailable')))
+      .then(() => setBackendStatus('ready'))
+      .catch(() => setBackendStatus('offline'))
+  }, [])
 
   function startSimulation() {
     setEventIndex(0)
     setRunning(true)
+    fetch('/api/scenarios/0017/run', { method: 'POST' }).catch(() => {})
+    fetch('/api/scenarios/0017/ingest', { method: 'POST' }).catch(() => {})
   }
 
   function resetSimulation() {
     setRunning(false)
     setEventIndex(0)
     setSelectedActions(['upgrade'])
+    fetch('/api/scenarios/0017/reset', { method: 'POST' }).catch(() => {})
   }
 
   function toggleAction(id) {
-    setSelectedActions((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+    setSelectedActions((current) => {
+      const next = toggleScenarioAction({ selectedActions: current }, id).selectedActions
+      fetch('/api/scenarios/0017/action', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).catch(() => {})
+      return next
+    })
   }
 
   return (
@@ -129,7 +126,7 @@ function App() {
 
         <div className="topbar-actions">
           <button className="icon-button" aria-label="Help"><CircleHelp size={16} /></button>
-          <div className="status-pill"><span className="status-signal" />HYDRA CONNECTED</div>
+          <div className="status-pill"><span className={`status-signal ${backendStatus === 'offline' ? 'offline' : ''}`} />{backendStatus === 'ready' ? 'HYDRA CONNECTED' : backendStatus === 'offline' ? 'LOCAL DEMO' : 'CONNECTING'}</div>
         </div>
       </header>
 
@@ -187,8 +184,8 @@ function App() {
               <h1>Where can the compromise travel?</h1>
             </div>
             <div className="panel-header-actions">
-              <div className="graph-stat"><span className="muted">nodes</span><strong>07</strong></div>
-              <div className="graph-stat"><span className="muted">edges</span><strong>11</strong></div>
+              <div className="graph-stat"><span className="muted">nodes</span><strong>{String(NODES.length).padStart(2, '0')}</strong></div>
+              <div className="graph-stat"><span className="muted">edges</span><strong>{String(EDGES.length).padStart(2, '0')}</strong></div>
               <button className="reset-button" onClick={resetSimulation}><RotateCcw size={14} /> reset</button>
             </div>
           </div>
@@ -197,16 +194,16 @@ function App() {
             <div className="canvas-watermark">RECOIL / GRAPH 0017</div>
             <div className="grid-lines" />
             <svg className="edge-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              {graphEdges.map(([from, to]) => {
-                const start = graphNodes.find((node) => node.id === from)
-                const end = graphNodes.find((node) => node.id === to)
+              {EDGES.map(([from, to]) => {
+                const start = NODES.find((node) => node.id === from)
+                const end = NODES.find((node) => node.id === to)
                 const isActive = activeNodes.has(from) && activeNodes.has(to) && eventIndex >= 2
                 return <line key={`${from}-${to}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={isActive ? 'graph-edge active' : 'graph-edge'} />
               })}
             </svg>
             <div className="graph-axis axis-x">DEPENDENCY DIRECTION  →</div>
             <div className="graph-axis axis-y">TRUST SURFACE</div>
-            {graphNodes.map((node) => {
+            {NODES.map((node) => {
               const isActive = activeNodes.has(node.id)
               const isSelected = selectedNode === node.id
               return (
@@ -230,10 +227,10 @@ function App() {
           </div>
 
           <div className="event-strip">
-            <div className="event-strip-head"><span className="section-label">Investigation log</span><span className="event-count">{eventIndex} / {timeline.length} events</span></div>
+            <div className="event-strip-head"><span className="section-label">Investigation log</span><span className="event-count">{eventIndex} / {EVENTS.length} events</span></div>
             <div className="timeline-track">
-              {timeline.map((event, index) => {
-                const Icon = event.icon
+              {EVENTS.map((event, index) => {
+                const Icon = eventIcons[event.id]
                 const isComplete = index < eventIndex
                 const isCurrent = index === eventIndex && running
                 return (
@@ -260,11 +257,11 @@ function App() {
             <div className="impact-bottom"><span>baseline 100%</span><span className="reduction-label">-{reduction}% contained</span></div>
           </div>
 
-          <div className="budget-row"><span><Target size={14} /> response budget</span><strong>{Math.max(0, 5 - selectedActions.reduce((sum, id) => sum + (interventions.find((item) => item.id === id)?.cost || 0), 0))} pts left</strong></div>
+          <div className="budget-row"><span><Target size={14} /> response budget</span><strong>{Math.max(0, 5 - selectedActions.reduce((sum, id) => sum + (INTERVENTIONS.find((item) => item.id === id)?.cost || 0), 0))} pts left</strong></div>
 
           <div className="intervention-list">
-            {interventions.map((action) => {
-              const Icon = action.icon
+            {INTERVENTIONS.map((action) => {
+              const Icon = actionIcons[action.id]
               const isSelected = selectedActions.includes(action.id)
               return (
                 <button key={action.id} className={`intervention ${isSelected ? 'selected' : ''}`} onClick={() => toggleAction(action.id)}>

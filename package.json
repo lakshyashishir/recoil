@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "tui": "bun run tui/index.tsx",
+    "server": "node server/index.js"
   },
   "dependencies": {
+    "@opentui/core": "^0.5.3",
+    "@opentui/react": "^0.5.3",
     "@vitejs/plugin-react": "latest",
     "lucide-react": "latest",
     "react": "latest",
