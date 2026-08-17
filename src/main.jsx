@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createRoot } from 'react-dom/client'
 import {
   Activity,
   AlertTriangle,
@@ -323,3 +324,5 @@ function App() {
 }
 
 export default App
+
+createRoot(document.getElementById('root')).render(<App />)
