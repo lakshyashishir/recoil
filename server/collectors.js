@@ -9,24 +9,103 @@ const incidentSources = [
 ]
 
 async function readJson(url, options) {
-  const response = await fetch(url, { ...options, headers: { accept: 'application/json', ...(options?.headers || {}) } })
+  const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...(options?.headers || {}) } })
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
   return response.json()
 }
 
+async function readOptionalJson(url, options) {
+  const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...(options?.headers || {}) } })
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+  return response.json()
+}
+
+function parseGitHubRepository(query = '') {
+  const match = String(query).match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/#?\s]+)/i)
+  if (!match) return null
+  const owner = match[1]
+  const name = match[2].replace(/\.git$/, '')
+  return { owner, name, slug: `${owner}/${name}`, url: `https://github.com/${owner}/${name}` }
+}
+
+async function readGitHubFile(repository, path) {
+  const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/contents/${path}`, {
+    headers: { accept: 'application/vnd.github+json' },
+  })
+  if (!payload || payload.type !== 'file' || !payload.content) return null
+  return {
+    path,
+    sourceUrl: `https://github.com/${repository.slug}/blob/HEAD/${path}`,
+    text: Buffer.from(payload.content.replace(/\s/g, ''), 'base64').toString('utf8'),
+  }
+}
+
+function packageDependencies(packageJson) {
+  return {
+    ...(packageJson.dependencies || {}),
+    ...(packageJson.optionalDependencies || {}),
+  }
+}
+
+function resolveFromLockfile(lockfile, packageName) {
+  if (!lockfile || !packageName) return null
+  const packageEntry = lockfile.packages?.[`node_modules/${packageName}`]
+  if (packageEntry?.version) return packageEntry.version
+  const legacyEntry = lockfile.dependencies?.[packageName]
+  return legacyEntry?.version || null
+}
+
+async function collectRepository(repository, requestedPackage) {
+  const packageFile = await readGitHubFile(repository, 'package.json')
+  if (!packageFile) throw new Error(`package.json not found in ${repository.slug}`)
+  const packageJson = JSON.parse(packageFile.text)
+  const dependencies = packageDependencies(packageJson)
+  const inferredPackage = requestedPackage || Object.keys(dependencies)[0] || null
+  const lockFile = await readGitHubFile(repository, 'package-lock.json')
+    || await readGitHubFile(repository, 'npm-shrinkwrap.json')
+  const lockfile = lockFile ? JSON.parse(lockFile.text) : null
+  const resolvedVersion = resolveFromLockfile(lockfile, inferredPackage)
+  const lockPackages = Object.entries(lockfile?.packages || {})
+    .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
+    .slice(0, 120)
+    .map(([path, entry]) => ({ name: path.replace(/^node_modules\//, ''), version: entry.version, resolved: entry.resolved }))
+  return {
+    collector: 'repository-extractor',
+    status: 'completed',
+    sourceUrl: packageFile.sourceUrl,
+    entities: Object.keys(dependencies).length + lockPackages.length,
+    repository: repository.slug,
+    repositoryUrl: repository.url,
+    synthetic: false,
+    inferredPackage,
+    manifest: {
+      name: packageJson.name || repository.name,
+      version: packageJson.version || null,
+      dependencies,
+      resolved: inferredPackage ? { [inferredPackage]: resolvedVersion || 'range-only' } : {},
+      lockfile: lockFile?.path || null,
+      lockPackages,
+    },
+    observedAt: new Date().toISOString(),
+  }
+}
+
 function inferTarget(query = '') {
   const text = String(query)
+  const repository = parseGitHubRepository(text)
   const advisoryId = text.match(/\b(?:CVE-\d{4}-\d+|GHSA-[a-z0-9-]+)\b/i)?.[0]?.toUpperCase() || null
-  const packageCandidates = [...text.matchAll(/(?:npm:)?(@[a-z0-9._-]+\/[a-z0-9._-]+|[a-z0-9][a-z0-9._-]+)(?:@(\d+\.\d+\.\d+))?/gi)]
+  const packageCandidates = [...text.replace(/(?:https?:\/\/)?(?:www\.)?github\.com\/[^/\s]+\/[^/#?\s]+/gi, '').matchAll(/(?:npm:)?(@[a-z0-9._-]+\/[a-z0-9._-]+|[a-z0-9][a-z0-9._-]+)(?:@(\d+\.\d+\.\d+))?/gi)]
   const packageMatch = packageCandidates.find((match) => {
     const value = match[1].toLowerCase()
     return !value.startsWith('cve-') && !value.startsWith('ghsa-') && !['fixture', 'storefront-api', 'package', 'npm'].includes(value)
   })
   return {
-    packageName: packageMatch?.[1] || DEFAULT_PACKAGE,
+    packageName: packageMatch?.[1] || null,
     version: packageMatch?.[2] || null,
     advisoryId,
     inferred: Boolean(packageMatch),
+    repository,
   }
 }
 
@@ -131,7 +210,6 @@ function collectRepositoryFixture(packageName, version) {
 
 export async function runIngestion({ query = `${DEFAULT_ADVISORY} / fixture/storefront-api`, scenarioId = '0017' } = {}) {
   const target = inferTarget(query)
-  const packageName = target.packageName
   const collectors = []
   const run = async (name, fn) => {
     try {
@@ -141,17 +219,29 @@ export async function runIngestion({ query = `${DEFAULT_ADVISORY} / fixture/stor
     }
   }
 
+  let packageName = target.packageName
+  if (!packageName && target.repository) {
+    await run('repository-extractor', async () => {
+      const result = await collectRepository(target.repository, null)
+      packageName = result.inferredPackage || DEFAULT_PACKAGE
+      return result
+    })
+  }
+  packageName = packageName || DEFAULT_PACKAGE
   await run('registry-resolver', () => collectRegistry(packageName))
   await run('advisory-resolver', () => collectAdvisories(packageName, target.advisoryId))
   await run('incident-researcher', () => collectIncidentSources(packageName))
-  collectors.push(collectRepositoryFixture(packageName, target.version))
+  if (!collectors.some((collector) => collector.collector === 'repository-extractor' && collector.status === 'completed')) {
+    if (target.repository) await run('repository-extractor', () => collectRepository(target.repository, packageName))
+    else collectors.push(collectRepositoryFixture(packageName, target.version))
+  }
 
   return {
     status: collectors.some((collector) => collector.status === 'failed') ? 'partial' : 'completed',
     query,
     scenarioId,
     package: packageName,
-    target,
+    target: { ...target, packageName, inferred: target.inferred || !target.packageName },
     collectors,
     completedAt: new Date().toISOString(),
   }

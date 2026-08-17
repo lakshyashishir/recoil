@@ -57,18 +57,20 @@ export const INTERVENTIONS = [
   { id: 'restore', title: 'Restore and validate', description: 'Redeploy from a verified artifact', cost: 1, reduction: 9 },
 ]
 
-export function createEvents(packageName = 'ua-parser-js', advisory = 'CVE-2021-4229') {
+export function createEvents(packageName = 'ua-parser-js', advisory = 'CVE-2021-4229', context = {}) {
+  const repositoryLine = context.repository ? ` from ${context.repository}` : ''
+  const dependencyLine = context.dependencyCount ? `${context.dependencyCount} manifest dependencies mapped` : 'Manifest and registry metadata mapped'
   return [
-    { id: 'armed', side: 'system', label: 'Case opened', detail: `${packageName} and ${advisory} registered for analysis` },
-    { id: 'maintainer_access', side: 'attack', label: 'Trust path identified', detail: 'Maintainer privileges connect to the release channel' },
-    { id: 'release_published', side: 'attack', label: 'Release published', detail: `${packageName} becomes available to dependency resolvers` },
-    { id: 'dependency_resolved', side: 'attack', label: 'Dependency resolved', detail: 'Semver and registry metadata pull the package into scope' },
-    { id: 'lockfile_promoted', side: 'attack', label: 'Lockfile crosses promotion', detail: 'The dependency enters a build and release candidate' },
-    { id: 'deployment_fanout', side: 'attack', label: 'Deployment fan-out', detail: 'One artifact reaches five production surfaces' },
-    { id: 'runtime_exposed', side: 'attack', label: 'High-value path exposed', detail: 'Payments and checkout can reach customer data' },
-    { id: 'defender_alert', side: 'defense', label: 'Telemetry raises an alert', detail: `Runtime evidence connects ${packageName} to active services` },
-    { id: 'containment_window', side: 'defense', label: 'Containment window calculated', detail: 'Controls are scored against the reachable attack path' },
-    { id: 'response_ready', side: 'defense', label: 'Response loop ready', detail: 'Choose a control, observe the new path, and continue' },
+    { id: 'armed', side: 'system', actor: 'orchestrator', intent: 'establish scope', label: 'Case opened', detail: `${packageName} and ${advisory} registered for analysis${repositoryLine}` },
+    { id: 'maintainer_access', side: 'attack', actor: 'attack planner', intent: 'find a trust edge', label: 'Trust path identified', detail: 'Maintainer privileges connect to the release channel' },
+    { id: 'release_published', side: 'attack', actor: 'attack planner', intent: 'introduce the source', label: 'Release published', detail: `${packageName} becomes available to dependency resolvers` },
+    { id: 'dependency_resolved', side: 'attack', actor: 'attack planner', intent: 'cross dependency edges', label: 'Dependency resolved', detail: dependencyLine },
+    { id: 'lockfile_promoted', side: 'attack', actor: 'attack planner', intent: 'cross the build gate', label: 'Lockfile crosses promotion', detail: 'The dependency enters a build and release candidate' },
+    { id: 'deployment_fanout', side: 'attack', actor: 'attack planner', intent: 'maximize reach', label: 'Deployment fan-out', detail: 'One artifact reaches five production surfaces' },
+    { id: 'runtime_exposed', side: 'attack', actor: 'attack planner', intent: 'reach a valuable asset', label: 'High-value path exposed', detail: 'Payments and checkout can reach customer data' },
+    { id: 'defender_alert', side: 'defense', actor: 'defender monitor', intent: 'surface evidence', label: 'Telemetry raises an alert', detail: `Runtime evidence connects ${packageName} to active services` },
+    { id: 'containment_window', side: 'defense', actor: 'containment planner', intent: 'score counterfactuals', label: 'Containment window calculated', detail: 'Controls are scored against the reachable attack path' },
+    { id: 'response_ready', side: 'defense', actor: 'defender operator', intent: 'choose a control', label: 'Response loop ready', detail: 'Choose a control, observe the new path, and continue' },
   ]
 }
 
@@ -106,7 +108,28 @@ export function getExposure(state) {
   return Math.max(4, 100 - getReduction(state))
 }
 
-export function getActiveNodeIds(state) {
+export function evaluateInterventions(state, graphNodes = NODES) {
+  const plans = []
+  const combinations = 1 << INTERVENTIONS.length
+  for (let mask = 0; mask < combinations; mask += 1) {
+    const selectedActions = INTERVENTIONS.filter((_, index) => mask & (1 << index)).map((action) => action.id)
+    const candidate = { ...state, selectedActions }
+    const cost = getSpent(candidate)
+    if (cost > RESPONSE_BUDGET) continue
+    const exposure = getExposure(candidate)
+    const worstCase = { ...candidate, eventIndex: EVENTS.length }
+    plans.push({
+      actions: selectedActions,
+      cost,
+      exposure,
+      contained: 100 - exposure,
+      activeNodes: getActiveNodeIds(worstCase, graphNodes).size,
+    })
+  }
+  return plans.sort((left, right) => left.exposure - right.exposure || left.cost - right.cost || left.activeNodes - right.activeNodes)
+}
+
+export function getActiveNodeIds(state, graphNodes = NODES) {
   const active = new Set()
   if (state.eventIndex >= 1) active.add('maintainer')
   if (state.eventIndex >= 2) active.add('release')
@@ -134,10 +157,14 @@ export function getActiveNodeIds(state) {
     active.add('customer-db')
   }
   if (state.eventIndex >= 8) active.add('security')
+  graphNodes.filter((node) => !NODES.some((known) => known.id === node.id)).forEach((node) => {
+    if (state.eventIndex >= (node.activeAt || 4)) active.add(node.id)
+  })
 
   if (state.selectedActions.includes('upgrade')) {
     active.delete('resolver')
     active.delete('lockfile')
+    graphNodes.filter((node) => node.role === 'target-dependency').forEach((node) => active.delete(node.id))
   }
   if (state.selectedActions.includes('block-promotion')) {
     ['repo', 'ci', 'artifact', 'secrets', 'gateway', 'storefront', 'payments', 'checkout', 'admin'].forEach((id) => active.delete(id))

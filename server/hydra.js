@@ -117,9 +117,10 @@ function buildMemories(ingestion) {
   const scenarioId = ingestion.scenarioId || '0017'
   const packageName = ingestion.package || 'ua-parser-js'
   const advisoryId = ingestion.target?.advisoryId || 'not specified'
-  const events = createEvents(packageName, advisoryId)
-  const graphNodes = NODES.map((node) => `${node.id}: ${node.label} (${node.meta})`).join('\n')
-  const graphEdges = EDGES.map(([from, to]) => `${from} -> ${to}`).join('\n')
+  const graph = ingestion.graph || { nodes: NODES, edges: EDGES }
+  const events = ingestion.events || createEvents(packageName, advisoryId)
+  const graphNodes = graph.nodes.map((node) => `${node.id}: ${node.label} (${node.meta})`).join('\n')
+  const graphEdges = graph.edges.map(([from, to]) => `${from} -> ${to}`).join('\n')
   const memories = [memory({
     id: `recoil:scenario:${stableId(`${scenarioId}:${ingestion.query || packageName}`)}`,
     title: `Recoil incident anchor · ${packageName}`,
@@ -139,8 +140,8 @@ function buildMemories(ingestion) {
       recoil_kind: 'graph_topology',
       recoil_scenario_id: scenarioId,
       recoil_package: packageName,
-      recoil_graph_node_count: NODES.length,
-      recoil_graph_edge_count: EDGES.length,
+      recoil_graph_node_count: graph.nodes.length,
+      recoil_graph_edge_count: graph.edges.length,
     },
   }), memory({
     id: `recoil:timeline:${stableId(`${scenarioId}:${packageName}:timeline`)}`,
@@ -223,6 +224,27 @@ export async function persistDecision({ scenarioId, queryText, action, selectedA
   })
   const result = await ingest([decision], signal)
   return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', action, memoryCount: 1, result }
+}
+
+export async function persistEvaluation({ scenarioId, queryText, recommended, alternatives }, signal) {
+  if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
+  const planKey = `${scenarioId}:${queryText}:${recommended.actions.join(',')}:${recommended.exposure}`
+  const plan = memory({
+    id: `recoil:plan:${stableId(planKey)}`,
+    title: `Recoil containment plan · ${scenarioId}`,
+    text: `# Recoil containment plan\n\n- Scenario: ${scenarioId}\n- Query: ${queryText}\n- Recommended controls: ${recommended.actions.join(', ') || 'none'}\n- Modeled exposure after recommendation: ${recommended.exposure}%\n- Modeled containment: ${recommended.contained}%\n- Response cost: ${recommended.cost} points\n- Residual active nodes: ${recommended.activeNodes}\n\n## Alternatives\n${alternatives.map((item, index) => `${index + 1}. ${item.actions.join(', ') || 'observe only'} — ${item.exposure}% exposure, cost ${item.cost}`).join('\n')}\n\nThis is a bounded counterfactual analysis. It does not execute code or mutate a real deployment.`,
+    additionalMetadata: {
+      recoil_kind: 'counterfactual_plan',
+      recoil_scenario_id: scenarioId,
+      recoil_query: queryText,
+      recoil_recommended_actions: recommended.actions.join(','),
+      recoil_exposure: recommended.exposure,
+      recoil_cost: recommended.cost,
+      recoil_active_nodes: recommended.activeNodes,
+    },
+  })
+  const result = await ingest([plan], signal)
+  return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', memoryCount: 1, result }
 }
 
 export async function recall(queryText, signal, scenarioId = '0017') {

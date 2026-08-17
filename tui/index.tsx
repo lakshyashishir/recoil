@@ -12,6 +12,7 @@ import {
   SCENARIO,
   advanceState,
   createInitialState,
+  evaluateInterventions,
   getActiveNodeIds,
   getExposure,
   getSpent,
@@ -56,6 +57,7 @@ function App() {
   const reduction = 100 - exposure
   const remainingBudget = Math.max(0, RESPONSE_BUDGET - getSpent(state))
   const currentEvent = EVENTS[Math.min(state.eventIndex, EVENTS.length - 1)]
+  const bestPlan = evaluateInterventions(state)[0]
 
   useEffect(() => {
     if (!state.running || complete) return undefined
@@ -152,6 +154,7 @@ function App() {
         <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Label>REACHABLE EXPOSURE</Label><text fg={exposure < 50 ? C.green : C.orange}>{exposure}%</text></box>
         <text fg={exposure < 50 ? C.green : C.orange}>{'█'.repeat(Math.max(1, Math.round(exposure / 7)))}{'░'.repeat(14 - Math.max(1, Math.round(exposure / 7)))}</text>
       </box>
+      {!compact && <text fg={C.green}>planner: {bestPlan.exposure}% exposure via {bestPlan.actions.length} controls</text>}
       {!compact && <Label>RESPONSE BUDGET · {remainingBudget} PTS LEFT</Label>}
       {INTERVENTIONS.slice(0, compact ? 3 : INTERVENTIONS.length).map((action, index) => {
         const selected = state.selectedActions.includes(action.id)

@@ -39,10 +39,15 @@ import './style.css'
 
 const eventIcons = {
   armed: Crosshair,
-  resolved: GitBranch,
-  propagated: Zap,
-  exposure: Clock3,
-  ready: Target,
+  maintainer_access: Shield,
+  release_published: Package,
+  dependency_resolved: GitBranch,
+  lockfile_promoted: Layers3,
+  deployment_fanout: Zap,
+  runtime_exposed: Target,
+  defender_alert: Activity,
+  containment_window: Clock3,
+  response_ready: ShieldCheck,
 }
 
 const actionIcons = {
@@ -69,6 +74,8 @@ function App() {
   const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0, lastDecision: null })
   const [graph, setGraph] = useState({ nodes: NODES, edges: EDGES })
   const [events, setEvents] = useState(EVENTS)
+  const [recommendation, setRecommendation] = useState(null)
+  const [report, setReport] = useState(null)
 
   const completed = isComplete({ eventIndex })
   const exposure = getExposure({ eventIndex, selectedActions })
@@ -93,7 +100,7 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [running, eventIndex, completed, events])
 
-  const activeNodes = useMemo(() => getActiveNodeIds({ eventIndex, selectedActions }), [eventIndex, selectedActions])
+  const activeNodes = useMemo(() => getActiveNodeIds({ eventIndex, selectedActions }, graph.nodes), [eventIndex, selectedActions, graph.nodes])
 
   useEffect(() => {
     fetch('/api/health')
@@ -102,10 +109,23 @@ function App() {
       .catch(() => setBackendStatus('offline'))
   }, [])
 
+  useEffect(() => {
+    if (!completed) return undefined
+    const controller = new AbortController()
+    fetch('/api/scenarios/0017/report', { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Report unavailable')))
+      .then((payload) => setReport(payload))
+      .catch(() => {})
+    return () => controller.abort()
+  }, [completed, selectedActions])
+
   function startSimulation() {
     setEventIndex(0)
     setRunning(true)
-    setMesh({ status: 'running', collectors: [], hydra: 'running', recallChunks: 0 })
+    setSelectedActions(['upgrade'])
+    setRecommendation(null)
+    setReport(null)
+    setMesh({ status: 'running', collectors: [], hydra: 'running', recallChunks: 0, lastDecision: null })
     fetch('/api/scenarios/0017/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -140,7 +160,32 @@ function App() {
     setGraph({ nodes: NODES, edges: EDGES })
     setEvents(EVENTS)
     setMesh({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0, lastDecision: null })
+    setRecommendation(null)
+    setReport(null)
     fetch('/api/scenarios/0017/reset', { method: 'POST' }).catch(() => {})
+  }
+
+  function findContainment() {
+    fetch('/api/scenarios/0017/evaluate', { method: 'POST' })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Evaluation failed')))
+      .then((payload) => setRecommendation(payload.recommended || null))
+      .catch(() => setRecommendation(null))
+  }
+
+  function applyRecommendation() {
+    if (!recommendation) return
+    const desired = recommendation.actions || []
+    const changes = [...new Set([...selectedActions, ...desired])].filter((id) => selectedActions.includes(id) !== desired.includes(id))
+    setSelectedActions(desired)
+    changes.forEach((id) => {
+      fetch('/api/scenarios/0017/action', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Decision failed')))
+        .then((payload) => setMesh((current) => ({ ...current, hydra: payload.hydra?.status || current.hydra, lastDecision: payload.hydra?.lastDecision || current.lastDecision })))
+        .catch(() => {})
+    })
   }
 
   function collectorStatus(name) {
@@ -231,7 +276,7 @@ function App() {
           </div>
 
           <div className="rail-footer">
-            <div><span className="muted">Graph state</span><strong>v0.4.2</strong></div>
+            <div><span className="muted">Graph state</span><strong>{SCENARIO.graphVersion}</strong></div>
             <div><span className="muted">Last sync</span><strong>just now</strong></div>
           </div>
         </aside>
@@ -242,6 +287,7 @@ function App() {
               <div className="eyebrow">ATTACK PATH  /  REACHABILITY</div>
               <h1>Package to deployment surface</h1>
               <p className="phase-detail">{currentEvent.detail}</p>
+              <div className="phase-meta"><span>{currentEvent.actor}</span><span>intent: {currentEvent.intent}</span></div>
             </div>
             <div className="panel-header-actions">
               <div className={`phase-summary ${currentEvent.side}`}><span className="phase-kicker">NOW</span><strong>{currentEvent.side === 'attack' ? 'ATTACKER' : currentEvent.side === 'defense' ? 'DEFENDER' : 'SYSTEM'}</strong><span>{currentEvent.label}</span></div>
@@ -297,7 +343,7 @@ function App() {
                 return (
                   <div className={`timeline-event ${event.side} ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`} key={event.label}>
                     <div className="timeline-marker">{isComplete ? <Check size={12} /> : <Icon size={12} />}</div>
-                    <div><strong>{event.label}</strong><span>{event.detail}</span></div>
+                    <div><strong>{event.label}</strong><span>{event.actor} · {event.detail}</span></div>
                   </div>
                 )
               })}
@@ -319,6 +365,20 @@ function App() {
           </div>
 
           <div className="budget-row"><span><Target size={14} /> response budget</span><strong>{Math.max(0, RESPONSE_BUDGET - getSpent({ selectedActions }))} pts left</strong></div>
+
+          <div className="planner-row">
+            <div><span className="section-label">Counterfactual planner</span><span>Search the bounded response space.</span></div>
+            <button onClick={findContainment}>Find minimum containment</button>
+          </div>
+
+          {recommendation && (
+            <div className="recommendation">
+              <div className="decision-log-head"><span className="section-label">Recommended response</span><span className="decision-status">{recommendation.exposure}% exposure</span></div>
+              <strong>{recommendation.actions.map((id) => INTERVENTIONS.find((action) => action.id === id)?.title).filter(Boolean).join(' + ') || 'Observe only'}</strong>
+              <span>{recommendation.contained}% modeled containment · {recommendation.cost} response points · {recommendation.activeNodes} active nodes</span>
+              <button onClick={applyRecommendation}>Apply plan</button>
+            </div>
+          )}
 
           <div className="intervention-list">
             {INTERVENTIONS.map((action) => {
@@ -344,11 +404,13 @@ function App() {
 
           <div className="report-card">
             <div className="report-card-head"><span className="section-label">Decision summary</span><span className="confidence"><span /> {mesh.recallChunks ? 'evidence linked' : 'awaiting trace'}</span></div>
-            <p>{completed ? 'The selected controls disconnect the highest-risk paths from the compromised release.' : 'Start an investigation to calculate the reachable path and expose response points.'}</p>
-            <div className="report-line"><span>affected repositories</span><strong>{completed ? (selectedActions.includes('quarantine') ? '01' : '03') : '—'}</strong></div>
-            <div className="report-line"><span>services remaining</span><strong>{completed ? (selectedActions.includes('upgrade') ? '01' : '03') : '—'}</strong></div>
-            <div className="report-line"><span>unknown deployment records</span><strong>02</strong></div>
+            <p>{report?.conclusion || (completed ? 'The selected controls disconnect the highest-risk paths from the compromised release.' : 'Start an investigation to calculate the reachable path and expose response points.')}</p>
+            <div className="report-line"><span>repository target</span><strong>{report?.observed?.repository || 'fixture'}</strong></div>
+            <div className="report-line"><span>modeled graph</span><strong>{report ? `${report.modeled.graphNodes}n / ${report.modeled.graphEdges}e` : '—'}</strong></div>
+            <div className="report-line"><span>active nodes at peak</span><strong>{report ? report.modeled.activeNodes : '—'}</strong></div>
+            <div className="report-line"><span>uncertainties</span><strong>{report ? report.uncertainty.length : '—'}</strong></div>
             <div className="report-line"><span>HydraDB evidence context</span><strong>{mesh.recallChunks ? `${mesh.recallChunks} chunks` : '—'}</strong></div>
+            {report?.uncertainty?.[0] && <div className="report-uncertainty">Uncertainty · {report.uncertainty[0]}</div>}
           </div>
 
           <div className="right-footer"><ShieldCheck size={15} /><span>Analysis only. Recoil never executes package code.</span></div>
