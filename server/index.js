@@ -12,6 +12,7 @@ import {
   toggleAction,
 } from '../src/core/scenario.js'
 import { runIngestion } from './collectors.js'
+import { hydraStatus, persistIngestion, recall } from './hydra.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
@@ -37,6 +38,7 @@ function snapshot(record) {
     state,
     metrics: { exposure, contained: 100 - exposure, eventIndex: state.eventIndex, complete: state.eventIndex >= EVENTS.length },
     ingestion: record.ingestion,
+    hydra: record.hydra,
     sources: [
       { id: 'osv', label: 'OSV advisory', type: 'advisory', status: 'fixture' },
       { id: 'npm', label: 'npm registry', type: 'registry', status: 'fixture' },
@@ -47,7 +49,14 @@ function snapshot(record) {
 
 function getOrCreate(id = '0017', body = {}) {
   if (!scenarios.has(id)) {
-    scenarios.set(id, { id, query: body.query || SCENARIO.query, mode: body.mode || 'incident', state: createInitialState(), ingestion: { status: 'not_started', collectors: [] } })
+    scenarios.set(id, {
+      id,
+      query: body.query || SCENARIO.query,
+      mode: body.mode || 'incident',
+      state: createInitialState(),
+      ingestion: { status: 'not_started', collectors: [] },
+      hydra: { status: 'not_started', memoryCount: 0, recall: null },
+    })
   }
   return scenarios.get(id)
 }
@@ -62,7 +71,7 @@ function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
   if (req.method === 'OPTIONS') return json(res, 204, {})
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'recoil-api', hydra: 'adapter-pending', sources: ['fixture'], time: new Date().toISOString() })
+    return json(res, 200, { ok: true, service: 'recoil-api', hydra: hydraStatus(), sources: ['npm-registry', 'osv', 'incident-pages', 'synthetic-fixture'], time: new Date().toISOString() })
   }
   if (req.method === 'GET' && url.pathname === '/api/scenario') return json(res, 200, snapshot(getOrCreate()))
   if (req.method === 'POST' && url.pathname === '/api/scenarios') {
@@ -81,14 +90,34 @@ function route(req, res) {
     if (req.method === 'POST' && action === 'reset') {
       record.state = createInitialState()
       record.ingestion = { status: 'not_started', collectors: [] }
+      record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
       return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'ingest') {
       record.ingestion = { status: 'running', collectors: [] }
       return runIngestion().then((result) => {
         record.ingestion = result
-        return json(res, 200, snapshot(record))
+        return persistIngestion(result).then((persisted) => {
+          record.hydra = { ...record.hydra, ...persisted, persistedAt: persisted.status === 'persisted' ? new Date().toISOString() : null }
+          return json(res, 200, snapshot(record))
+        }).catch((error) => {
+          record.hydra = { status: 'failed', memoryCount: 0, error: error.message, recall: null }
+          return json(res, 200, snapshot(record))
+        })
       })
+    }
+    if (req.method === 'POST' && action === 'persist') {
+      if (!record.ingestion || record.ingestion.status === 'not_started') return json(res, 409, { error: 'Run ingestion before persisting' })
+      return persistIngestion(record.ingestion).then((persisted) => {
+        record.hydra = { ...record.hydra, ...persisted, persistedAt: persisted.status === 'persisted' ? new Date().toISOString() : null }
+        return json(res, 200, snapshot(record))
+      }).catch((error) => json(res, 502, { error: error.message, hydra: hydraStatus() }))
+    }
+    if (req.method === 'POST' && action === 'recall') {
+      return body(req).then((payload) => recall(payload.query || record.query)).then((result) => {
+        record.hydra = { ...record.hydra, recall: result, recalledAt: new Date().toISOString() }
+        return json(res, 200, snapshot(record))
+      }).catch((error) => json(res, 502, { error: error.message, hydra: hydraStatus() }))
     }
     if (req.method === 'POST' && action === 'action') {
       return body(req).then((payload) => {
