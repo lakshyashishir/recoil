@@ -27,6 +27,7 @@ import { advisoryAgentStatus } from './advisory-agent.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
+const host = process.env.RECOIL_HOST || '127.0.0.1'
 const scenarios = new Map()
 
 function buildGraph(ingestion) {
@@ -663,7 +664,7 @@ if (runningAsEntryPoint) {
     process.exitCode = 1
   })
 
-  server.listen(port, '127.0.0.1', () => {
-    console.log(`Recoil API listening on http://127.0.0.1:${port}`)
+  server.listen(port, host, () => {
+    console.log(`Recoil API listening on http://${host}:${port}`)
   })
 }

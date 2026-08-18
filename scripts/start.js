@@ -10,7 +10,11 @@ function sharedEnvValue(file, name) {
 }
 
 const sharedEnvFile = process.env.RECOIL_SHARED_ENV_FILE || fileURLToPath(new URL('../../claimtrace/.env', import.meta.url))
+const localEnvFile = fileURLToPath(new URL('../.env', import.meta.url))
 const serverEnv = { ...process.env }
+const host = process.env.RECOIL_HOST || sharedEnvValue(localEnvFile, 'RECOIL_HOST') || '127.0.0.1'
+const viteHost = process.env.RECOIL_VITE_HOST || host
+serverEnv.RECOIL_HOST = host
 if (!serverEnv.OPENAI_API_KEY) {
   const sharedKey = sharedEnvValue(sharedEnvFile, 'OPENAI_API_KEY')
   const sharedModel = sharedEnvValue(sharedEnvFile, 'OPENAI_MODEL')
@@ -20,7 +24,7 @@ if (!serverEnv.OPENAI_API_KEY) {
 
 const children = [
   spawn(process.execPath, ['--env-file-if-exists=.env', 'server/index.js'], { stdio: 'inherit', env: serverEnv }),
-  spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1'], { stdio: 'inherit' }),
+  spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', viteHost], { stdio: 'inherit' }),
 ]
 
 let stopping = false
