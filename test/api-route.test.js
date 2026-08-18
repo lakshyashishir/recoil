@@ -97,6 +97,8 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     }
     assert.equal(current.investigation.status, 'complete')
     assert.equal(current.investigation.report.summary.reached, 1)
+    assert.equal(current.investigation.report.evidenceQuality.readyForRecording, true)
+    assert.equal(current.investigation.events.find((event) => event.key === 'complete').title, 'Case complete')
     assert.equal(current.investigation.hydra.status, 'skipped')
 
     const receipt = await request('GET', `/api/scenarios/${id}/receipt`)

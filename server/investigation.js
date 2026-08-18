@@ -69,8 +69,8 @@ export async function executeInvestigation(record) {
       type: 'step',
       key: 'proving-paths',
       status: 'complete',
-      title: 'Paths proved',
-      detail: `${report.summary.reached} reached · ${report.summary.declaredOnly} declared only · ${report.summary.notAffected} not affected`,
+      title: report.evidenceQuality.readyForRecording ? 'Paths proved' : 'Evidence classified with gaps',
+      detail: `${report.summary.reached} reached · ${report.summary.declaredOnly} declared only · ${report.summary.notAffected} not affected${report.summary.unknown ? ` · ${report.summary.unknown} unknown` : ''}`,
     })
     pushEvent(state, {
       type: 'step',
@@ -102,8 +102,10 @@ export async function executeInvestigation(record) {
       type: 'step',
       key: 'complete',
       status: 'complete',
-      title: 'Case complete',
-      detail: 'The path, timeline, and remediation proof are ready to inspect.',
+      title: report.evidenceQuality.readyForRecording ? 'Case complete' : 'Case complete · review required',
+      detail: report.evidenceQuality.readyForRecording
+        ? 'The path, timeline, and remediation proof are ready to inspect.'
+        : `${report.evidenceQuality.reason} The report is available for diagnosis, not final recording.`,
     })
     return state
   } catch (error) {
