@@ -67,6 +67,14 @@ function indexingStatus(item) {
   return String(item?.indexing_status || item?.indexingStatus || item?.status || item?.state || '').toLowerCase()
 }
 
+// HydraDB responses have used both the resource `id` and the memory's
+// `source_id` naming across ingestion/status surfaces. Normalize the identity
+// at the adapter boundary so a successful cloud response cannot be mistaken
+// for a partial acknowledgement by the recording gate.
+function resultId(item) {
+  return item?.id || item?.source_id || item?.sourceId || null
+}
+
 function chunkMetadata(chunk) {
   return chunk?.additional_metadata || chunk?.additionalMetadata || chunk?.metadata?.additional_metadata || chunk?.metadata?.additionalMetadata || {}
 }
@@ -193,15 +201,15 @@ function pollTimeoutMs() {
 
 async function waitForIndexing(result, signal) {
   if (result.indexingStatus === 'completed') return result
-  const sourceIds = (result.results || []).map((item) => item.id).filter(Boolean)
+  const sourceIds = [...new Set((result.results || []).map(resultId).filter(Boolean))]
   if (!sourceIds.length) return result
   const deadline = Date.now() + pollTimeoutMs()
   let latest = result
   while (Date.now() < deadline) {
     const statusPayload = await contextStatus(sourceIds, signal)
     const statuses = statusPayload?.statuses || statusPayload?.results || []
-    const statusById = new Map(statuses.map((item) => [item.id, item]))
-    const merged = sourceIds.map((id) => statusById.get(id) || (result.results || []).find((item) => item.id === id)).filter(Boolean)
+    const statusById = new Map(statuses.map((item) => [resultId(item), item]).filter(([id]) => id))
+    const merged = sourceIds.map((id) => statusById.get(id) || (result.results || []).find((item) => resultId(item) === id)).filter(Boolean)
     const failed = merged.find((item) => ['failed', 'errored', 'error'].includes(indexingStatus(item)))
     if (failed) {
       const error = new Error(`HydraDB indexing failed for ${failed.id}: ${failed.error_message || failed.message || indexingStatus(failed)}`)
@@ -415,7 +423,7 @@ export async function persistInvestigation(ingestion, report, signal) {
     if (error.code === 'HYDRA_INDEX_FAILED') throw error
     result = { ...queued, indexingStatus: 'queued', indexingPending: true, indexingError: error.message }
   }
-  const sourceIds = [...new Set((result.results || []).map((item) => item.id).filter(Boolean))]
+  const sourceIds = [...new Set((result.results || []).map(resultId).filter(Boolean))]
   const acknowledgedAll = sourceIds.length >= memories.length
   return {
     status: result.indexingStatus === 'completed' && acknowledgedAll ? 'persisted' : 'queued',

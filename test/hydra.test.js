@@ -113,7 +113,7 @@ test('HydraDB adapter persists memories and filters temporal recall locally', as
       return {
         ok: true,
         status: 200,
-        json: async () => ({ data: { inner: { results: [{ id: memories[0].id, status: 'completed' }] } } }),
+        json: async () => ({ data: { inner: { results: [{ source_id: memories[0].id, status: 'completed' }] } } }),
       }
     }
     if (url.endsWith('/query')) {
@@ -162,6 +162,7 @@ test('HydraDB adapter persists memories and filters temporal recall locally', as
     const persisted = await persistInvestigation(ingestion, report)
     assert.equal(persisted.status, 'persisted')
     assert.ok(persisted.memoryCount > 0)
+    assert.equal(persisted.sourceIds.length, persisted.memoryCount)
     const recalled = await recallTemporal('minimist', '2023-01-01T00:00:00.000Z', undefined, { excludeScenarioId: 'current-case' })
     assert.equal(recalled.datedChunkCount, 1)
     assert.deepEqual(recalled.priorScenarioIds, ['prior-case'])
