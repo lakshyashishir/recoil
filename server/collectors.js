@@ -232,11 +232,11 @@ async function collectSourceFiles(repository) {
     status = 'unavailable'
     error = cause.message
   }
-  const candidates = paths
+  const eligiblePaths = paths
     .filter((path) => /(?:^|\/)(?:src|lib|app|packages|crates)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
     .filter((path) => /\.(?:js|jsx|mjs|cjs|ts|tsx|rs)$/.test(path))
     .filter((path) => !/(?:node_modules|target|dist|build|vendor)\//.test(path))
-    .slice(0, sourceLimit)
+  const candidates = eligiblePaths.slice(0, sourceLimit)
   const responses = await Promise.all(candidates.map(async (path) => {
     try {
       return { file: await readGitHubFile(repository, path), error: null }
@@ -245,7 +245,7 @@ async function collectSourceFiles(repository) {
     }
   }))
   const failures = responses.map((item) => item.error).filter(Boolean)
-  return { files: responses.map((item) => item.file).filter(Boolean), requested: candidates.length, limit: sourceLimit, status: failures.length && status === 'collected' ? 'partial' : status, error: error || failures[0] || null }
+  return { files: responses.map((item) => item.file).filter(Boolean), available: eligiblePaths.length, requested: candidates.length, limit: sourceLimit, status: failures.length && status === 'collected' ? 'partial' : status, error: error || failures[0] || null }
 }
 
 async function collectLatestChange(repository, codeGraph) {
@@ -370,7 +370,7 @@ export async function collectRepository(repository, requestedPackage) {
   const sourceResult = await collectSourceFiles(repository)
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
-  let codeGraph = buildCodeGraph(sourceFiles, { inferSurfaces: false })
+  let codeGraph = buildCodeGraph(sourceFiles, { inferSurfaces: false, maxFiles: sourceResult.limit || sourceFiles.length || 24 })
   codeGraph.recentChange = await collectLatestChange(repository, codeGraph)
   codeGraph = enrichImpactCandidates(codeGraph, parseCodeowners(codeownersFile?.text || ''))
   const workflowText = workflowFiles.map((file) => file.text).join('\n')
@@ -405,7 +405,7 @@ export async function collectRepository(repository, requestedPackage) {
       ciSignals,
       deploymentSignals,
       collection: {
-        sourceFiles: { status: sourceResult.status, error: sourceResult.error, sampled: sourceFiles.length, requested: sourceResult.requested || 0, limit: sourceResult.limit || sourceFiles.length },
+        sourceFiles: { status: sourceResult.status, error: sourceResult.error, sampled: sourceFiles.length, available: sourceResult.available || 0, requested: sourceResult.requested || 0, limit: sourceResult.limit || sourceFiles.length },
       },
       temporal: {
         pathObservedAt: temporal?.firstCommitAt || null,
