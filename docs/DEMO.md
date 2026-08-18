@@ -72,4 +72,4 @@ The CLI prints a receipt URL after completion. The browser exposes the same rece
 
 ## Safety statement
 
-Recoil observes public records and performs static graph/reachability analysis. It does not install dependencies, execute package code, send exploit payloads, or probe a live repository or service. Any benchmark fixture is explicitly test input; its output is computed by the evidence engine.
+Recoil observes public records and performs static graph/reachability analysis. It does not install dependencies, execute package code, send exploit payloads, or probe a live repository or service. Benchmark cases are deterministic evidence inputs; their outputs are computed by the same evidence engine used by the product. There is no executable target fixture in the shipped application.

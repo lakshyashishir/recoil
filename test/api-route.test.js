@@ -111,7 +111,7 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     const health = await request('GET', '/api/health')
     assert.equal(health.statusCode, 200)
     assert.equal(health.body.product, 'evidence-proof')
-    assert.equal(health.body.legacyArenaAgents.status, 'retired-from-evidence-path')
+    assert.equal('legacyArenaAgents' in health.body, false)
   } finally {
     globalThis.fetch = previousFetch
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY
@@ -120,4 +120,3 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     else process.env.RECOIL_ADVISORY_AGENT = previousScope
   }
 })
-

@@ -435,7 +435,7 @@ function inferTarget(query = '') {
   const packageCandidates = [...text.replace(/(?:https?:\/\/)?(?:www\.)?github\.com\/[^/\s]+\/[^/#?\s]+(?:\/(?:tree|commit)\/[^#?\s]+)?/gi, '').matchAll(/(?:npm:)?(@[a-z0-9._-]+\/[a-z0-9._-]+|[a-z0-9][a-z0-9._-]+)(?:@(\d+\.\d+\.\d+))?/gi)]
   const packageMatch = packageCandidates.find((match) => {
     const value = match[1].toLowerCase()
-    return !value.startsWith('cve-') && !value.startsWith('ghsa-') && !['fixture', 'storefront-api', 'package', 'npm'].includes(value)
+    return !value.startsWith('cve-') && !value.startsWith('ghsa-') && !['package', 'npm'].includes(value)
   })
   return {
     packageName: packageMatch?.[1] || null,
@@ -581,10 +581,6 @@ async function collectIncidentSources(packageName, ecosystem = 'npm') {
     sources: results,
     observedAt: new Date().toISOString(),
   }
-}
-
-export async function runIngestion() {
-  throw new Error('The legacy ingestion endpoint is retired; use runMultiRepositoryIngestion through /investigate.')
 }
 
 function advisoryPackageName(advisory) {

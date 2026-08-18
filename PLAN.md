@@ -56,7 +56,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Improve source-level path precision by connecting advisory-described symbols to indexed symbols with a validated optional model step.
 - [x] Add cross-case HydraDB recall that visibly relates a new case to a prior package/repository fact.
 - [x] Add a final provenance/limitations pass so every displayed claim has an explicit evidence boundary.
-- [x] Remove or clearly quarantine legacy arena/TUI language from the public demo path.
+- [x] Delete the retired fictional arena, executable fixture, agent loop, and legacy routes from the shipped product path.
 - [ ] Render and inspect the browser at common desktop and mobile widths.
 - [ ] Update the final demo recording and repository instructions after the real smoke run.
 

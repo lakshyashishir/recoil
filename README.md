@@ -48,7 +48,7 @@ cp .env.example .env
 npm run start
 ```
 
-The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` and point `RECOIL_API_URL` at the reachable API address when serving the app from a container or hosted environment. Verify that the API reports `product: evidence-proof` before recording; an older process may still expose the retired arena surface until it is restarted.
+The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` and point `RECOIL_API_URL` at the reachable API address when serving the app from a container or hosted environment. Verify that the API reports `product: evidence-proof` before recording.
 
 For separate processes:
 
@@ -103,7 +103,7 @@ GET  /api/scenarios/:id/code-graph   inspect the bounded source graph
 GET  /api/health                     inspect service and HydraDB capability status
 ```
 
-In evidence mode, legacy arena operations are retired with an explicit `410` response. Historical arena code remains only for regression compatibility; it is not part of the product snapshot, report, or demo path.
+The retired arena/fixture prototype is not shipped. The product path contains only public-evidence collection, source reachability, temporal rewind, fix proof, HydraDB evidence memory, and receipt export. Historical design notes remain in `docs/` so the project history is auditable.
 
 ## Verification
 
