@@ -54,6 +54,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Persist the observed evidence topology through HydraDB's documented `graph_payload` contract and summarize returned graph-context triplets.
 - [x] Poll HydraDB's asynchronous indexing status before recalling graph context; expose queued timeouts without claiming persistence.
 - [x] Attach a per-hop provenance chain to each repository finding and portable receipt: advisory, lockfile resolution, repository, import/symbol, and dated observation.
+- [x] Add a network-free recording doctor with optional bounded endpoint probes so demo readiness is diagnosed before collection.
 
 ### Still required before calling the hackathon build complete
 
@@ -234,6 +235,7 @@ Manual checks:
 - `dc1cfed` — surface HydraDB read status and graph triplets in the TUI
 - `003661d` — attach a per-hop evidence provenance chain to findings and receipts
 - `594ff00` — expose provenance-hop summaries and expansion in the CLI
+- `43fc7ce` — record provenance checkpoints
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 

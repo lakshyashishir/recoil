@@ -99,6 +99,18 @@ npm run dev
 
 Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `HYDRADB_INDEX_WAIT_MS`, `HYDRADB_INDEX_POLL_MS`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, `RECOIL_NETWORK_RETRIES`, and `RECOIL_SOURCE_FILE_LIMIT`. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source. Raise `RECOIL_SOURCE_FILE_LIMIT` for a large, trusted demo repository only when you are comfortable with the extra public reads; the chosen bound is preserved in each finding.
 
+Run the configuration doctor before a demo. It does not make network calls unless asked:
+
+```bash
+npm run doctor
+npm run doctor -- --recording "GHSA-xxxx-yyyy-zzzz https://github.com/org/repo-a https://github.com/org/repo-b https://github.com/org/repo-c"
+npm run doctor -- --network
+```
+
+`--recording` requires an advisory or package selector, three public repositories, and HydraDB write/read
+credentials. `--network` performs bounded reachability checks against OSV, GitHub, and HydraDB; failures
+are diagnostics, not evidence, and do not create a case.
+
 To enable the optional advisory-scope pass, provide `OPENAI_API_KEY` and set `RECOIL_ADVISORY_AGENT=on`. It extracts candidate affected symbols from advisory prose using structured output, then the server attaches only exact matches found in the indexed source graph. Leave it off for a fully deterministic run; the package-import verdict does not depend on the model.
 
 ## Browser and terminal clients

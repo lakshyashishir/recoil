@@ -11,6 +11,7 @@
     "cli": "node --env-file-if-exists=.env cli/recoil.js",
     "test": "node --test",
     "benchmark": "node scripts/evidence-benchmark.js",
+    "doctor": "node --env-file-if-exists=.env scripts/doctor.mjs",
     "verify": "node scripts/verify.js",
     "smoke:real": "node --env-file-if-exists=.env scripts/smoke-real.mjs",
     "tui": "bun run tui/index.tsx",
