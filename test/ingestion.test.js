@@ -128,7 +128,7 @@ test('Cargo ingestion resolves an external crate import and registry fixed versi
     affected: [{ package: { ecosystem: 'crates.io', name: 'bytes' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.11.1' }] }] }],
     sourceUrl: 'https://api.osv.dev/v1/vulns/ghsa-cargo-1234-5678',
   }
-  const cargoManifest = '[package]\nname = "rust-app"\nversion = "0.1.0"\n\n[dependencies]\nbytes = "1.10"\n'
+  const cargoManifest = '[package]\nname = "rust-app"\nversion = "0.1.0"\n\n[dependencies]\nbytes_alias = { package = "bytes", version = "1.10" }\n'
   const cargoLock = '[[package]]\nname = "rust-app"\nversion = "0.1.0"\ndependencies = ["bytes"]\n\n[[package]]\nname = "bytes"\nversion = "1.10.0"\n'
   globalThis.fetch = async (input) => {
     const url = new URL(input)
@@ -147,7 +147,7 @@ test('Cargo ingestion resolves an external crate import and registry fixed versi
       const path = decodeURIComponent(operation.slice('contents/'.length))
       if (path === 'Cargo.toml') return response(githubFile(path, cargoManifest, 'example/rust-app'))
       if (path === 'Cargo.lock') return response(githubFile(path, cargoLock, 'example/rust-app'))
-      if (path === 'src/lib.rs') return response(githubFile(path, 'use bytes::BytesMut;\npub fn parse() { let _ = BytesMut::new(); }', 'example/rust-app'))
+      if (path === 'src/lib.rs') return response(githubFile(path, 'use bytes_alias::BytesMut;\npub fn parse() { let _ = BytesMut::new(); }', 'example/rust-app'))
       return response({}, 404)
     }
     return response({}, 404)
@@ -160,6 +160,7 @@ test('Cargo ingestion resolves an external crate import and registry fixed versi
     assert.deepEqual(ingestion.registry.fixedVersions, ['1.11.1'])
     assert.equal(finding.verdict, 'REACHED')
     assert.equal(finding.imports[0].packageName, 'bytes')
+    assert.equal(finding.imports[0].packageAlias, 'bytes_alias')
     assert.equal(ingestion.repositories[0].manifest.codeGraph.externalImports[0].packageName, 'bytes')
     assert.equal(ingestion.repositories[0].manifest.codeGraph.files[0].language, 'rust')
   } finally {

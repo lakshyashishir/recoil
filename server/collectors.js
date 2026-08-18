@@ -298,6 +298,7 @@ function parseCargoManifest(text) {
   let section = ''
   const packageInfo = {}
   const dependencies = {}
+  const dependencyAliases = {}
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim()
     if (!line || line.startsWith('#')) continue
@@ -312,9 +313,11 @@ function parseCargoManifest(text) {
     if (section === 'package' && ['name', 'version'].includes(key)) packageInfo[key] = parseTomlValue(value)
     if (section === 'dependencies' || section === 'workspace.dependencies' || section.startsWith('target.') && section.endsWith('.dependencies')) {
       dependencies[key] = parseTomlValue(value)
+      const packageName = value.match(/\bpackage\s*=\s*["']([^"']+)["']/)?.[1]
+      if (packageName) dependencyAliases[key] = packageName
     }
   }
-  return { ...packageInfo, dependencies }
+  return { ...packageInfo, dependencies, dependencyAliases }
 }
 
 function parseCargoLock(text) {
@@ -371,6 +374,19 @@ export async function collectRepository(repository, requestedPackage) {
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
   let codeGraph = buildCodeGraph(sourceFiles, { inferSurfaces: false, maxFiles: sourceResult.limit || sourceFiles.length || 24 })
+  const dependencyAliases = ecosystem === 'cargo' ? cargoManifest.dependencyAliases || {} : {}
+  const normalizedDependencies = { ...dependencies }
+  for (const [alias, packageName] of Object.entries(dependencyAliases)) {
+    if (normalizedDependencies[packageName] === undefined) normalizedDependencies[packageName] = dependencies[alias]
+  }
+  codeGraph = {
+    ...codeGraph,
+    externalImports: codeGraph.externalImports.map((item) => {
+      const alias = Object.keys(dependencyAliases).find((candidate) => candidate === item.packageName || candidate.replace(/_/g, '-') === item.packageName)
+      const packageName = alias ? dependencyAliases[alias] : item.packageName
+      return packageName === item.packageName ? item : { ...item, packageName, packageAlias: alias || item.packageName }
+    }),
+  }
   codeGraph.recentChange = await collectLatestChange(repository, codeGraph)
   codeGraph = enrichImpactCandidates(codeGraph, parseCodeowners(codeownersFile?.text || ''))
   const workflowText = workflowFiles.map((file) => file.text).join('\n')
@@ -398,7 +414,7 @@ export async function collectRepository(repository, requestedPackage) {
     manifest: {
       name: packageJson?.name || cargoManifest?.name || repository.name,
       version: packageJson?.version || cargoManifest?.version || null,
-      dependencies,
+      dependencies: normalizedDependencies,
       resolved: inferredPackage ? { [inferredPackage]: resolvedVersion || 'range-only' } : {},
       lockfile: lockFile?.path || null,
       lockPackages,

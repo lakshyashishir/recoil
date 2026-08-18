@@ -72,5 +72,13 @@ version = "1.0.210"
   assert.equal(manifest.name, 'recoil-fixture')
   assert.equal(manifest.dependencies.serde, '1.0')
   assert.equal(manifest.dependencies['hydra-client'], '0.4')
+  assert.deepEqual(manifest.dependencyAliases, {})
   assert.deepEqual(lock[0], { name: 'recoil-fixture', version: '0.1.0', dependencies: ['hydra-client', 'serde'] })
+})
+
+test('Cargo manifest preserves renamed package identity for source normalization', () => {
+  const manifest = parseCargoManifest('[dependencies]\nbytes_alias = { package = "bytes", version = "1.10" }')
+
+  assert.equal(manifest.dependencies.bytes_alias, '1.10')
+  assert.deepEqual(manifest.dependencyAliases, { bytes_alias: 'bytes' })
 })

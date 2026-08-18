@@ -28,7 +28,7 @@ function compactFinding(finding) {
     verdict: finding.verdict || 'UNKNOWN',
     reason: finding.reason || null,
     path: finding.path || [],
-    imports: (finding.imports || []).map((item) => ({ path: item.path, line: item.line, specifier: item.specifier, sourceUrl: item.sourceUrl })).filter((item) => item.path || item.sourceUrl),
+    imports: (finding.imports || []).map((item) => ({ path: item.path, line: item.line, specifier: item.specifier, packageName: item.packageName, packageAlias: item.packageAlias || null, sourceUrl: item.sourceUrl })).filter((item) => item.path || item.sourceUrl),
     sourceSampleSize: finding.sourceSampleSize ?? null,
     sourceCandidateCount: finding.sourceCandidateCount ?? null,
     sourceSampleLimit: finding.sourceSampleLimit ?? null,
