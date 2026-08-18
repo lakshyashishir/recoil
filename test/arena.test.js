@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createArenaState, runArena, stepArena } from '../src/core/arena.js'
-import { EDGES, NODES } from '../src/core/scenario.js'
+import { EDGES, INTERVENTIONS, NODES, RESPONSE_BUDGET, getReachability } from '../src/core/scenario.js'
 
 test('red agent adapts to the alternate route after promotion is blocked', () => {
   const initial = createArenaState({ scenarioId: 'arena-test', graphNodes: NODES, graphEdges: EDGES })
@@ -49,4 +49,31 @@ test('defender does not apply an unrelated recalled control as a match', () => {
   assert.equal(second.lastRound.red.path.includes('resolver'), true)
   assert.equal(second.lastRound.blue.action, 'upgrade')
   assert.equal(second.lastRound.blue.memoryUsed, false)
+})
+
+test('every affordable control set is monotonic against the no-control graph', () => {
+  const baseline = getReachability({ eventIndex: 10, selectedActions: [] }, NODES, EDGES)
+  let affordablePlans = 0
+  for (let mask = 0; mask < (1 << INTERVENTIONS.length); mask += 1) {
+    const selectedActions = INTERVENTIONS.filter((_, index) => mask & (1 << index)).map((action) => action.id)
+    const cost = selectedActions.reduce((sum, id) => sum + INTERVENTIONS.find((action) => action.id === id).cost, 0)
+    if (cost > RESPONSE_BUDGET) continue
+    affordablePlans += 1
+    const result = getReachability({ eventIndex: 10, selectedActions }, NODES, EDGES)
+    assert.ok(result.exposure <= baseline.exposure, `${selectedActions.join(',')} increased exposure`)
+    assert.ok(result.blockedNodeIds.every((id) => NODES.some((node) => node.id === id)))
+  }
+  assert.equal(affordablePlans, 52)
+})
+
+test('every recorded red route is a real path in the current graph', () => {
+  const result = runArena(createArenaState({ scenarioId: 'path-integrity-test', graphNodes: NODES, graphEdges: EDGES }), NODES, EDGES)
+  const edgeKeys = new Set(EDGES.map(([from, to]) => `${from}>${to}`))
+  for (const round of result.history) {
+    assert.ok(round.red.path.length > 1)
+    round.red.path.slice(1).forEach((to, index) => {
+      assert.ok(edgeKeys.has(`${round.red.path[index]}>${to}`), `${round.red.path[index]} -> ${to} is not an edge`)
+    })
+    assert.ok(round.after.exposure <= round.before.exposure)
+  }
 })

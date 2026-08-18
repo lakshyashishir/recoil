@@ -8,6 +8,7 @@ import {
   ChevronRight,
   CircleHelp,
   Database,
+  ExternalLink,
   GitBranch,
   LockKeyhole,
   Pause,
@@ -144,6 +145,45 @@ function RoundFeed({ arena, graph }) {
   </article>)}</div>
 }
 
+function ReportDossier({ report }) {
+  const observed = report?.observed || {}
+  const modeled = report?.modeled || {}
+  const arena = report?.arena || {}
+  const controls = arena.selectedActions || []
+  const sources = report?.sources || []
+  const uncertainty = report?.uncertainty || []
+  return <section className="report-dossier">
+    <div className="dossier-head"><div><div className="section-caption">case report</div><h2>Evidence, outcome, limits.</h2></div><span className="dossier-boundary">observed facts / modeled response</span></div>
+    <div className="dossier-grid">
+      <section className="dossier-section">
+        <div className="section-caption">observed</div>
+        <dl className="report-facts">
+          <div><dt>package</dt><dd>{observed.package || 'not resolved'}</dd></div>
+          <div><dt>ecosystem</dt><dd>{observed.ecosystem || 'unknown'}</dd></div>
+          <div><dt>advisory</dt><dd>{observed.advisory || 'not specified'}</dd></div>
+          <div><dt>repository</dt><dd>{observed.repository || 'not found'}</dd></div>
+          <div><dt>resolved version</dt><dd>{observed.resolvedVersion || 'range only'}</dd></div>
+        </dl>
+      </section>
+      <section className="dossier-section">
+        <div className="section-caption">computed outcome</div>
+        <dl className="report-facts">
+          <div><dt>graph</dt><dd>{modeled.graphNodes || 0} nodes · {modeled.graphEdges || 0} edges</dd></div>
+          <div><dt>baseline exposure</dt><dd>{formatPct(modeled.baselineExposure)}</dd></div>
+          <div><dt>final exposure</dt><dd className={modeled.reachableExposure < 50 ? 'report-good' : 'report-risk'}>{formatPct(modeled.reachableExposure)}</dd></div>
+          <div><dt>controls used</dt><dd>{controls.length ? controls.join(' · ') : 'none'}</dd></div>
+          <div><dt>arena</dt><dd>{arena.round || 0} rounds · {arena.winner || 'unresolved'}</dd></div>
+        </dl>
+      </section>
+      <section className="dossier-section">
+        <div className="section-caption">limits & provenance</div>
+        <ul className="report-list">{uncertainty.slice(0, 4).map((item) => <li key={item}>{item}</li>)}</ul>
+        <div className="report-sources"><div className="section-caption">sources</div>{sources.slice(0, 4).map((source) => <a href={source} target="_blank" rel="noreferrer" key={source}><span>{sourceHost(source)}</span><ExternalLink size={11} /></a>)}</div>
+      </section>
+    </div>
+  </section>
+}
+
 function DecisionRail({ snapshot, selectedNode }) {
   const arena = snapshot?.arena
   const graph = snapshot?.graph || { nodes: [] }
@@ -174,9 +214,8 @@ function DecisionRail({ snapshot, selectedNode }) {
   </aside>
 }
 
-function CaseWorkspace({ snapshot, query, setQuery, onStart, onStep, onPause, onReset, busy, autoRun, setAutoRun, selectedNode, setSelectedNode, error }) {
+function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onPause, onReset, busy, autoRun, setAutoRun, selectedNode, setSelectedNode, error }) {
   const arena = snapshot?.arena
-  const report = snapshot?.report
   const terminal = ['contained', 'breached', 'exhausted'].includes(arena?.status)
   const repo = snapshot?.ingestion?.collectors?.find((item) => item.collector === 'repository-extractor')
   const graph = snapshot?.graph || { nodes: NODES, edges: EDGES }
@@ -194,6 +233,7 @@ function CaseWorkspace({ snapshot, query, setQuery, onStart, onStep, onPause, on
       <section className="graph-section"><Graph snapshot={snapshot} selectedNode={selectedNode} setSelectedNode={setSelectedNode} /></section>
       <section className="episode-section"><div className="episode-head"><div><div className="section-caption">episode trace</div><strong>{arena?.history?.length ? `${arena.history.length} computed rounds` : 'no rounds yet'}</strong></div><button className="step-button" onClick={onStep} disabled={busy || terminal}><Zap size={14} /> step one round</button></div><RoundFeed arena={arena} graph={graph} /></section>
       {terminal && <section className={`final-report ${arena.winner === 'defender' ? 'won' : 'lost'}`}><div className="final-icon">{arena.winner === 'defender' ? <ShieldCheck size={20} /> : <Target size={20} />}</div><div><div className="section-caption">episode result</div><h2>{arena.winner === 'defender' ? 'Defender contained the modeled blast radius.' : 'The attacker survived the response budget.'}</h2><p>{arena.winner === 'defender' ? `The red agent found ${arena.metrics.attackMoves} route${arena.metrics.attackMoves === 1 ? '' : 's'}, and blue cut them in ${arena.metrics.containedRound} rounds.` : 'The graph still contains a reachable high-value path. Re-run with a different target or response budget.'}</p></div><div className="final-score"><strong>{formatPct(arena.currentExposure)}</strong><span>final exposure</span></div></section>}
+      {terminal && (report ? <ReportDossier report={report} /> : <div className="report-loading">Preparing the evidence-backed case report…</div>)}
       {error && <div className="error-line"><AlertTriangle size={14} /> {error}</div>}
     </main>
     <DecisionRail snapshot={snapshot} selectedNode={selectedNode} />
@@ -203,6 +243,7 @@ function CaseWorkspace({ snapshot, query, setQuery, onStart, onStep, onPause, on
 function App() {
   const [query, setQuery] = useState(DEFAULT_QUERY)
   const [snapshot, setSnapshot] = useState(null)
+  const [report, setReport] = useState(null)
   const [busy, setBusy] = useState(false)
   const [autoRun, setAutoRun] = useState(false)
   const [backend, setBackend] = useState('checking')
@@ -214,8 +255,17 @@ function App() {
 
   useEffect(() => {
     api('/api/health').then((payload) => setBackend(payload.hydra?.status === 'ready' ? 'connected' : 'local')).catch(() => setBackend('offline'))
-    api('/api/scenarios/0017').then((payload) => { if (payload.ingestion?.status !== 'not_started') setSnapshot(payload) }).catch(() => {})
+    api('/api/scenarios/0017').then((payload) => {
+      if (payload.ingestion?.status !== 'not_started') setSnapshot(payload)
+      if (['contained', 'breached', 'exhausted'].includes(payload.arena?.status)) api('/api/scenarios/0017/report').then(setReport).catch(() => {})
+    }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!['contained', 'breached', 'exhausted'].includes(arena?.status)) return undefined
+    api('/api/scenarios/0017/report').then(setReport).catch(() => {})
+    return undefined
+  }, [arena?.status, arena?.round])
 
   useEffect(() => {
     if (!autoRun || busy || arena?.status !== 'running') return undefined
@@ -236,7 +286,7 @@ function App() {
 
   async function startCase() {
     if (!query.trim()) return
-    setBusy(true); setError(''); setAutoRun(false); setSnapshot(null)
+    setBusy(true); setError(''); setAutoRun(false); setSnapshot(null); setReport(null)
     try {
       await api('/api/scenarios/0017/run', { method: 'POST', body: JSON.stringify({ query: query.trim() }) })
       await api('/api/scenarios/0017/ingest', { method: 'POST' })
@@ -265,7 +315,7 @@ function App() {
   }
 
   async function resetCase() {
-    setAutoRun(false); setError('')
+    setAutoRun(false); setError(''); setReport(null)
     try {
       const next = await api('/api/scenarios/0017/reset', { method: 'POST' })
       setSnapshot(next)
@@ -276,7 +326,7 @@ function App() {
 
   return <div className="app-shell">
     <header className="topbar"><div className="brand-mini"><span className="brand-square" /> RECOIL <small>adaptive supply-chain defense</small></div><div className="topbar-center"><span className="live-mark" /> red / blue arena <span className="slash">/</span> graph-native incident response</div><div className="topbar-right"><span className={`connection ${backend}`}><span /> {backend === 'connected' ? 'HydraDB connected' : backend === 'local' ? 'local replay' : backend}</span><button className="help-button" aria-label="About Recoil"><CircleHelp size={15} /></button></div></header>
-    {hasCase ? <CaseWorkspace snapshot={snapshot} query={query} setQuery={setQuery} onStart={startCase} onStep={stepArena} onPause={() => setAutoRun(false)} onReset={resetCase} busy={busy} autoRun={autoRun} setAutoRun={setAutoRun} selectedNode={selectedNode} setSelectedNode={setSelectedNode} error={error} /> : <Landing query={query} setQuery={setQuery} onStart={startCase} busy={busy} error={error} />}
+    {hasCase ? <CaseWorkspace snapshot={snapshot} report={report} query={query} setQuery={setQuery} onStart={startCase} onStep={stepArena} onPause={() => setAutoRun(false)} onReset={resetCase} busy={busy} autoRun={autoRun} setAutoRun={setAutoRun} selectedNode={selectedNode} setSelectedNode={setSelectedNode} error={error} /> : <Landing query={query} setQuery={setQuery} onStart={startCase} busy={busy} error={error} />}
   </div>
 }
 
