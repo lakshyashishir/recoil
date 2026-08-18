@@ -51,6 +51,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Repeatable real smoke command with strict partial/unknown failure status.
 - [x] Shared evidence-quality contract across report, CLI, browser, and receipt.
 - [x] Attach a sanitized HydraDB temporal-read receipt to rewind reports and exported receipts.
+- [x] Persist the observed evidence topology through HydraDB's documented `graph_payload` contract and summarize returned graph-context triplets.
 
 ### Still required before calling the hackathon build complete
 

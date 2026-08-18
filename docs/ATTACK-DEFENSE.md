@@ -79,6 +79,11 @@ HydraDB stores and retrieves:
 - fix proofs and residual-path decisions;
 - cross-case evidence related to the package and repository.
 
+The observed topology uses HydraDB v2's supported `graph_payload` ingestion contract. Each graph memory
+contains an explicit entity map and typed relations such as `AFFECTS`, `RESOLVED_IN`, `HAS_LOCKFILE`,
+`IMPORTS`, and `INDEXES_SYMBOL`. Recoil asks recall for `graph_context: true` and exposes only a bounded
+triplet summary in the report; the deterministic local verdict remains authoritative.
+
 Writes are chunked and idempotent. The application exposes `persisted`, `queued`, `failed`, or `skipped` honestly. A local report can still be produced when HydraDB is unavailable, but the UI labels it local replay rather than pretending that memory was stored.
 
 ## What this is not

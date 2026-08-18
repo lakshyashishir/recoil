@@ -46,6 +46,8 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
   assert.ok(memories.some((memory) => memory.additional_metadata.recoil_kind === 'temporal_fact' && memory.additional_metadata.valid_from === '2022-01-01T00:00:00Z'))
   const graphMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'observed_graph')
   assert.match(graphMemory.text, /advisory:GHSA-test → repo:example\/app/)
+  assert.equal(graphMemory._recoilGraphPayload.entities.node_0.name, 'GHSA-test')
+  assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'CONNECTED_TO')
   assert.equal(memories.every((memory) => memory.metadata.app === 'recoil'), true)
   assert.equal(memories.every((memory) => memory.additional_metadata.app === 'recoil'), true)
 })
@@ -66,8 +68,17 @@ test('HydraDB adapter persists memories and filters temporal recall locally', as
       const memories = JSON.parse(await options.body.get('memories'))
       assert.equal(options.body.get('database'), 'test-database')
       assert.equal(options.body.get('collection'), 'test-collection')
+      assert.equal(options.headers['API-Version'], '2')
       assert.equal(memories.length, 1)
       assert.equal(memories[0].additional_metadata.app, 'recoil')
+      assert.equal('_recoilGraphPayload' in memories[0], false)
+      const graphPayload = options.body.get('graph_payload')
+      if (graphPayload) {
+        const parsed = JSON.parse(graphPayload)
+        assert.equal(Object.keys(parsed).length, 1)
+        assert.ok(Object.values(parsed).every((graph) => Array.isArray(graph.relations) && graph.entities))
+        assert.deepEqual(Object.values(parsed)[0].relations.map((relation) => relation.predicate), ['AFFECTS', 'RESOLVED_IN'])
+      }
       return {
         ok: true,
         status: 200,
@@ -94,7 +105,17 @@ test('HydraDB adapter persists memories and filters temporal recall locally', as
       scenarioId: 'current-case',
       package: 'minimist',
       sources: ['https://osv.dev/vulnerability/GHSA-test'],
-      graph: { nodes: [], edges: [] },
+      graph: {
+        nodes: [
+          { id: 'advisory:GHSA-test', label: 'GHSA-test', type: 'advisory' },
+          { id: 'package:minimist@1.2.5', label: 'minimist@1.2.5', type: 'package' },
+          { id: 'repo:example/app', label: 'example/app', type: 'repository' },
+        ],
+        edges: [
+          ['advisory:GHSA-test', 'package:minimist@1.2.5'],
+          ['package:minimist@1.2.5', 'repo:example/app'],
+        ],
+      },
     }
     const report = {
       advisory: { id: 'GHSA-test', published: '2022-03-18T00:00:00Z', fixedVersions: ['1.2.6'], sourceUrl: 'https://osv.dev/vulnerability/GHSA-test' },

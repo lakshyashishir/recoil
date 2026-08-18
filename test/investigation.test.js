@@ -60,6 +60,7 @@ test('HydraDB rewind context is summarized without replacing local verdicts', ()
     datedChunkCount: 3,
     priorScenarioIds: ['prior-case'],
     sources: ['https://osv.dev/vulnerability/GHSA-test'],
+    graphContext: { query_paths: [{ triplets: [{ source: { name: 'advisory' }, relation: { canonical_predicate: 'AFFECTS', origin: 'byog' }, target: { name: 'minimist' } }] }] },
     chunks: [{ text: 'raw chunk must not be copied' }],
   })
   assert.equal(attached.repositories[0].verdict, 'REACHED')
@@ -70,6 +71,7 @@ test('HydraDB rewind context is summarized without replacing local verdicts', ()
     relatedCaseCount: 1,
     priorScenarioIds: ['prior-case'],
     sourceUrls: ['https://osv.dev/vulnerability/GHSA-test'],
+    graphContext: { queryPathCount: 1, chunkRelationCount: 0, tripletCount: 1, triplets: [{ source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: 'byog' }] },
     reason: null,
   })
   assert.equal('chunks' in attached.rewind.memory, false)

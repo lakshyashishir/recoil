@@ -20,6 +20,7 @@ function enabled() {
 function headers(json = true) {
   return {
     authorization: `Bearer ${process.env.HYDRA_DB_API_KEY}`,
+    'API-Version': '2',
     ...(json ? { 'content-type': 'application/json' } : {}),
   }
 }
@@ -84,6 +85,17 @@ function temporalChunks(chunks, asOf) {
   })
 }
 
+function stripInternalMemoryFields(item) {
+  const { _recoilGraphPayload, ...publicMemory } = item
+  return publicMemory
+}
+
+function graphPayloadForBatch(batch) {
+  return Object.fromEntries(batch
+    .filter((item) => item._recoilGraphPayload)
+    .map((item) => [item.id, item._recoilGraphPayload]))
+}
+
 async function ingest(memories, signal) {
   const results = []
   let lastResult = {}
@@ -94,7 +106,9 @@ async function ingest(memories, signal) {
       form.append('database', databaseId())
       form.append('collection', collectionId())
       form.append('type', 'memory')
-      form.append('memories', JSON.stringify(batch))
+      form.append('memories', JSON.stringify(batch.map(stripInternalMemoryFields)))
+      const graphPayload = graphPayloadForBatch(batch)
+      if (Object.keys(graphPayload).length) form.append('graph_payload', JSON.stringify(graphPayload))
       form.append('upsert', 'true')
 
       const url = `${apiBase()}/context/ingest`
@@ -157,7 +171,7 @@ function stableId(value) {
   return (hash >>> 0).toString(16)
 }
 
-function memory({ id, title, text, additionalMetadata = {} }) {
+function memory({ id, title, text, additionalMetadata = {}, graphPayload = null }) {
   return {
     id,
     source_id: id,
@@ -167,7 +181,48 @@ function memory({ id, title, text, additionalMetadata = {} }) {
     infer: true,
     metadata: { app: 'recoil' },
     additional_metadata: { app: 'recoil', ...additionalMetadata },
+    ...(graphPayload ? { _recoilGraphPayload: graphPayload } : {}),
   }
+}
+
+function graphEntityType(type) {
+  return String(type || 'ENTITY').replace(/[^A-Za-z0-9_]+/g, '_').toUpperCase().slice(0, 64) || 'ENTITY'
+}
+
+function graphPredicate(from, to) {
+  const pair = `${from?.type || ''}:${to?.type || ''}`
+  if (pair === 'advisory:package') return 'AFFECTS'
+  if (pair === 'package:repository') return 'RESOLVED_IN'
+  if (pair === 'repository:lockfile') return 'HAS_LOCKFILE'
+  if (pair === 'lockfile:code') return 'IMPORTS'
+  if (pair === 'code:symbol') return 'INDEXES_SYMBOL'
+  return 'CONNECTED_TO'
+}
+
+function buildGraphPayload(graph = {}, observedAt = null) {
+  const nodes = graph.nodes || []
+  const nodeKeys = new Map(nodes.map((node, index) => [node.id, `node_${index}`]))
+  const entities = Object.fromEntries(nodes.map((node, index) => [`node_${index}`, {
+    name: node.label || node.id,
+    type: graphEntityType(node.type),
+    namespace: 'recoil',
+    identifier: node.id,
+  }]))
+  const relations = (graph.edges || []).flatMap(([fromId, toId]) => {
+    const from = nodes.find((node) => node.id === fromId)
+    const to = nodes.find((node) => node.id === toId)
+    const source = nodeKeys.get(fromId)
+    const target = nodeKeys.get(toId)
+    if (!source || !target || !from || !to) return []
+    return [{
+      source,
+      target,
+      predicate: graphPredicate(from, to),
+      context: `${from.label || from.id} ${graphPredicate(from, to).toLowerCase()} ${to.label || to.id}. Observed by Recoil from public evidence.`,
+      temporal_details: observedAt ? `observed ${observedAt}` : undefined,
+    }]
+  })
+  return { entities, relations }
 }
 
 function chunkMemory(item, maxChars = MAX_MEMORY_CHARS) {
@@ -193,6 +248,7 @@ function chunkMemory(item, maxChars = MAX_MEMORY_CHARS) {
       recoil_chunk_count: chunks.length,
       recoil_chunked: true,
     },
+    ...(index === 0 && item._recoilGraphPayload ? { _recoilGraphPayload: item._recoilGraphPayload } : { _recoilGraphPayload: undefined }),
   }))
 }
 
@@ -251,6 +307,7 @@ export function buildInvestigationMemories(ingestion, report) {
       recoil_graph_edge_count: graph.edges.length,
       source_urls: JSON.stringify(ingestion.sources || []),
     },
+    graphPayload: buildGraphPayload(graph, report.generatedAt),
   }))
   for (const finding of report.repositories || []) {
     memories.push(temporalMemory({
