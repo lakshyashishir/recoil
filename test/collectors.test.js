@@ -40,6 +40,14 @@ test('investigation input preserves a commit URL ref kind', () => {
   assert.equal(input.repositories[0].url, 'https://github.com/apache/arrow-rs/commit/caf1c6022c71af00ef712e9e865acfee74169f0d')
 })
 
+test('investigation input keeps distinct snapshots of the same repository', () => {
+  const input = parseInvestigationInput('GHSA-xvch-5gv4-984h https://github.com/apache/arrow-rs/tree/old https://github.com/apache/arrow-rs')
+  assert.deepEqual(input.repositories.map((repository) => repository.url), [
+    'https://github.com/apache/arrow-rs/tree/old',
+    'https://github.com/apache/arrow-rs',
+  ])
+})
+
 test('Cargo evidence parser preserves workspace dependencies and lockfile edges', () => {
   const manifest = parseCargoManifest(`
 [package]

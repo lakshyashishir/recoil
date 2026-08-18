@@ -117,7 +117,7 @@ export function parseGitHubRepositories(query = '') {
       repository.ref = ref
       repository.refKind = refKind
     }
-    if (!repositories.some((item) => item.slug.toLowerCase() === repository.slug.toLowerCase())) repositories.push(repository)
+    if (!repositories.some((item) => item.url.toLowerCase() === repository.url.toLowerCase())) repositories.push(repository)
   }
   return repositories.slice(0, 4)
 }
@@ -128,6 +128,10 @@ function parseGitHubRepository(query = '') {
 
 function repositoryRef(repository) {
   return repository?.ref || 'HEAD'
+}
+
+function repositoryEvidenceId(repository) {
+  return repository?.ref ? `${repository.slug}@${repository.ref}` : repository.slug
 }
 
 function githubContentsUrl(repository, path) {
@@ -394,7 +398,7 @@ export async function collectRepository(repository, requestedPackage) {
     ecosystem,
     sourceUrl: (packageFile || cargoManifestFile).sourceUrl,
     entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length + codeGraph.fileCount + codeGraph.importEdgeCount + codeGraph.symbolCount + (codeGraph.recentChange?.sampledFilesChanged || 0),
-    repository: repository.slug,
+    repository: repositoryEvidenceId(repository),
     repositoryUrl: repository.url,
     synthetic: false,
     inferredPackage,
@@ -610,18 +614,19 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   const repositories = input.repositories || []
   onProgress({ type: 'step', key: 'public-records', status: 'complete', title: 'Public records ready', detail: advisory?.id ? `${advisory.id} · ${advisory.published ? `published ${advisory.published.slice(0, 10)}` : 'publication date unavailable'}` : 'No advisory identifier was supplied; repository evidence will be marked accordingly.', sourceUrls: [advisory?.sourceUrl].filter(Boolean) })
   const repositoryResults = await Promise.all(repositories.map(async (repository) => {
-    onProgress({ type: 'repository', key: `repository:${repository.slug}`, status: 'working', title: `Reading ${repository.slug}`, detail: 'Reading manifest, lockfile, and bounded source imports. Nothing is installed.', repository: repository.slug })
+    const repositoryId = repositoryEvidenceId(repository)
+    onProgress({ type: 'repository', key: `repository:${repositoryId}`, status: 'working', title: `Reading ${repositoryId}`, detail: 'Reading manifest, lockfile, and bounded source imports. Nothing is installed.', repository: repositoryId })
     try {
       const result = await collectRepository(repository, packageName)
       if (!packageName && result.inferredPackage) packageName = result.inferredPackage
-      onProgress({ type: 'repository', key: `repository:${repository.slug}`, status: 'complete', title: `${repository.slug} read`, detail: `${result.manifest?.lockfile || 'no lockfile'} · ${result.manifest?.codeGraph?.fileCount || 0} sampled source files`, repository: repository.slug, sourceUrls: [result.sourceUrl].filter(Boolean) })
+      onProgress({ type: 'repository', key: `repository:${repositoryId}`, status: 'complete', title: `${repositoryId} read`, detail: `${result.manifest?.lockfile || 'no lockfile'} · ${result.manifest?.codeGraph?.fileCount || 0} sampled source files`, repository: repositoryId, sourceUrls: [result.sourceUrl].filter(Boolean) })
       return result
     } catch (error) {
-      onProgress({ type: 'repository', key: `repository:${repository.slug}`, status: 'failed', title: `${repository.slug} unavailable`, detail: error.message, repository: repository.slug })
+      onProgress({ type: 'repository', key: `repository:${repositoryId}`, status: 'failed', title: `${repositoryId} unavailable`, detail: error.message, repository: repositoryId })
       return {
         collector: 'repository-extractor',
         status: 'failed',
-        repository: repository.slug,
+        repository: repositoryId,
         repositoryUrl: repository.url,
         sourceUrl: repository.url,
         synthetic: false,
