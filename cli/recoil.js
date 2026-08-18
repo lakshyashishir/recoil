@@ -61,7 +61,9 @@ async function main() {
     const round = snapshot.arena.lastRound
     line(`round   ${String(round.round).padStart(2, '0')} · RED  ${round.red.label}`)
     line(`        path     ${round.red.pathLabel || 'no reachable high-value route'}`)
+    line(`        search   ${round.red.candidates?.length || 0} reachable routes evaluated`)
     line(`        BLUE ${round.blue.title || 'no control'} · ${round.blue.rationale}`)
+    line(`        compare  ${round.blue.candidates?.length || 0} affordable controls · ${round.blue.candidates?.find((candidate) => candidate.selected)?.predictedExposure ?? round.after.exposure}% predicted exposure`)
     line(`        result   ${round.before.exposure}% → ${round.after.exposure}% · ${round.after.reachableTargets.length} targets remain`)
   }
 

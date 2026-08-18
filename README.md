@@ -53,6 +53,7 @@ npm run cli -- "npm:lodash@4.17.21" --json
 ```
 
 It collects evidence, recalls prior Recoil episodes when HydraDB is available, runs red and blue policies round by round, persists each round, and prints the final modeled report. The API must be running first (`npm run start` is the simplest route).
+Each CLI round also prints how many routes Red evaluated and how many affordable controls Blue compared; `--json` exposes the full candidate records.
 
 Run the deterministic graph checks with:
 
