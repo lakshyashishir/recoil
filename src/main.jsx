@@ -95,18 +95,26 @@ function SourceRail({ snapshot }) {
   )
 }
 
-function Graph({ snapshot, selectedNode, setSelectedNode }) {
+function Graph({ snapshot, selectedNode, setSelectedNode, view = 'focus' }) {
   const graph = snapshot?.graph || { nodes: NODES, edges: EDGES, activeNodeIds: [], blockedNodeIds: [], primaryPath: [] }
   const active = new Set(graph.activeNodeIds || [])
   const blocked = new Set(graph.blockedNodeIds || [])
-  const route = new Set((graph.primaryPath || []).map((id, index, path) => index ? `${path[index - 1]}->${id}` : null).filter(Boolean))
+  const primaryPath = graph.primaryPath || []
+  const route = new Set(primaryPath.map((id, index, path) => index ? `${path[index - 1]}->${id}` : null).filter(Boolean))
+  const focusIds = new Set(NODES.map((node) => node.id))
+  primaryPath.forEach((id) => focusIds.add(id))
+  if (selectedNode) focusIds.add(selectedNode)
+  const visibleNodes = view === 'full' ? graph.nodes : graph.nodes.filter((node) => focusIds.has(node.id))
+  const visibleIds = new Set(visibleNodes.map((node) => node.id))
+  const visibleEdges = graph.edges.filter(([from, to]) => visibleIds.has(from) && visibleIds.has(to))
+  const omitted = Math.max(0, graph.nodes.length - visibleNodes.length)
   return (
     <div className="graph-wrap">
-      <div className="graph-meta"><span><i className="legend attack" /> red route</span><span><i className="legend active" /> reachable</span><span><i className="legend blocked" /> cut by blue</span><span className="graph-note">computed from current episode state</span></div>
+      <div className="graph-meta"><span><i className="legend attack" /> red route</span><span><i className="legend active" /> reachable</span><span><i className="legend blocked" /> cut by blue</span><span className="graph-note">{view === 'focus' ? `${omitted} evidence nodes hidden · focus view` : 'all collected evidence · full view'}</span></div>
       <svg className="graph-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {graph.edges.map(([from, to]) => {
-          const start = graph.nodes.find((node) => node.id === from)
-          const end = graph.nodes.find((node) => node.id === to)
+        {visibleEdges.map(([from, to]) => {
+          const start = visibleNodes.find((node) => node.id === from)
+          const end = visibleNodes.find((node) => node.id === to)
           if (!start || !end) return null
           const live = active.has(from) && active.has(to)
           const isRoute = route.has(`${from}->${to}`)
@@ -116,7 +124,7 @@ function Graph({ snapshot, selectedNode, setSelectedNode }) {
       <div className="graph-grid" />
       <div className="graph-label graph-label-left">TRUST ORIGIN</div>
       <div className="graph-label graph-label-right">CROWN JEWELS</div>
-      {graph.nodes.map((node) => {
+      {visibleNodes.map((node) => {
         const isActive = active.has(node.id)
         const isBlocked = blocked.has(node.id)
         const isSelected = selectedNode === node.id
@@ -198,17 +206,18 @@ function DecisionRail({ snapshot, selectedNode }) {
   const selected = graph.nodes.find((node) => node.id === selectedNode)
   const last = arena?.lastRound
   const used = new Set(arena?.selectedActions || [])
+  const waiting = !last && !['contained', 'breached', 'exhausted'].includes(arena?.status)
   return <aside className="decision-rail">
     <div className="rail-heading"><div><div className="section-caption">live policies</div><h2>Red / Blue</h2></div><span className={`arena-state ${arena?.status || 'ready'}`}>{arena?.status || 'ready'}</span></div>
     <section className="agent-block red-block">
-      <div className="agent-title"><span className="agent-mark red-mark">R</span><div><strong>Red agent</strong><small>route search</small></div><span className="agent-state">{arena?.status === 'running' ? 'thinking' : 'standby'}</span></div>
-      <div className="agent-value">{last?.red?.label || 'Awaiting the first graph move'}</div>
-      <p>{last?.red?.pathLabel || 'The attacker searches valid edges toward a high-value asset. It cannot invent a route outside the graph.'}</p>
+      <div className="agent-title"><span className="agent-mark red-mark">R</span><div><strong>Red agent</strong><small>route search</small></div><span className="agent-state">{waiting ? 'ready' : arena?.status === 'running' ? 'thinking' : 'complete'}</span></div>
+      <div className="agent-value">{last?.red?.label || 'Choose the first route'}</div>
+      <p>{last?.red?.pathLabel || 'Red searches valid graph edges toward a high-value asset. It cannot invent a route.'}</p>
     </section>
     <section className="agent-block blue-block">
-      <div className="agent-title"><span className="agent-mark blue-mark">B</span><div><strong>Blue agent</strong><small>containment policy</small></div><span className="agent-state">{last?.blue?.memoryUsed ? 'memory-assisted' : 'route-aware'}</span></div>
-      <div className="agent-value">{last?.blue?.title || 'Waiting for a red move'}</div>
-      <p>{last?.blue?.rationale || 'The defender scores controls against the current route, remaining budget, and prior episode evidence.'}</p>
+      <div className="agent-title"><span className="agent-mark blue-mark">B</span><div><strong>Blue agent</strong><small>containment policy</small></div><span className="agent-state">{waiting ? 'queued' : last?.blue?.memoryUsed ? 'memory-assisted' : 'route-aware'}</span></div>
+      <div className="agent-value">{last?.blue?.title || 'Will respond to Red'}</div>
+      <p>{last?.blue?.rationale || 'Blue compares affordable controls against the route Red actually chose, then cuts the best one.'}</p>
     </section>
     <section className="score-block">
       <div className="score-line"><span>current exposure</span><strong className={arena?.currentExposure < 50 ? 'good' : ''}>{formatPct(arena?.currentExposure)}</strong></div>
@@ -222,11 +231,21 @@ function DecisionRail({ snapshot, selectedNode }) {
   </aside>
 }
 
-function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onPause, onReset, busy, autoRun, setAutoRun, selectedNode, setSelectedNode, error }) {
+function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onPause, onReset, busy, autoRun, setAutoRun, selectedNode, setSelectedNode, graphView, setGraphView, error }) {
   const arena = snapshot?.arena
   const terminal = ['contained', 'breached', 'exhausted'].includes(arena?.status)
+  const waiting = !terminal && !arena?.lastRound
   const repo = snapshot?.ingestion?.collectors?.find((item) => item.collector === 'repository-extractor')
   const graph = snapshot?.graph || { nodes: NODES, edges: EDGES }
+  const headerTitle = terminal ? (arena.winner === 'defender' ? 'Route contained.' : 'Attacker reached the limit.') : waiting ? 'Ready to trace the first route.' : 'The graph is under pressure.'
+  const headerCopy = terminal ? `Blue used ${arena.metrics.controlsUsed} controls. The final route is ${arena.currentPath.length ? 'still reachable' : 'severed'}.` : waiting ? 'Start the arena. Red chooses a route, then Blue responds with a computed control.' : 'Each move is computed from the current graph. Open a round to inspect the decision.'
+  function handleRun() {
+    if (arena?.status === 'ready') {
+      onStep()
+      return
+    }
+    setAutoRun(!autoRun)
+  }
   return <div className="case-layout">
     <aside className="case-rail">
       <div className="case-rail-top"><div className="brand-mini"><span className="brand-square" /> RECOIL</div><span className="case-id">CASE 0017</span></div>
@@ -236,10 +255,11 @@ function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onP
       <div className="case-rail-bottom"><span><ShieldCheck size={13} /> defensive simulation</span><span>graph v0.7 arena</span></div>
     </aside>
     <main className="arena-main">
-      <header className="arena-header"><div><div className="section-caption">adaptive arena / {arena?.round || 0} rounds</div><h1>{terminal ? (arena.winner === 'defender' ? 'Route contained.' : 'Attacker reached the limit.') : 'The graph is under pressure.'}</h1><p>{terminal ? `Blue used ${arena.metrics.controlsUsed} controls. The final route is ${arena.currentPath.length ? 'still reachable' : 'severed'}.` : 'Red searches the current graph. Blue responds to the route it actually sees.'}</p></div><div className="arena-actions"><span className={`hydra-chip ${snapshot?.hydra?.status === 'persisted' ? 'connected' : ''}`}><Database size={13} /> {snapshot?.hydra?.status || 'local replay'}</span><button className="quiet-button" onClick={() => setAutoRun(!autoRun)}>{autoRun ? <><Pause size={14} /> pause loop</> : <><Play size={14} /> {terminal ? 'replay stopped' : 'run loop'}</>}</button><button className="quiet-button" onClick={onReset}><RotateCcw size={14} /> reset</button></div></header>
+      <header className="arena-header"><div><div className="section-caption">adaptive arena / {arena?.round || 0} rounds</div><h1>{headerTitle}</h1><p>{headerCopy}</p></div><div className="arena-actions"><span className={`hydra-chip ${snapshot?.hydra?.status === 'persisted' ? 'connected' : ''}`}><Database size={13} /> {snapshot?.hydra?.status || 'local replay'}</span><button className={`quiet-button ${waiting ? 'primary-button' : ''}`} onClick={handleRun} disabled={busy}>{autoRun ? <><Pause size={14} /> pause loop</> : <><Play size={14} /> {waiting ? 'start first round' : terminal ? 'replay stopped' : 'run loop'}</>}</button><button className="quiet-button" onClick={onReset}><RotateCcw size={14} /> reset</button></div></header>
       <section className="score-ribbon"><div><span>initial exposure</span><strong>{formatPct(arena?.initialExposure)}</strong></div><ArrowRight size={16} /><div><span>current exposure</span><strong className={arena?.currentExposure < 50 ? 'good' : ''}>{formatPct(arena?.currentExposure)}</strong></div><div className="ribbon-divider" /><div><span>targets in reach</span><strong>{arena?.reachableTargets?.length || 0}</strong></div><div><span>memory</span><strong>{arena?.memory?.used ? 'used' : arena?.memory?.available ? 'available' : 'local only'}</strong></div></section>
-      <section className="graph-section"><Graph snapshot={snapshot} selectedNode={selectedNode} setSelectedNode={setSelectedNode} /></section>
-      <section className="episode-section"><div className="episode-head"><div><div className="section-caption">episode trace</div><strong>{arena?.history?.length ? `${arena.history.length} computed rounds` : 'no rounds yet'}</strong></div><button className="step-button" onClick={onStep} disabled={busy || terminal}><Zap size={14} /> step one round</button></div><RoundFeed arena={arena} graph={graph} /></section>
+      {waiting && <section className="start-guide"><div className="start-guide-number">01</div><div><div className="section-caption">your next move</div><h2>Start the investigation</h2><p>Red will choose the first reachable route. Blue will compare controls against it. Pause after every round to inspect why.</p></div><button className="primary-button" onClick={onStep} disabled={busy}><Play size={14} /> run first round</button></section>}
+      <section className="graph-section"><div className="graph-toolbar"><div><div className="section-caption">the propagation map</div><strong>{graphView === 'focus' ? 'Focus view' : 'Full evidence graph'}</strong><span>{graphView === 'focus' ? 'Core trust path and current route' : 'Every collected dependency and evidence node'}</span></div><div className="graph-toggle"><button className={graphView === 'focus' ? 'active' : ''} onClick={() => setGraphView('focus')}>focus</button><button className={graphView === 'full' ? 'active' : ''} onClick={() => setGraphView('full')}>full graph</button></div></div><Graph snapshot={snapshot} selectedNode={selectedNode} setSelectedNode={setSelectedNode} view={graphView} /></section>
+      <section className="episode-section"><div className="episode-head"><div><div className="section-caption">what happened</div><strong>{arena?.history?.length ? `${arena.history.length} computed rounds` : 'waiting for the first round'}</strong></div><button className="step-button" onClick={onStep} disabled={busy || terminal}><Zap size={14} /> {waiting ? 'run first round' : 'step one round'}</button></div><RoundFeed arena={arena} graph={graph} /></section>
       {terminal && <section className={`final-report ${arena.winner === 'defender' ? 'won' : 'lost'}`}><div className="final-icon">{arena.winner === 'defender' ? <ShieldCheck size={20} /> : <Target size={20} />}</div><div><div className="section-caption">episode result</div><h2>{arena.winner === 'defender' ? 'Defender contained the modeled blast radius.' : 'The attacker survived the response budget.'}</h2><p>{arena.winner === 'defender' ? `The red agent found ${arena.metrics.attackMoves} route${arena.metrics.attackMoves === 1 ? '' : 's'}, and blue cut them in ${arena.metrics.containedRound} rounds.` : 'The graph still contains a reachable high-value path. Re-run with a different target or response budget.'}</p></div><div className="final-score"><strong>{formatPct(arena.currentExposure)}</strong><span>final exposure</span></div></section>}
       {terminal && (report ? <ReportDossier report={report} /> : <div className="report-loading">Preparing the evidence-backed case report…</div>)}
       {error && <div className="error-line"><AlertTriangle size={14} /> {error}</div>}
@@ -256,6 +276,7 @@ function App() {
   const [autoRun, setAutoRun] = useState(false)
   const [backend, setBackend] = useState('checking')
   const [selectedNode, setSelectedNode] = useState('release')
+  const [graphView, setGraphView] = useState('focus')
   const [error, setError] = useState('')
 
   const hasCase = Boolean(snapshot?.ingestion?.status && snapshot.ingestion.status !== 'not_started')
@@ -334,7 +355,7 @@ function App() {
 
   return <div className="app-shell">
     <header className="topbar"><div className="brand-mini"><span className="brand-square" /> RECOIL <small>adaptive supply-chain defense</small></div><div className="topbar-center"><span className="live-mark" /> red / blue arena <span className="slash">/</span> graph-native incident response</div><div className="topbar-right"><span className={`connection ${backend}`}><span /> {backend === 'connected' ? 'HydraDB connected' : backend === 'local' ? 'local replay' : backend}</span><button className="help-button" aria-label="About Recoil"><CircleHelp size={15} /></button></div></header>
-    {hasCase ? <CaseWorkspace snapshot={snapshot} report={report} query={query} setQuery={setQuery} onStart={startCase} onStep={stepArena} onPause={() => setAutoRun(false)} onReset={resetCase} busy={busy} autoRun={autoRun} setAutoRun={setAutoRun} selectedNode={selectedNode} setSelectedNode={setSelectedNode} error={error} /> : <Landing query={query} setQuery={setQuery} onStart={startCase} busy={busy} error={error} />}
+    {hasCase ? <CaseWorkspace snapshot={snapshot} report={report} query={query} setQuery={setQuery} onStart={startCase} onStep={stepArena} onPause={() => setAutoRun(false)} onReset={resetCase} busy={busy} autoRun={autoRun} setAutoRun={setAutoRun} selectedNode={selectedNode} setSelectedNode={setSelectedNode} graphView={graphView} setGraphView={setGraphView} error={error} /> : <Landing query={query} setQuery={setQuery} onStart={startCase} busy={busy} error={error} />}
   </div>
 }
 
