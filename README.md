@@ -15,6 +15,7 @@ The graph separates observed evidence from modeled reachability:
 - a bounded static JavaScript/TypeScript/Rust source graph that resolves local imports/modules and indexes symbols without executing code;
 - latest public GitHub commit evidence mapped from changed hunks to sampled source files and indexed symbols;
 - inferred operational surfaces now show whether the latest changed symbols touch the candidate surface;
+- public `CODEOWNERS` rules are applied to changed files when available, with unknown ownership preserved as unknown;
 - modeled build, deployment, service, and data fan-out, explicitly marked synthetic when no public runtime evidence exists;
 - computed red/blue rounds where the attacker adapts after every defensive control;
 - explainable policy traces showing Red's alternate routes and Blue's counterfactual control scores;

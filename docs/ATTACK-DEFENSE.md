@@ -78,7 +78,7 @@ Before an episode starts, Recoil recalls prior Recoil rounds across scenarios. I
 
 Repository manifests, package metadata, advisory records, workflow files, and container files are observed public evidence. The deployment fan-out is modeled unless a repository exposes equivalent runtime records. The report includes uncertainty rather than blending these categories together.
 
-The source layer adds a second, deliberately separate signal: a bounded sample of public source files is indexed for local imports, symbols, and inferred operational surfaces. The latest public commit can add changed-file and changed-symbol evidence when GitHub provides patch hunks. This refines where a modeled blast radius may enter the codebase; it does not silently convert static code hints into runtime exposure or change the core reachability score.
+The source layer adds a second, deliberately separate signal: a bounded sample of public source files is indexed for local imports, symbols, inferred operational surfaces, and public CODEOWNERS attribution when available. The latest public commit can add changed-file and changed-symbol evidence when GitHub provides patch hunks. This refines where a modeled blast radius may enter the codebase; it does not silently convert static code hints into runtime exposure or change the core reachability score.
 
 ## Why this can become an RL environment
 

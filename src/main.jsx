@@ -185,7 +185,7 @@ function ReportDossier({ report }) {
         <div className="report-sources"><div className="section-caption">sources</div>{sources.slice(0, 4).map((source) => <a href={source} target="_blank" rel="noreferrer" key={source}><span>{sourceHost(source)}</span><ExternalLink size={11} /></a>)}</div>
       </section>
     </div>
-    {observed.codeGraph?.impactCandidates?.length > 0 && <div className="impact-strip"><div className="section-caption">inferred code-to-deployment links</div><div className="impact-items">{observed.codeGraph.impactCandidates.slice(0, 6).map((candidate) => <span key={`${candidate.file}-${candidate.surface}`}><strong>{candidate.surface}</strong><i>→</i>{candidate.target}<small>{candidate.changedSymbols?.length ? `changed: ${candidate.changedSymbols.join(' · ')}` : candidate.confidence}</small></span>)}</div></div>}
+    {observed.codeGraph?.impactCandidates?.length > 0 && <div className="impact-strip"><div className="section-caption">inferred code-to-deployment links</div><div className="impact-items">{observed.codeGraph.impactCandidates.slice(0, 6).map((candidate) => <span key={`${candidate.file}-${candidate.surface}`}><strong>{candidate.surface}</strong><i>→</i>{candidate.target}<small>{candidate.changedSymbols?.length ? `changed: ${candidate.changedSymbols.join(' · ')}` : candidate.owners?.length ? `owner: ${candidate.owners.join(' ')}` : candidate.confidence}</small></span>)}</div></div>}
   </section>
 }
 

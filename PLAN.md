@@ -18,6 +18,7 @@ This is a new project for Hack Hydra. The existing ClaimTrace application lives 
 - [x] Twenty regression tests, a network-free adaptive benchmark, and a production bundle build.
 - [x] Bounded static source graph for public JavaScript/TypeScript/Rust files, including imports, symbols, and unresolved-import uncertainty.
 - [x] Latest public commit impact mapped from changed hunks to sampled source files and indexed symbols.
+- [x] Public CODEOWNERS attribution attached to changed files and inferred impact surfaces when available.
 - [ ] Hosted HydraDB live smoke run against the configured hackathon database.
 - [x] Private GitHub repository setup and push.
 - [ ] Deeper Track 2B impact analysis: ownership and verified code-to-deployment paths.
@@ -53,7 +54,7 @@ This is a bounded defensive simulation. It never executes package code, sends ex
 
 ### Future Track 2 coverage
 
-The code-graph evidence layer now includes bounded local imports/modules, indexed symbols, inferred deployment surfaces, and the latest public commit mapped from changed hunks to sampled symbols. Candidate surfaces now disclose whether those latest changed symbols touch them. The next layer can add ownership and verified code-to-deployment paths without diluting the adaptive supply-chain arena.
+The code-graph evidence layer now includes bounded local imports/modules, indexed symbols, inferred deployment surfaces, latest-commit symbol impact, and public CODEOWNERS attribution when available. Candidate surfaces disclose whether changed symbols touch them and who owns the changed path when the repository says so. The next layer can add verified code-to-deployment paths without diluting the adaptive supply-chain arena.
 
 ## 1. Product framing
 

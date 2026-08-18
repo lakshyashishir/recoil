@@ -116,11 +116,47 @@ export function buildChangeImpact(codeGraph, commit) {
   }
 }
 
-export function enrichImpactCandidates(codeGraph) {
+function codeownersRegex(pattern) {
+  const normalized = pattern.trim().replace(/^\//, '')
+  const escaped = normalized.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '.*')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+  return normalized.includes('/')
+    ? new RegExp(`^${escaped}${normalized.endsWith('/') ? '.*' : ''}$`)
+    : new RegExp(`(?:^|/)${escaped}$`)
+}
+
+export function parseCodeowners(text = '') {
+  return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#')).map((line) => {
+    const [pattern, ...owners] = line.split(/\s+/)
+    return { pattern, owners: owners.filter(Boolean) }
+  }).filter((rule) => rule.pattern && rule.owners.length).map((rule) => ({ ...rule, matcher: codeownersRegex(rule.pattern) }))
+}
+
+function ownersForPath(path, rules) {
+  let owners = []
+  for (const rule of rules) {
+    if (rule.matcher.test(path)) owners = rule.owners
+  }
+  return owners
+}
+
+export function enrichImpactCandidates(codeGraph, codeowners = []) {
   if (!codeGraph) return codeGraph
-  const changes = new Map((codeGraph.recentChange?.files || []).map((file) => [file.path, file]))
+  const rules = Array.isArray(codeowners) ? codeowners : parseCodeowners(codeowners)
+  const changedFiles = (codeGraph.recentChange?.files || []).map((file) => ({
+    ...file,
+    owners: file.owners?.length ? file.owners : ownersForPath(file.path, rules),
+  }))
+  const recentChange = codeGraph.recentChange
+    ? { ...codeGraph.recentChange, files: changedFiles, ownershipRules: rules.length }
+    : null
+  const changes = new Map(changedFiles.map((file) => [file.path, file]))
   return {
     ...codeGraph,
+    recentChange,
+    ownershipRules: rules.length,
     impactCandidates: (codeGraph.impactCandidates || []).map((candidate) => {
       const change = changes.get(candidate.file)
       return {
@@ -128,6 +164,7 @@ export function enrichImpactCandidates(codeGraph) {
         changed: Boolean(change),
         changedSymbols: change?.symbols || [],
         changeMatch: change?.symbolMatch || null,
+        owners: change?.owners || [],
       }
     }),
   }

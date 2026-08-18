@@ -2,7 +2,7 @@ const DEFAULT_PACKAGE = 'ua-parser-js'
 const DEFAULT_ADVISORY = 'CVE-2021-4229'
 const KNOWN_AFFECTED_VERSIONS = ['0.7.29', '0.8.0', '1.0.0']
 
-import { buildChangeImpact, buildCodeGraph, enrichImpactCandidates } from '../src/core/codegraph.js'
+import { buildChangeImpact, buildCodeGraph, enrichImpactCandidates, parseCodeowners } from '../src/core/codegraph.js'
 
 const incidentSources = [
   { label: 'CERT-EU advisory', url: 'https://cert.europa.eu/publications/security-advisories/2021-057/' },
@@ -114,6 +114,14 @@ async function collectLatestChange(repository, codeGraph) {
   }
 }
 
+async function collectCodeowners(repository) {
+  for (const path of ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS']) {
+    const file = await readGitHubFile(repository, path)
+    if (file) return file
+  }
+  return null
+}
+
 function packageDependencies(packageJson) {
   return {
     ...(packageJson.dependencies || {}),
@@ -200,9 +208,10 @@ async function collectRepository(repository, requestedPackage) {
   const workflowFiles = (await Promise.all(workflowEntries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`)))).filter(Boolean)
   const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path)))).filter(Boolean)
   const sourceFiles = await collectSourceFiles(repository)
+  const codeownersFile = await collectCodeowners(repository)
   let codeGraph = buildCodeGraph(sourceFiles)
   codeGraph.recentChange = await collectLatestChange(repository, codeGraph)
-  codeGraph = enrichImpactCandidates(codeGraph)
+  codeGraph = enrichImpactCandidates(codeGraph, parseCodeowners(codeownersFile?.text || ''))
   const workflowText = workflowFiles.map((file) => file.text).join('\n')
   const ciSignals = {
     workflowFiles: workflowFiles.map((file) => file.path),
@@ -234,7 +243,7 @@ async function collectRepository(repository, requestedPackage) {
       deploymentSignals,
       codeGraph,
     },
-    sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles, ...sourceFiles, codeGraph.recentChange?.sourceUrl ? { path: `commit:${codeGraph.recentChange.sha}`, sourceUrl: codeGraph.recentChange.sourceUrl } : null].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
+    sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles, ...sourceFiles, codeownersFile, codeGraph.recentChange?.sourceUrl ? { path: `commit:${codeGraph.recentChange.sha}`, sourceUrl: codeGraph.recentChange.sourceUrl } : null].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
     observedAt: new Date().toISOString(),
   }
 }
