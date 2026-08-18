@@ -45,6 +45,23 @@ function normalizeIndexingStatus(payload) {
   return String(value?.indexing_status || value?.indexingStatus || value?.status || value?.state || '').toLowerCase()
 }
 
+function chunkMetadata(chunk) {
+  return chunk?.additional_metadata || chunk?.additionalMetadata || chunk?.metadata?.additional_metadata || chunk?.metadata?.additionalMetadata || {}
+}
+
+function temporalChunks(chunks, asOf) {
+  const cutoff = new Date(asOf).getTime()
+  if (Number.isNaN(cutoff)) return chunks
+  return chunks.filter((chunk) => {
+    const metadata = chunkMetadata(chunk)
+    const validFrom = metadata.valid_from ? new Date(metadata.valid_from).getTime() : null
+    const validUntil = metadata.valid_until ? new Date(metadata.valid_until).getTime() : null
+    if (validFrom !== null && !Number.isNaN(validFrom) && validFrom > cutoff) return false
+    if (validUntil !== null && !Number.isNaN(validUntil) && validUntil <= cutoff) return false
+    return true
+  })
+}
+
 async function ingest(memories, signal) {
   const results = []
   let lastResult = {}
@@ -450,7 +467,14 @@ export async function recallTemporal(queryText, asOf, signal) {
     metadataFilters: { additionalMetadata: { app: 'recoil' } },
     additionalContext: `Return only Recoil evidence facts that were valid on or before ${asOf}. Each fact has valid_from and valid_until metadata; preserve dates and source URLs.`,
   }, signal)
-  return { status: 'recalled', asOf, chunks: result?.chunks || result?.results || [], sources: result?.sources || result?.documents || [], graphContext: result?.graph_context || result?.graphContext || null, raw: result }
+  const rawChunks = result?.chunks || result?.results || []
+  const chunks = temporalChunks(rawChunks, asOf)
+  const datedChunkCount = chunks.filter((chunk) => {
+    const metadata = chunkMetadata(chunk)
+    return Boolean(metadata.valid_from || metadata.valid_until)
+  }).length
+  const relatedScenarioIds = [...new Set(chunks.map((chunk) => chunkMetadata(chunk).recoil_scenario_id).filter(Boolean))]
+  return { status: 'recalled', asOf, chunks, rawChunkCount: rawChunks.length, datedChunkCount, relatedScenarioIds, sources: result?.sources || result?.documents || [], graphContext: result?.graph_context || result?.graphContext || null, raw: result }
 }
 
 export async function persistArenaRound({ scenarioId, queryText, packageName, round, red, blue, before, after, status }, signal) {

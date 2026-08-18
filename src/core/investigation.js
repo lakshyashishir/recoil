@@ -113,6 +113,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
 
 export function createInvestigationState(query = '') {
   return {
+    caseId: null,
     status: 'idle',
     query,
     step: 'idle',

@@ -87,7 +87,7 @@ function App() {
         <text fg={C.muted}>{query ? 'public advisory and repository evidence' : 'run: npm run tui -- "<advisory> <github-url>"'}</text>
         <text fg={C.faint}>HYDRADB</text>
         <text fg={state.hydra?.status === 'persisted' ? C.green : C.muted}>{state.hydra?.status || 'not started'}</text>
-        <text fg={C.muted}>{state.hydra?.memoryCount || 0} memories · {state.hydra?.recall?.chunkCount || 0} recalled</text>
+        <text fg={C.muted}>{state.hydra?.memoryCount || 0} memories · {state.hydra?.recall?.datedChunkCount || 0} dated · {state.hydra?.recall?.relatedCaseCount || 0} related</text>
         <box style={{ flexGrow: 1 }} />
         <text fg={C.faint}>[q] quit</text>
       </Panel>
