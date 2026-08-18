@@ -165,6 +165,8 @@ Each repository finding also carries a compact provenance chain. It maps the rea
 public source for each hop—advisory, lockfile resolution, repository history, sampled import or validated
 symbol, and first observation date. A missing or unobserved hop is shown as such; it is never replaced by
 a generic source list or a confident inference. The same chain is included in the downloadable receipt.
+When a real lockfile exposes a transitive chain, the default CLI summary prints it; `--proof` expands
+the individual dependency hop and its source URL.
 
 For a repeatable external smoke against the configured `.env` (defaulting to the real bytes advisory and HydraDB repository), run `npm run smoke:real`. Set `RECOIL_SMOKE_QUERY` to use a different advisory/repository set. The command exits nonzero when collection is partial, a finding is `UNKNOWN`, or HydraDB fails, so an incomplete demo cannot look green.
 

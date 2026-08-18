@@ -138,6 +138,7 @@ async function main() {
     const proof = finding.proof || []
     const cited = proof.filter((step) => ['observed', 'validated'].includes(step.status) && step.source).length
     if (proof.length) line(`proof   ${cited}/${proof.length} hops have cited public evidence`)
+    if (finding.dependencyPath?.length > 1) line(`chain   ${finding.dependencyPath.map((item) => `${item.name}@${item.version}`).join(' -> ')}`)
     if (proofOutput) for (const step of proof) line(`        ${step.status.padEnd(12)} ${step.kind.padEnd(10)} ${step.label}${step.source ? ` · ${step.source}` : ''}`)
   }
   for (const item of result.report.challenge || []) {

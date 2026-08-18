@@ -61,6 +61,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Resolve bounded transitive lockfile paths and preserve observed package-to-package `DEPENDS_ON` edges in the graph, HydraDB payload, receipt, and report.
 - [x] Surface each observed transitive package hop as a source-cited proof step in the report and portable receipt.
 - [x] Repeat the resolved dependency chain in HydraDB's dated reachability memory for explainable temporal recall.
+- [x] Print observed transitive package chains in the default CLI summary for a legible terminal demo.
 - [x] Surface API startup failures in the browser landing state instead of silently rendering an empty product.
 - [x] Skip HydraDB writes for incomplete evidence by default so failed/unknown runs do not consume credits or become durable precedent.
 - [x] Expose the recording contract and evidence-proof capabilities through `/api/health` for operator and demo readiness checks.
