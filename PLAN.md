@@ -227,6 +227,10 @@ Manual checks:
 - `4bd53fb` — make JSON CLI runs fail on incomplete evidence
 - `9c476aa` — require completed HydraDB indexing and temporal recall in recording smoke
 - `32868b1` — load project `.env` from the CLI entrypoint
+- `4ceb322` — align browser metadata with the evidence-proof product claim
+- `2a24a9a` — distinguish HydraDB writes from temporal-read failures across surfaces
+- `852675e` — reject investigations without repository evidence before collection
+- `dc1cfed` — surface HydraDB read status and graph triplets in the TUI
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
