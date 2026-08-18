@@ -44,9 +44,10 @@ for (const fix of report.challenge || []) print('fix', `${fix.status} · ${fix.r
 print('rewind', `${report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
 const graphContext = recall.graphContext || {}
 const graphTriplets = graphContext.tripletCount ?? graphContext.triplets?.length ?? 0
-print('hydra', `${hydra.status} · ${hydra.memoryCount || 0} memories · ${recall.datedChunkCount || 0} dated facts · ${recall.priorScenarioIds?.length || 0} prior cases · ${graphTriplets} graph triplets`)
+print('hydra', `${hydra.status} · read ${recall.status || 'not-run'} · ${hydra.memoryCount || 0} memories · ${recall.datedChunkCount || 0} dated facts · ${recall.priorScenarioIds?.length || 0} prior cases · ${graphTriplets} graph triplets`)
 if (hydra.error) print('hydra-error', hydra.error)
 if (hydra.indexingError) print('hydra-index', hydra.indexingError)
+if (recall.error) print('hydra-read', recall.error)
 if (requiredHydra && hydra.status !== 'persisted') print('hydra-gate', `required completed indexing, received ${hydra.status}`)
 if (requiredHydra && recall.status !== 'recalled') print('hydra-gate', `required temporal recall, received ${recall.status}`)
 print('sources', `${report.sources?.length || 0} public URLs`)

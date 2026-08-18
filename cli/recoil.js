@@ -117,8 +117,9 @@ async function main() {
   line(`rewind  ${result.report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${result.report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
   const graphContext = result.hydra?.recall?.graphContext || result.report.rewind?.memory?.graphContext
   const tripletCount = graphContext?.tripletCount ?? graphContext?.triplets?.length ?? 0
-  line(`hydra   ${result.hydra?.status || 'skipped'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases · ${tripletCount} graph triplets`)
+  line(`hydra   ${result.hydra?.status || 'skipped'} · read ${result.hydra?.recall?.status || 'not-run'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases · ${tripletCount} graph triplets`)
   if (result.hydra?.indexingError) line(`hydra-note ${result.hydra.indexingError}`)
+  if (result.hydra?.recall?.error) line(`hydra-read ${result.hydra.recall.error}`)
   line(`sources ${result.report.sources?.length || 0} public sources`)
   line(`receipt ${apiBase}${result.receiptPath}`)
   if (hasIncompleteEvidence(result)) {

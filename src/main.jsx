@@ -56,10 +56,11 @@ function InvestigationHeader({ investigation, hydra }) {
   const report = investigation?.report
   const id = report?.advisory?.id || investigation?.evidence?.target?.advisoryId || 'investigation'
   const state = investigation?.status === 'complete' ? 'complete' : investigation?.status === 'failed' ? 'failed' : 'working'
+  const hydraReadFailed = hydra?.recall?.status === 'failed'
   return <header className="product-header">
     <div className="header-brand"><span className="wordmark-mark" /> RECOIL <span>evidence proof</span></div>
     <div className="header-case"><span>{id}</span><small>{state === 'complete' ? 'case complete' : state === 'failed' ? 'incomplete' : 'investigating'}</small></div>
-    <div className="header-status"><span className={`connection-mark ${hydra?.status === 'persisted' ? 'is-live' : hydra?.status === 'failed' ? 'is-failed' : ''}`} /> {hydra?.status === 'persisted' ? 'HydraDB stored' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'local evidence record'}</div>
+    <div className="header-status"><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydraReadFailed ? 'HydraDB read failed' : hydra?.status === 'persisted' ? 'HydraDB stored' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'local evidence record'}</div>
   </header>
 }
 
@@ -125,14 +126,17 @@ function Rewind({ report, activeReport, onSelect }) {
 function HydraProof({ hydra, graphContext }) {
   const status = hydra?.status || 'skipped'
   const recall = hydra?.recall
+  const recallFailed = recall?.status === 'failed'
   const triplets = graphContext?.triplets || []
-  const label = status === 'persisted' ? 'Stored and queried' : status === 'queued' ? 'Stored; indexing is still queued' : status === 'failed' ? 'HydraDB write failed' : 'Local replay only'
-  const description = status === 'skipped'
+  const label = recallFailed ? 'Stored; temporal read failed' : status === 'persisted' ? 'Stored and queried' : status === 'queued' ? 'Stored; indexing is still queued' : status === 'failed' ? 'HydraDB write failed' : 'Local replay only'
+  const description = recallFailed
+    ? recall.error || 'HydraDB accepted the write, but the temporal query did not complete.'
+    : status === 'skipped'
     ? hydra?.reason || 'Configure HydraDB to persist this case.'
     : status === 'failed'
       ? hydra?.error || 'The local evidence report is complete, but HydraDB did not accept the write.'
       : `${hydra?.indexingError ? `${hydra.indexingError} ` : ''}Recoil wrote ${hydra?.memoryCount || 0} evidence memories with dated validity and retrieved ${recall?.datedChunkCount || 0} dated facts from ${recall?.relatedCaseCount || 0} prior case${recall?.relatedCaseCount === 1 ? '' : 's'}.`
-  return <section className={`hydra-proof hydra-${status}`}><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{description}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div>{triplets.length > 0 && <details className="hydra-graph-receipt"><summary>Graph context · {triplets.length} returned triplet{triplets.length === 1 ? '' : 's'}</summary><div className="hydra-triplets">{triplets.slice(0, 12).map((triplet, index) => <div key={`${triplet.source}-${triplet.predicate}-${triplet.target}-${index}`}><span>{triplet.source}</span><b>{triplet.predicate || 'CONNECTED_TO'}</b><span>{triplet.target}</span></div>)}</div></details>}</section>
+  return <section className={`hydra-proof hydra-${recallFailed ? 'failed' : status}`}><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{description}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div>{triplets.length > 0 && <details className="hydra-graph-receipt"><summary>Graph context · {triplets.length} returned triplet{triplets.length === 1 ? '' : 's'}</summary><div className="hydra-triplets">{triplets.slice(0, 12).map((triplet, index) => <div key={`${triplet.source}-${triplet.predicate}-${triplet.target}-${index}`}><span>{triplet.source}</span><b>{triplet.predicate || 'CONNECTED_TO'}</b><span>{triplet.target}</span></div>)}</div></details>}</section>
 }
 
 function ReceiptLink() {
