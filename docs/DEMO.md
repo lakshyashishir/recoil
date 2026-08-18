@@ -10,6 +10,7 @@
 npm install
 cp .env.example .env
 # fill HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID for the hosted memory proof
+npm run doctor -- --recording "<verified advisory> https://github.com/<owner>/<repository-a> https://github.com/<owner>/<repository-b> https://github.com/<owner>/<repository-c>"
 npm run start
 ```
 
@@ -72,6 +73,7 @@ The final report shows the exact source-backed path, repository verdict, exposur
 ```bash
 npm run cli -- "<verified advisory> https://github.com/<owner>/<repository>"
 npm run cli -- "<verified advisory> https://github.com/<owner>/<repository>" --json
+npm run cli -- "<verified advisory> https://github.com/<owner>/<repository-a> https://github.com/<owner>/<repository-b> https://github.com/<owner>/<repository-c>" --recording --proof
 ```
 
 The CLI and browser consume the same autonomous API state machine. `--json` is useful for showing that the report is structured evidence rather than terminal animation.
@@ -82,6 +84,9 @@ receipt for diagnosis, but do not record that run as the final demo.
 Look for `evidence complete · recording-ready` in the terminal and the matching Evidence Status line in
 the browser report. If the case is partial or requires review, the same quality object lists the failed
 collector, unknown repository, or mixed resolved versions that must be fixed before recording.
+
+For the strict terminal command, also require `recording ready · three-way contrast and HydraDB temporal
+proof verified`. If it prints `recording not-ready`, do not use that run in the demo.
 
 The CLI prints a receipt URL after completion. The browser exposes the same receipt as a download from the case result.
 

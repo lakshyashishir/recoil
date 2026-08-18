@@ -57,6 +57,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Add a network-free recording doctor with optional bounded endpoint probes so demo readiness is diagnosed before collection.
 - [x] Add CLI `--recording` enforcement for the three-way contrast plus completed HydraDB write and temporal-read proof.
 - [x] Share the same recording blocker contract between the CLI and real smoke, with regression coverage for ready and failed cases.
+- [x] Normalize HydraDB graph-context response shapes so top-level triplets remain visible in rewind, browser, and receipts.
 
 ### Still required before calling the hackathon build complete
 
@@ -240,6 +241,8 @@ Manual checks:
 - `43fc7ce` — record provenance checkpoints
 - `6937360` — add recording preflight doctor
 - `59b82d2` — enforce strict recording mode in the CLI
+- `eae4387` — share strict recording blockers between CLI and smoke
+- `168b01b` — preserve HydraDB graph triplets across report surfaces
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
