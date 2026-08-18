@@ -97,7 +97,7 @@ GET  /api/scenarios/:id/code-graph   inspect the bounded source graph
 GET  /api/health                     inspect service and HydraDB capability status
 ```
 
-The older arena endpoints remain isolated for compatibility with earlier checkpoints and tests; they are not the primary product or demo path.
+In evidence mode, legacy arena operations are retired with an explicit `410` response. Historical arena code remains only for regression compatibility; it is not part of the product snapshot, report, or demo path.
 
 ## Verification
 

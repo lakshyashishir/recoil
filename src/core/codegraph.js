@@ -216,7 +216,7 @@ function inferSurface(file, symbols) {
   }
 }
 
-export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
+export function buildCodeGraph(sourceFiles = [], { maxFiles = 24, inferSurfaces = true } = {}) {
   const selected = sourceFiles
     .filter((file) => file?.path && file?.text && SOURCE_EXTENSIONS.some((extension) => file.path.endsWith(extension)))
     .slice(0, maxFiles)
@@ -232,7 +232,7 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
     y: 10 + (Math.floor(index / 5) * 17),
   }))
   const symbols = [...files.values()].flatMap((file) => parseSourceSymbols(file.text, file.path).map((symbol) => ({ ...symbol, path: file.path, sourceUrl: file.sourceUrl || null })))
-  const impactCandidates = [...files.values()].map((file) => inferSurface(file, symbols)).filter(Boolean).slice(0, 24)
+  const impactCandidates = inferSurfaces ? [...files.values()].map((file) => inferSurface(file, symbols)).filter(Boolean).slice(0, 24) : []
   const edges = []
   const unresolved = []
   const externalImports = []

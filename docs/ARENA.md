@@ -1,35 +1,11 @@
-# Adaptive arena
+# Archived arena design
 
-Recoil's primary product is a bounded red/blue episode over a software supply-chain graph.
+This document is retained only as a historical checkpoint from the first Recoil prototype. The fictional deployment arena, exposure score, sandbox probe, and manual Red/Blue controls are not part of the current product or demo API.
 
-## The loop
+The supported design is documented in [ATTACK-DEFENSE.md](ATTACK-DEFENSE.md):
 
-1. Public package, advisory, and repository evidence is collected.
-2. The evidence becomes a bounded graph with observed and modeled edges separated.
-3. Red chooses a reachable route toward a high-value asset.
-4. Blue chooses a control using the current route, response budget, and recalled round memory.
-5. The graph is recomputed.
-6. The new residual route becomes the next red observation.
+```text
+RED path prover → BLUE fix planner → RED residual verifier
+```
 
-The current policy is deliberately explainable. It uses graph reachability, alternate-path reconstruction, route-aware control selection, and bounded response cost. No LLM key is required: a model can later narrate the finished report, but it is not trusted to invent graph state, choose an unvalidated control, or declare an exploit successful.
-
-## What HydraDB stores
-
-HydraDB receives the incident anchor, evidence collector results, topology, and one memory per arena round. An arena memory contains:
-
-- red move and intent;
-- exact route selected from the graph;
-- blue control and rationale;
-- exposure before and after the control;
-- residual high-value targets and route;
-- episode status and scenario provenance.
-
-The arena recalls prior Recoil memories before starting. If a previous episode contains a relevant control precedent, the blue policy can use it and the UI marks that decision as memory-assisted.
-
-## Safety boundary
-
-Red moves are graph actions such as promotion, re-resolution, artifact reuse, or credential-assisted pivot. They are not exploit payloads. Recoil never installs dependencies, executes package code, attacks a public repository, or mutates a production system.
-
-## Synthetic deployment input
-
-Public repositories rarely expose their complete runtime topology. Recoil therefore labels deployment fan-out as modeled unless stronger runtime evidence is supplied. Synthetic inputs are acceptable for the demo, but every traversal, route, exposure score, and control outcome is computed from the graph at runtime.
+Use [DEMO.md](DEMO.md) for the current browser, CLI, and TUI flow.

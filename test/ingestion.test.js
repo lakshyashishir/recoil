@@ -102,6 +102,7 @@ test('multi-repository ingestion computes real evidence contrast without synthet
     assert.ok(report.repositories[0].evidenceSources.some((source) => source.includes('src/cli.js')))
     assert.equal(report.repositories[0].pathObservedAt, '2021-01-01T00:00:00.000Z')
     assert.equal(report.graph.nodes.some((node) => node.label === 'customer database'), false)
+    assert.equal(ingestion.repositories.every((item) => item.manifest.codeGraph.impactCandidates.length === 0), true)
     assert.ok(events.some((event) => event.key === 'classification' && event.status === 'complete'))
   } finally {
     globalThis.fetch = previousFetch

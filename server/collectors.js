@@ -1,5 +1,4 @@
 const DEFAULT_PACKAGE = 'ua-parser-js'
-const DEFAULT_ADVISORY = 'CVE-2021-4229'
 const KNOWN_AFFECTED_VERSIONS = ['0.7.29', '0.8.0', '1.0.0']
 
 import { createHash } from 'node:crypto'
@@ -317,7 +316,7 @@ export async function collectRepository(repository, requestedPackage) {
   const sourceResult = await collectSourceFiles(repository)
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
-  let codeGraph = buildCodeGraph(sourceFiles)
+  let codeGraph = buildCodeGraph(sourceFiles, { inferSurfaces: false })
   codeGraph.recentChange = await collectLatestChange(repository, codeGraph)
   codeGraph = enrichImpactCandidates(codeGraph, parseCodeowners(codeownersFile?.text || ''))
   const workflowText = workflowFiles.map((file) => file.text).join('\n')
@@ -522,69 +521,8 @@ async function collectIncidentSources(packageName, ecosystem = 'npm') {
   }
 }
 
-function collectRepositoryFixture(packageName, version) {
-  const dependencyRange = version ? `^${version}` : packageName === DEFAULT_PACKAGE ? '^0.7.28' : '*'
-  const resolvedVersion = version || (packageName === DEFAULT_PACKAGE ? '0.7.29' : 'registry-latest')
-  return {
-    collector: 'repository-extractor',
-    status: 'completed',
-    sourceUrl: 'fixture://storefront-api/package-lock.json',
-    entities: 1,
-    repository: 'fixture/storefront-api',
-    synthetic: true,
-    manifest: {
-      dependencies: { [packageName]: dependencyRange },
-      resolved: { [packageName]: resolvedVersion },
-      deploymentEvents: [
-        { service: 'storefront-web', region: 'us-east-1', deployedAt: '2021-10-22T14:10:00Z' },
-        { service: 'checkout-worker', region: 'eu-west-1', deployedAt: '2021-10-22T15:40:00Z' },
-      ],
-    },
-    observedAt: new Date().toISOString(),
-  }
-}
-
-export async function runIngestion({ query = `${DEFAULT_ADVISORY} / fixture/storefront-api`, scenarioId = '0017' } = {}) {
-  const target = inferTarget(query)
-  const collectors = []
-  const run = async (name, fn) => {
-    try {
-      collectors.push(await fn())
-    } catch (error) {
-      collectors.push({ collector: name, status: 'failed', error: error.message, observedAt: new Date().toISOString() })
-    }
-  }
-
-  let packageName = target.packageName
-  let ecosystem = 'npm'
-  if (!packageName && target.repository) {
-    await run('repository-extractor', async () => {
-      const result = await collectRepository(target.repository, null)
-      packageName = result.inferredPackage || DEFAULT_PACKAGE
-      ecosystem = result.ecosystem || ecosystem
-      return result
-    })
-  }
-  packageName = packageName || DEFAULT_PACKAGE
-  const completedRepository = collectors.find((collector) => collector.collector === 'repository-extractor' && collector.status === 'completed')
-  ecosystem = completedRepository?.ecosystem || ecosystem
-  await run('registry-resolver', () => collectRegistry(packageName, ecosystem))
-  await run('advisory-resolver', () => collectAdvisories(packageName, target.advisoryId, ecosystem))
-  await run('incident-researcher', () => collectIncidentSources(packageName, ecosystem))
-  if (!collectors.some((collector) => collector.collector === 'repository-extractor')) {
-    if (target.repository) await run('repository-extractor', () => collectRepository(target.repository, packageName))
-    else collectors.push(collectRepositoryFixture(packageName, target.version))
-  }
-
-  return {
-    status: collectors.some((collector) => collector.status === 'failed') ? 'partial' : 'completed',
-    query,
-    scenarioId,
-    package: packageName,
-    target: { ...target, packageName, inferred: target.inferred || !target.packageName },
-    collectors,
-    completedAt: new Date().toISOString(),
-  }
+export async function runIngestion() {
+  throw new Error('The legacy ingestion endpoint is retired; use runMultiRepositoryIngestion through /investigate.')
 }
 
 function advisoryPackageName(advisory) {

@@ -230,6 +230,7 @@ function json(res, status, payload) {
 }
 
 function snapshot(record) {
+  if (record.mode === 'evidence') return investigationSnapshot(record)
   const state = record.state
   const arenaState = record.arena
     ? { ...state, eventIndex: Math.max(10, ...record.graph.nodes.map((node) => node.activeAt || 0)), selectedActions: record.arena.selectedActions }
@@ -281,12 +282,40 @@ function snapshot(record) {
   }
 }
 
+function investigationSnapshot(record) {
+  const investigation = record.investigation
+  const evidence = investigation?.evidence || record.ingestion || { status: 'not_started', collectors: [] }
+  const graph = evidence.graph || { nodes: [], edges: [] }
+  const collectors = new Map((evidence.collectors || []).map((collector) => [collector.collector, collector]))
+  const sourceStatus = (collectorName) => collectors.get(collectorName)?.status || (investigation?.status === 'running' || investigation?.status === 'finalizing' ? 'working' : 'ready')
+  return {
+    id: record.id,
+    scenario: { id: record.id, query: record.query, mode: 'evidence', round: 0 },
+    graph,
+    events: investigation?.events || [],
+    interventions: [],
+    state: { status: investigation?.status || 'idle', step: investigation?.step || 'idle' },
+    metrics: null,
+    ingestion: evidence,
+    hydra: investigation?.hydra || { status: 'not_started', memoryCount: 0 },
+    arena: null,
+    sandbox: null,
+    investigation,
+    sources: [
+      { id: 'osv', label: 'OSV advisory', type: 'advisory', status: sourceStatus('advisory-resolver') },
+      { id: 'registry', label: evidence.registry?.ecosystem === 'cargo' ? 'crates.io registry' : 'npm registry', type: 'registry', status: sourceStatus('registry-resolver') },
+      ...((evidence.repositories || []).map((repository) => ({ id: `github:${repository.repository}`, label: repository.repository, type: 'repository', status: repository.status || 'ready' }))),
+      { id: 'hydra', label: 'HydraDB temporal memory', type: 'memory', status: investigation?.hydra?.status || 'ready' },
+    ],
+  }
+}
+
 function getOrCreate(id = '0017', body = {}) {
   if (!scenarios.has(id)) {
     scenarios.set(id, {
       id,
       query: body.query || SCENARIO.query,
-      mode: body.mode || 'incident',
+      mode: 'evidence',
       state: createInitialState(),
       graph: { nodes: NODES, edges: EDGES },
       events: EVENTS,
@@ -351,6 +380,9 @@ async function route(req, res) {
         const asOf = typeof payload.asOf === 'string' ? payload.asOf : new Date().toISOString()
         return rewindInvestigation(record, asOf).then((result) => json(res, result.error ? 409 : 200, { scenarioId: record.id, ...result }))
       }).catch((error) => json(res, 400, { error: error.message }))
+    }
+    if (record.mode === 'evidence' && action && !['investigation', 'investigate', 'rewind', 'code-graph', 'graph', 'report'].includes(action)) {
+      return json(res, 410, { error: 'Legacy arena endpoint retired; use /investigate and /rewind for the evidence product.' })
     }
     if (req.method === 'GET' && action === 'events') return json(res, 200, { scenarioId: record.id, events: record.events, state: record.state })
     if (req.method === 'GET' && action === 'graph') return json(res, 200, { scenarioId: record.id, graph: snapshot(record).graph })
