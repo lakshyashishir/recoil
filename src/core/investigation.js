@@ -13,6 +13,81 @@ function daysBetween(start, end) {
   return milliseconds >= 0 ? Math.floor(milliseconds / 86400000) : null
 }
 
+function proofStep({ kind, label, status = 'observed', source = null, detail = null }) {
+  return { kind, label, status, source, detail }
+}
+
+/**
+ * Map every reported hop to the public record that supports it. This is kept
+ * separate from the graph path because a path is readable, while a proof
+ * chain is auditable: a reviewer can inspect the exact source for each hop.
+ */
+function buildProofChain(finding, advisory) {
+  const lockfileSource = (finding.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source))
+    || finding.evidenceSources?.[0]
+    || null
+  const steps = [
+    proofStep({
+      kind: 'advisory',
+      label: advisory?.id || finding.advisoryId || 'advisory',
+      source: advisory?.sourceUrl || null,
+      status: advisory?.sourceUrl ? 'observed' : 'missing',
+      detail: advisory?.published ? `Published ${advisory.published.slice(0, 10)}` : 'Advisory publication date unavailable',
+    }),
+    proofStep({
+      kind: 'resolution',
+      label: finding.packageName ? `${finding.packageName}@${finding.resolvedVersion || 'unresolved'}` : 'package unresolved',
+      source: lockfileSource,
+      status: finding.resolvedVersion && lockfileSource ? 'observed' : 'missing',
+      detail: finding.declaredRange ? `Declared ${finding.declaredRange}` : 'No declared range collected',
+    }),
+    proofStep({
+      kind: 'repository',
+      label: finding.repository || 'repository unavailable',
+      source: finding.repositoryUrl || null,
+      status: finding.repositoryUrl ? 'observed' : 'missing',
+      detail: finding.pathObservationSource ? 'Repository history was collected' : 'Repository history unavailable',
+    }),
+  ]
+
+  const imports = (finding.imports || []).slice(0, 4)
+  if (imports.length) {
+    steps.push(...imports.map((item) => proofStep({
+      kind: 'import',
+      label: `${item.path}${item.line ? `:${item.line}` : ''}`,
+      source: item.sourceUrl || null,
+      status: item.sourceUrl ? 'observed' : 'missing',
+      detail: `Imports ${item.specifier || finding.packageName || 'the resolved package'}`,
+    })))
+  } else {
+    steps.push(proofStep({
+      kind: 'import',
+      label: 'No sampled import',
+      status: finding.verdict === 'DECLARED_ONLY' ? 'not-observed' : 'incomplete',
+      source: null,
+      detail: finding.verdict === 'DECLARED_ONLY' ? 'The package is declared, but no sampled source file imports it' : finding.sourceBound || 'Source import evidence is incomplete',
+    }))
+  }
+
+  const symbols = finding.advisoryScope?.status === 'VALIDATED_SYMBOL' ? (finding.advisoryScope.symbols || []).slice(0, 4) : []
+  steps.push(...symbols.map((symbol) => proofStep({
+    kind: 'symbol',
+    label: `${symbol.name} · ${symbol.path}:${symbol.line}`,
+    source: symbol.sourceUrl || null,
+    status: symbol.sourceUrl ? 'validated' : 'missing',
+    detail: 'Advisory scope matched an indexed symbol in an importing file',
+  })))
+
+  steps.push(proofStep({
+    kind: 'temporal',
+    label: finding.pathObservedAt ? `First observed ${finding.pathObservedAt.slice(0, 10)}` : 'Observation date unavailable',
+    source: finding.pathObservationSource || null,
+    status: finding.pathObservedAt && finding.pathObservationSource ? 'observed' : 'undated',
+    detail: finding.exposureDays !== null && finding.exposureDays !== undefined ? `${finding.exposureDays} days before advisory publication` : 'No dated exposure window claimed',
+  }))
+  return steps
+}
+
 function findingAsOf(finding, asOf) {
   const observedAt = dateOrNull(finding.pathObservedAt)
   if (observedAt && new Date(observedAt) > new Date(asOf)) {
@@ -101,7 +176,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
     ...finding,
     pathObservedAt: dateOrNull(finding.pathObservedAt),
     exposureDays: daysBetween(dateOrNull(finding.pathObservedAt), advisoryPublishedAt),
-  }))
+  })).map((finding) => ({ ...finding, proof: buildProofChain(finding, advisory) }))
   const rewindFindings = currentFindings.map((finding) => findingAsOf(finding, requestedAsOf))
   const challenge = currentFindings.map((finding) => challengeFinding(finding, advisory))
   const reached = currentFindings.filter((finding) => finding.verdict === 'REACHED')

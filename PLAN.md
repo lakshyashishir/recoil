@@ -53,6 +53,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Attach a sanitized HydraDB temporal-read receipt to rewind reports and exported receipts.
 - [x] Persist the observed evidence topology through HydraDB's documented `graph_payload` contract and summarize returned graph-context triplets.
 - [x] Poll HydraDB's asynchronous indexing status before recalling graph context; expose queued timeouts without claiming persistence.
+- [x] Attach a per-hop provenance chain to each repository finding and portable receipt: advisory, lockfile resolution, repository, import/symbol, and dated observation.
 
 ### Still required before calling the hackathon build complete
 

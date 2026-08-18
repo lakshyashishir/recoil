@@ -42,6 +42,13 @@ function compactFinding(finding) {
     rangeAllowsFix: finding.rangeAllowsFix ?? null,
     evidenceSources: sourceUrlsForFinding(finding),
     changeEvidence: finding.changeEvidence || null,
+    proof: (finding.proof || []).map((step) => ({
+      kind: step.kind,
+      label: step.label,
+      status: step.status,
+      source: step.source || null,
+      detail: step.detail || null,
+    })),
   }
 }
 

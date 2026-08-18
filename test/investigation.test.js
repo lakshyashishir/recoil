@@ -50,6 +50,9 @@ test('investigation report preserves the three-way repository contrast and fix c
   assert.equal(report.rewind.currentAsOf, '2022-04-01T00:00:00.000Z')
   assert.equal(report.evidenceQuality.status, 'complete')
   assert.equal(report.evidenceQuality.readyForRecording, true)
+  assert.deepEqual(report.repositories[0].proof.slice(0, 3).map((step) => step.kind), ['advisory', 'resolution', 'repository'])
+  assert.equal(report.repositories[0].proof.find((step) => step.kind === 'import').status, 'observed')
+  assert.equal(report.repositories[1].proof.find((step) => step.kind === 'import').status, 'not-observed')
 })
 
 test('HydraDB rewind context is summarized without replacing local verdicts', () => {

@@ -14,6 +14,14 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
       imports: [{ path: 'src/cli.js', line: 1, specifier: 'minimist', packageName: 'minimist', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' }],
       advisoryScope: { status: 'VALIDATED_SYMBOL', symbols: [{ name: 'parseArgs', path: 'src/cli.js', line: 4 }] },
       evidenceSources: ['https://github.com/example/app/blob/HEAD/package-lock.json'], sourceSampleSize: 3,
+      proof: [
+        { kind: 'advisory', label: 'GHSA-test', status: 'observed', source: 'https://osv.dev/vulnerability/GHSA-test', detail: 'Published 2026-01-01' },
+        { kind: 'resolution', label: 'minimist@1.2.5', status: 'observed', source: 'https://github.com/example/app/blob/HEAD/package-lock.json', detail: 'Declared ^1.2.0' },
+        { kind: 'repository', label: 'example/app', status: 'observed', source: 'https://github.com/example/app', detail: 'Repository history was collected' },
+        { kind: 'import', label: 'src/cli.js:1', status: 'observed', source: 'https://github.com/example/app/blob/HEAD/src/cli.js', detail: 'Imports minimist' },
+        { kind: 'symbol', label: 'parseArgs · src/cli.js:4', status: 'validated', source: 'https://github.com/example/app/blob/HEAD/src/cli.js', detail: 'Advisory scope matched an indexed symbol in an importing file' },
+        { kind: 'temporal', label: 'First observed 2025-12-31', status: 'observed', source: 'https://github.com/example/app/commits/HEAD/package-lock.json', detail: '1 days before advisory publication' },
+      ],
     }],
     challenge: [{ repository: 'example/app', status: 'FIX_SURVIVES', proposedVersion: '1.2.6' }],
     evidenceQuality: { status: 'complete', readyForRecording: true, reason: 'All requested public sources completed.' },
@@ -35,6 +43,8 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.equal(receipt.repositories[0].imports[0].sourceUrl, 'https://github.com/example/app/blob/HEAD/src/cli.js')
   assert.equal(receipt.repositories[0].imports[0].packageName, 'minimist')
   assert.equal(receipt.repositories[0].advisoryScope.status, 'VALIDATED_SYMBOL')
+  assert.equal(receipt.repositories[0].proof.length, 6)
+  assert.equal(receipt.repositories[0].proof.find((step) => step.kind === 'import').source, 'https://github.com/example/app/blob/HEAD/src/cli.js')
   assert.equal(receipt.hydra.memoryCount, 4)
   assert.equal(receipt.hydra.error, null)
   assert.equal(receipt.hydra.indexingStatus, 'completed')
