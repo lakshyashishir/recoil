@@ -135,19 +135,28 @@ test('transient network failures are retried before evidence is classified', asy
   const previousFetch = globalThis.fetch
   const previousRetries = process.env.RECOIL_NETWORK_RETRIES
   const attempts = new Map()
+  const osvUrls = []
   process.env.RECOIL_NETWORK_RETRIES = '3'
   globalThis.fetch = async (input) => {
     const url = new URL(input)
     const count = (attempts.get(url.hostname) || 0) + 1
     attempts.set(url.hostname, count)
-    if (url.hostname === 'api.osv.dev' && count < 3) throw new Error('temporary resolver failure', { cause: { code: 'EAI_AGAIN' } })
-    if (url.hostname === 'api.osv.dev') return response(advisory)
+    if (url.hostname === 'api.osv.dev') {
+      osvUrls.push(url.pathname)
+      if (count < 3) throw new Error('temporary resolver failure', { cause: { code: 'EAI_AGAIN' } })
+      return response(advisory)
+    }
     if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', 'dist-tags': { latest: '1.2.8' }, versions: { '1.2.8': {} }, maintainers: [] })
     return response({}, 404)
   }
   try {
     const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-test-1234-5678', scenarioId: 'network-retry-test' })
     assert.equal(attempts.get('api.osv.dev'), 3)
+    assert.deepEqual(osvUrls, [
+      '/v1/vulns/ghsa-test-1234-5678',
+      '/v1/vulns/ghsa-test-1234-5678',
+      '/v1/vulns/ghsa-test-1234-5678',
+    ])
     assert.equal(ingestion.status, 'completed')
     assert.equal(ingestion.advisory.id, advisory.id)
   } finally {

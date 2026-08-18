@@ -520,7 +520,8 @@ async function collectAdvisories(packageName, advisoryId, ecosystem = 'npm') {
 
 async function collectAdvisoryById(advisoryId) {
   if (!advisoryId) return null
-  const sourceUrl = `https://api.osv.dev/v1/vulns/${encodeURIComponent(advisoryId)}`
+  const lookupId = /^GHSA-/i.test(advisoryId) ? advisoryId.toLowerCase() : advisoryId
+  const sourceUrl = `https://api.osv.dev/v1/vulns/${encodeURIComponent(lookupId)}`
   try {
     const advisory = await readJson(sourceUrl)
     return { ...advisory, sourceUrl }
@@ -569,7 +570,8 @@ function advisoryPackageName(advisory) {
 }
 
 function advisoryCollector(advisory, advisoryId) {
-  if (!advisory) return { collector: 'advisory-resolver', status: advisoryId ? 'failed' : 'not_requested', sourceUrl: advisoryId ? `https://api.osv.dev/v1/vulns/${encodeURIComponent(advisoryId)}` : 'https://api.osv.dev', error: advisoryId ? 'Advisory record could not be fetched.' : null, entities: 0, targetAdvisory: null, vulnerabilities: [] }
+  const lookupId = advisoryId && /^GHSA-/i.test(advisoryId) ? advisoryId.toLowerCase() : advisoryId
+  if (!advisory) return { collector: 'advisory-resolver', status: advisoryId ? 'failed' : 'not_requested', sourceUrl: advisoryId ? `https://api.osv.dev/v1/vulns/${encodeURIComponent(lookupId)}` : 'https://api.osv.dev', error: advisoryId ? 'Advisory record could not be fetched.' : null, entities: 0, targetAdvisory: null, vulnerabilities: [] }
   if (advisory.error) return { collector: 'advisory-resolver', status: 'failed', sourceUrl: advisory.sourceUrl, error: advisory.error, entities: 0, targetAdvisory: null, vulnerabilities: [] }
   return {
     collector: 'advisory-resolver',
