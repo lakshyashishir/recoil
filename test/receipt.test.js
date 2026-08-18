@@ -20,9 +20,15 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
     graph: { nodes: [{ id: 'repo:example/app', label: 'example/app', type: 'repository' }], edges: [] },
     sources: ['https://osv.dev/vulnerability/GHSA-test'],
     limits: ['sampled source only'],
-    rewind: { asOf: '2026-08-19T00:00:00.000Z', beforeAdvisory: '2025-12-31T00:00:00.000Z', memory: { status: 'recalled', datedChunkCount: 2, relatedCaseCount: 1, priorScenarioIds: ['prior-case'], sourceUrls: [] } },
+    rewind: {
+      asOf: '2026-08-19T00:00:00.000Z', beforeAdvisory: '2025-12-31T00:00:00.000Z',
+      memory: {
+        status: 'recalled', datedChunkCount: 2, relatedCaseCount: 1, priorScenarioIds: ['prior-case'], sourceUrls: [],
+        graphContext: { queryPathCount: 1, chunkRelationCount: 0, tripletCount: 1, triplets: [{ source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: 'byog' }] },
+      },
+    },
   }
-  const receipt = buildEvidenceReceipt({ scenarioId: 'case-1', report, hydra: { status: 'persisted', memoryCount: 4, recall: { datedChunkCount: 3, relatedCaseCount: 1 } } })
+  const receipt = buildEvidenceReceipt({ scenarioId: 'case-1', report, hydra: { status: 'persisted', memoryCount: 4, result: { indexingStatus: 'completed' }, recall: { datedChunkCount: 3, relatedCaseCount: 1 } } })
   assert.equal(receipt.schema, 'recoil.evidence-receipt/v1')
   assert.equal(receipt.scenarioId, 'case-1')
   assert.equal(receipt.repositories[0].verdict, 'REACHED')
@@ -31,6 +37,8 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.equal(receipt.repositories[0].advisoryScope.status, 'VALIDATED_SYMBOL')
   assert.equal(receipt.hydra.memoryCount, 4)
   assert.equal(receipt.hydra.error, null)
+  assert.equal(receipt.hydra.indexingStatus, 'completed')
+  assert.deepEqual(receipt.hydra.graphContext.triplets[0], { source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: 'byog' })
   assert.equal('chunks' in receipt.hydra, false)
   assert.equal(receipt.integrity.algorithm, 'SHA-256')
   assert.match(receipt.integrity.value, /^[a-f0-9]{64}$/)

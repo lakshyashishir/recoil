@@ -52,6 +52,27 @@ function compactGraph(graph = {}) {
   }
 }
 
+function compactGraphContext(context) {
+  if (!context || typeof context !== 'object') return null
+  const queryPaths = context.query_paths || context.queryPaths || []
+  const chunkRelations = context.chunk_relations || context.chunkRelations || []
+  const rawTriplets = Array.isArray(context.triplets)
+    ? context.triplets
+    : [...queryPaths, ...chunkRelations].flatMap((path) => path?.triplets || [])
+  const triplets = rawTriplets.map((triplet) => ({
+    source: triplet.source?.name || triplet.source || null,
+    predicate: triplet.predicate || triplet.relation?.canonical_predicate || triplet.relation?.canonicalPredicate || triplet.relation?.predicate || null,
+    target: triplet.target?.name || triplet.target || null,
+    origin: triplet.origin || triplet.relation?.origin || null,
+  })).filter((triplet) => triplet.source && triplet.target).slice(0, 12)
+  return {
+    queryPathCount: context.queryPathCount ?? queryPaths.length,
+    chunkRelationCount: context.chunkRelationCount ?? chunkRelations.length,
+    tripletCount: context.tripletCount ?? triplets.length,
+    triplets,
+  }
+}
+
 /**
  * Build a portable, source-cited proof artifact. The receipt deliberately
  * excludes raw Hydra chunks and collector internals: it is safe to download,
@@ -60,6 +81,7 @@ function compactGraph(graph = {}) {
  */
 export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) {
   if (!report) return null
+  const graphContext = compactGraphContext(report.rewind?.memory?.graphContext || hydra?.recall?.graphContext)
   const content = {
     schema: 'recoil.evidence-receipt/v1',
     scenarioId: scenarioId || null,
@@ -75,7 +97,11 @@ export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) 
     hydra: {
       status: hydra?.status || 'skipped',
       error: hydra?.error || null,
+      indexingStatus: hydra?.result?.indexingStatus || (hydra?.status === 'persisted' ? 'completed' : null),
+      indexingPending: Boolean(hydra?.indexingPending),
+      indexingError: hydra?.indexingError || null,
       memoryCount: hydra?.memoryCount || 0,
+      graphContext,
       recall: hydra?.recall ? {
         status: hydra.recall.status || null,
         datedChunkCount: hydra.recall.datedChunkCount || 0,

@@ -115,7 +115,10 @@ async function main() {
     line(`fix     ${item.status.padEnd(22)} ${item.repository} · ${item.proposedVersion || 'no version'}`)
   }
   line(`rewind  ${result.report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${result.report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
-  line(`hydra   ${result.hydra?.status || 'skipped'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases`)
+  const graphContext = result.hydra?.recall?.graphContext || result.report.rewind?.memory?.graphContext
+  const tripletCount = graphContext?.tripletCount ?? graphContext?.triplets?.length ?? 0
+  line(`hydra   ${result.hydra?.status || 'skipped'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases · ${tripletCount} graph triplets`)
+  if (result.hydra?.indexingError) line(`hydra-note ${result.hydra.indexingError}`)
   line(`sources ${result.report.sources?.length || 0} public sources`)
   line(`receipt ${apiBase}${result.receiptPath}`)
   if (hasIncompleteEvidence(result)) {
