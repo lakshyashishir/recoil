@@ -74,12 +74,15 @@ function App() {
 
   const report = state.report
   const summary = report?.summary || {}
+  const quality = report?.evidenceQuality || {}
   const terminal = state.status === 'complete' || state.status === 'failed'
+  const completeLabel = quality.readyForRecording ? '● CASE COMPLETE' : '● REVIEW REQUIRED'
+  const completeColor = quality.readyForRecording ? C.green : C.amber
 
   return <box style={{ width: '100%', height: '100%', backgroundColor: C.bg, padding: 1, flexDirection: 'column', gap: 1 }}>
     <box style={{ height: 2, flexDirection: 'row', justifyContent: 'space-between' }}>
       <box style={{ flexDirection: 'row', gap: 2 }}><text fg={C.amber}>▣ RECOIL</text><text fg={C.muted}>EVIDENCE OPERATOR CONSOLE</text><text fg={C.faint}>/</text><text fg={C.muted}>PATH PROOF</text></box>
-      <text fg={state.status === 'complete' ? C.green : state.status === 'failed' ? C.red : C.amber}>{state.status === 'idle' ? '○ WAITING FOR QUERY' : state.status === 'complete' ? '● CASE COMPLETE' : state.status === 'failed' ? '× CASE FAILED' : '● INVESTIGATION RUNNING'}</text>
+      <text fg={state.status === 'complete' ? completeColor : state.status === 'failed' ? C.red : C.amber}>{state.status === 'idle' ? '○ WAITING FOR QUERY' : state.status === 'complete' ? completeLabel : state.status === 'failed' ? '× CASE FAILED' : '● INVESTIGATION RUNNING'}</text>
     </box>
     <box style={{ flexDirection: 'row', gap: 1, flexGrow: 1 }}>
       <Panel title="CASE" style={{ width: compact ? 31 : 38 }}>
@@ -99,7 +102,7 @@ function App() {
         {query && !terminal && <text fg={C.amber}>… collecting the next evidence record</text>}
       </Panel>
       <Panel title="REPORT" style={{ width: compact ? 34 : 44 }}>
-        {!report ? <text fg={C.faint}>The report appears after collection and proof complete.</text> : <><text fg={C.text}>{summary.reached || 0} reached</text><text fg={C.red}>{summary.declaredOnly || 0} declared only</text><text fg={C.green}>{summary.notAffected || 0} not affected</text><text fg={C.muted}>{summary.unknown || 0} unknown</text><text fg={C.faint}>FIX PROOF</text>{(report.challenge || []).slice(0, compact ? 3 : 6).map((item) => <text key={item.repository} fg={item.status === 'FIX_SURVIVES' || item.status === 'ALREADY_SAFE' ? C.green : verdictColor(item.status)}>{item.repository}: {item.status}</text>)}</>}
+        {!report ? <text fg={C.faint}>The report appears after collection and proof complete.</text> : <><text fg={quality.readyForRecording ? C.green : C.amber}>{quality.readyForRecording ? 'RECORDING-READY' : 'REVIEW REQUIRED'}</text><text fg={C.muted}>{quality.reason || 'Evidence quality unavailable.'}</text><text fg={C.text}>{summary.reached || 0} reached</text><text fg={C.red}>{summary.declaredOnly || 0} declared only</text><text fg={C.green}>{summary.notAffected || 0} not affected</text><text fg={C.muted}>{summary.unknown || 0} unknown</text><text fg={C.faint}>FIX PROOF</text>{(report.challenge || []).slice(0, compact ? 3 : 6).map((item) => <text key={item.repository} fg={item.status === 'FIX_SURVIVES' || item.status === 'ALREADY_SAFE' ? C.green : verdictColor(item.status)}>{item.repository}: {item.status}</text>)}</>}
         <box style={{ flexGrow: 1 }} />
         <text fg={C.faint}>public sources: {report?.sources?.length || 0}</text>
       </Panel>
