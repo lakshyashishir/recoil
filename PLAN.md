@@ -251,6 +251,7 @@ Manual checks:
 - `6d10e24` — remove inferred deployment surfaces
 - `48255fe` — keep generated fixes out of temporal proof
 - `ef7a122` — require complete HydraDB memory acknowledgement
+- `17be7f9` — keep partial HydraDB writes queued across all clients
 - `852675e` — reject investigations without repository evidence before collection
 - `dc1cfed` — surface HydraDB read status and graph triplets in the TUI
 - `003661d` — attach a per-hop evidence provenance chain to findings and receipts
