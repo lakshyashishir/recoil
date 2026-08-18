@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { hasIncompleteEvidence } from '../src/core/validation.js'
 
 const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
 const args = process.argv.slice(2)
@@ -112,8 +113,7 @@ async function main() {
   line(`hydra   ${result.hydra?.status || 'skipped'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases`)
   line(`sources ${result.report.sources?.length || 0} public sources`)
   line(`receipt ${apiBase}${result.receiptPath}`)
-  const incompleteEvidence = result.evidenceStatus !== 'completed' || (result.report.repositories || []).some((finding) => finding.verdict === 'UNKNOWN')
-  if (incompleteEvidence) {
+  if (hasIncompleteEvidence(result)) {
     line('warning incomplete evidence · do not treat this run as a verified case')
     process.exitCode = 1
   }
