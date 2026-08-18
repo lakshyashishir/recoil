@@ -43,4 +43,5 @@ test('evidence quality exposes incomplete collectors and mixed-version ambiguity
   assert.equal(quality.collectorIssues.length, 2)
   assert.deepEqual(quality.ambiguousVersions[0].versions, ['1.10.0', '1.11.1'])
   assert.equal(hasIncompleteEvidence({ report: { evidenceQuality: quality } }), true)
+  assert.equal(hasIncompleteEvidence({ evidenceStatus: 'partial', report: { evidenceQuality: { readyForRecording: true } } }), true)
 })

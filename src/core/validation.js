@@ -67,7 +67,10 @@ export function missingRequiredVerdicts(report, required = REQUIRED_CONTRAST) {
 }
 
 export function hasIncompleteEvidence(result = {}) {
-  if (result.report?.evidenceQuality) return !result.report.evidenceQuality.readyForRecording
+  if (result.report?.evidenceQuality) {
+    const evidenceStatus = result.evidenceStatus || result.ingestion?.status
+    return !result.report.evidenceQuality.readyForRecording || Boolean(evidenceStatus && evidenceStatus !== 'completed')
+  }
   const evidenceStatus = result.evidenceStatus || result.ingestion?.status || 'unknown'
   const hasUnknown = (result.report?.repositories || []).some((finding) => finding.verdict === 'UNKNOWN')
   return evidenceStatus !== 'completed' || hasUnknown
