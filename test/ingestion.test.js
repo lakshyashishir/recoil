@@ -117,6 +117,58 @@ test('multi-repository ingestion computes real evidence contrast without synthet
   }
 })
 
+test('Cargo ingestion resolves an external crate import and registry fixed version', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const cargoAdvisory = {
+    id: 'GHSA-cargo-1234-5678',
+    summary: 'Test advisory for a vulnerable bytes release',
+    published: '2026-01-01T00:00:00Z',
+    affected: [{ package: { ecosystem: 'crates.io', name: 'bytes' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.11.1' }] }] }],
+    sourceUrl: 'https://api.osv.dev/v1/vulns/ghsa-cargo-1234-5678',
+  }
+  const cargoManifest = '[package]\nname = "rust-app"\nversion = "0.1.0"\n\n[dependencies]\nbytes = "1.10"\n'
+  const cargoLock = '[[package]]\nname = "rust-app"\nversion = "0.1.0"\ndependencies = ["bytes"]\n\n[[package]]\nname = "bytes"\nversion = "1.10.0"\n'
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') return response(cargoAdvisory)
+    if (url.hostname === 'crates.io') return response({ crate: { name: 'bytes', max_version: '1.11.1' }, versions: [{ num: '1.10.0', yanked: false }, { num: '1.11.1', yanked: false }] })
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
+    if (!match || match[1] !== 'example/rust-app') return response({}, 404)
+    const operation = match[2]
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'src/lib.rs' }] })
+    if (operation.startsWith('commits')) {
+      if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/rust-app/commit/oldest', commit: { author: { date: '2025-01-01T00:00:00Z' }, committer: { date: '2025-01-01T00:00:00Z' } } }])
+      return response([])
+    }
+    if (operation.startsWith('contents/')) {
+      const path = decodeURIComponent(operation.slice('contents/'.length))
+      if (path === 'Cargo.toml') return response(githubFile(path, cargoManifest, 'example/rust-app'))
+      if (path === 'Cargo.lock') return response(githubFile(path, cargoLock, 'example/rust-app'))
+      if (path === 'src/lib.rs') return response(githubFile(path, 'use bytes::BytesMut;\npub fn parse() { let _ = BytesMut::new(); }', 'example/rust-app'))
+      return response({}, 404)
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-cargo-1234-5678 https://github.com/example/rust-app', scenarioId: 'cargo-integration-test' })
+    const finding = ingestion.findings[0]
+    assert.equal(ingestion.status, 'completed')
+    assert.equal(ingestion.registry.ecosystem, 'cargo')
+    assert.deepEqual(ingestion.registry.fixedVersions, ['1.11.1'])
+    assert.equal(finding.verdict, 'REACHED')
+    assert.equal(finding.imports[0].packageName, 'bytes')
+    assert.equal(ingestion.repositories[0].manifest.codeGraph.externalImports[0].packageName, 'bytes')
+    assert.equal(ingestion.repositories[0].manifest.codeGraph.files[0].language, 'rust')
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+  }
+})
+
 test('network failures preserve the endpoint and downgrade evidence honestly', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (input) => {
