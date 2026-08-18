@@ -37,6 +37,8 @@ print('boundary', 'no install · no repository execution · no exploit payload')
 
 const hasUnresolvedFinding = (report.repositories || []).some((finding) => finding.verdict === 'UNKNOWN')
 const requiredContrast = process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
+const requiredHydra = process.env.RECOIL_SMOKE_REQUIRE_HYDRA === '1' || requiredContrast
 const missingContrast = missingRequiredVerdicts(report)
 if (requiredContrast && missingContrast.length) print('contrast', `missing ${missingContrast.join(', ')}`)
-if (ingestion.status !== 'completed' || hasUnresolvedFinding || hydra.status === 'failed' || missingContrast.length && requiredContrast) process.exitCode = 1
+if (requiredHydra && !['persisted', 'queued'].includes(hydra.status)) print('hydra-gate', `required persistence, received ${hydra.status}`)
+if (ingestion.status !== 'completed' || hasUnresolvedFinding || hydra.status === 'failed' || requiredHydra && !['persisted', 'queued'].includes(hydra.status) || missingContrast.length && requiredContrast) process.exitCode = 1

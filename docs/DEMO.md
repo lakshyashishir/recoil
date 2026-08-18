@@ -31,7 +31,9 @@ For a historical comparison, pin a repository URL to a public tag or commit, for
 The strongest case contains three different outcomes: one repository that imports the affected package, one that only declares it, and one already outside the affected range. Validate the advisory and repository lockfiles before recording; Recoil must not be presented with invented evidence.
 
 Use `RECOIL_SMOKE_REQUIRE_CONTRAST=1` with the same query before recording. The smoke command then refuses
-to pass unless all three verdicts are present and HydraDB persistence succeeds.
+to pass unless all three verdicts are present and HydraDB persistence succeeds. Recoil waits for HydraDB's
+async indexing status before it performs the recall; if the status endpoint cannot be reached, the run stays
+queued and the smoke gate fails rather than presenting an unverified memory read.
 
 ## What the judge sees
 

@@ -69,7 +69,11 @@ as a memory property. Raw HTTP queries use HydraDB's documented v2 field names, 
 `query_by`, `metadata_filters`, and `graph_context: true`; the report keeps only a bounded summary of
 returned triplets so the receipt proves graph retrieval without copying raw chunks.
 
-The report exposes the write and recall result. Temporal rewind is computed from the collected lockfile history and uses HydraDB’s dated evidence as the durable investigation record. Without HydraDB credentials, the same local evidence proof remains available and is labelled local replay.
+The report exposes the write and recall result. Recoil polls HydraDB's asynchronous indexing status for a
+bounded window before recalling, so `persisted` means the submitted memories reached `completed`; a timeout
+remains visibly `queued` with its indexing error. Temporal rewind is computed from the collected lockfile
+history and uses HydraDB’s dated evidence as the durable investigation record. Without HydraDB credentials,
+the same local evidence proof remains available and is labelled local replay.
 
 The rewind report also carries a sanitized temporal-read receipt: the as-of timestamp, HydraDB status,
 dated fact count, related prior-case IDs, and returned source URLs. Raw retrieved chunks are never copied

@@ -130,7 +130,7 @@ function HydraProof({ hydra }) {
     ? hydra?.reason || 'Configure HydraDB to persist this case.'
     : status === 'failed'
       ? hydra?.error || 'The local evidence report is complete, but HydraDB did not accept the write.'
-      : `Recoil wrote ${hydra?.memoryCount || 0} evidence memories with dated validity and retrieved ${recall?.datedChunkCount || 0} dated facts from ${recall?.relatedCaseCount || 0} prior case${recall?.relatedCaseCount === 1 ? '' : 's'}.`
+      : `${hydra?.indexingError ? `${hydra.indexingError} ` : ''}Recoil wrote ${hydra?.memoryCount || 0} evidence memories with dated validity and retrieved ${recall?.datedChunkCount || 0} dated facts from ${recall?.relatedCaseCount || 0} prior case${recall?.relatedCaseCount === 1 ? '' : 's'}.`
   return <section className={`hydra-proof hydra-${status}`}><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{description}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div></section>
 }
 

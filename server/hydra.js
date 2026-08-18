@@ -54,13 +54,17 @@ function unwrap(payload) {
 
 function annotateIndexing(result) {
   const statuses = result?.results || []
-  const completed = statuses.length > 0 && statuses.every((item) => ['completed', 'complete'].includes(item.status))
+  const completed = statuses.length > 0 && statuses.every((item) => ['completed', 'complete'].includes(indexingStatus(item)))
   return { ...result, indexingStatus: completed ? 'completed' : 'queued' }
 }
 
 function normalizeIndexingStatus(payload) {
   const value = unwrap(payload)
   return String(value?.indexing_status || value?.indexingStatus || value?.status || value?.state || '').toLowerCase()
+}
+
+function indexingStatus(item) {
+  return String(item?.indexing_status || item?.indexingStatus || item?.status || item?.state || '').toLowerCase()
 }
 
 function chunkMetadata(chunk) {
@@ -160,6 +164,55 @@ async function query(body, signal) {
     await new Promise((resolve) => setTimeout(resolve, 250 * (2 ** attempt)))
   }
   throw new Error('HydraDB query failed after retries')
+}
+
+async function contextStatus(sourceIds, signal) {
+  const params = new URLSearchParams({ database: databaseId(), collection: collectionId() })
+  for (const sourceId of sourceIds) params.append('ids', sourceId)
+  const url = `${apiBase()}/context/status?${params.toString()}`
+  let response
+  try {
+    response = await fetchWithNetworkRetry(url, { method: 'GET', headers: headers(false), signal })
+  } catch (error) {
+    throw networkError(url, error)
+  }
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(`${response.status}: ${errorMessage(payload, response)}`)
+  return unwrap(payload)
+}
+
+function pollDelayMs() {
+  const configured = Number.parseInt(process.env.HYDRADB_INDEX_POLL_MS || '500', 10)
+  return Number.isFinite(configured) ? Math.min(Math.max(configured, 0), 5000) : 500
+}
+
+function pollTimeoutMs() {
+  const configured = Number.parseInt(process.env.HYDRADB_INDEX_WAIT_MS || '20000', 10)
+  return Number.isFinite(configured) ? Math.min(Math.max(configured, 1000), 300000) : 20000
+}
+
+async function waitForIndexing(result, signal) {
+  if (result.indexingStatus === 'completed') return result
+  const sourceIds = (result.results || []).map((item) => item.id).filter(Boolean)
+  if (!sourceIds.length) return result
+  const deadline = Date.now() + pollTimeoutMs()
+  let latest = result
+  while (Date.now() < deadline) {
+    const statusPayload = await contextStatus(sourceIds, signal)
+    const statuses = statusPayload?.statuses || statusPayload?.results || []
+    const statusById = new Map(statuses.map((item) => [item.id, item]))
+    const merged = sourceIds.map((id) => statusById.get(id) || (result.results || []).find((item) => item.id === id)).filter(Boolean)
+    const failed = merged.find((item) => ['failed', 'errored', 'error'].includes(indexingStatus(item)))
+    if (failed) {
+      const error = new Error(`HydraDB indexing failed for ${failed.id}: ${failed.error_message || failed.message || indexingStatus(failed)}`)
+      error.code = 'HYDRA_INDEX_FAILED'
+      throw error
+    }
+    latest = annotateIndexing({ ...latest, results: merged })
+    if (merged.length === sourceIds.length && merged.every((item) => ['completed', 'complete'].includes(indexingStatus(item)))) return latest
+    await new Promise((resolve) => setTimeout(resolve, pollDelayMs()))
+  }
+  return { ...latest, indexingStatus: 'queued', indexingPending: true }
 }
 
 function stableId(value) {
@@ -348,11 +401,19 @@ export function buildInvestigationMemories(ingestion, report) {
 export async function persistInvestigation(ingestion, report, signal) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
   const memories = buildInvestigationMemories(ingestion, report)
-  const result = await ingest(memories, signal)
+  const queued = await ingest(memories, signal)
+  let result
+  try {
+    result = await waitForIndexing(queued, signal)
+  } catch (error) {
+    if (error.code === 'HYDRA_INDEX_FAILED') throw error
+    result = { ...queued, indexingStatus: 'queued', indexingPending: true, indexingError: error.message }
+  }
   return {
     status: result.indexingStatus === 'completed' ? 'persisted' : 'queued',
     memoryCount: memories.length,
     sourceIds: result.results?.map((item) => item.id).filter(Boolean) || [],
+    indexingError: result.indexingError || null,
     result,
   }
 }
