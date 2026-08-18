@@ -30,6 +30,7 @@ function compactFinding(finding) {
     path: finding.path || [],
     imports: (finding.imports || []).map((item) => ({ path: item.path, line: item.line, specifier: item.specifier, sourceUrl: item.sourceUrl })).filter((item) => item.path || item.sourceUrl),
     sourceSampleSize: finding.sourceSampleSize ?? null,
+    sourceSampleLimit: finding.sourceSampleLimit ?? null,
     sourceBound: finding.sourceBound || null,
     pathObservedAt: finding.pathObservedAt || null,
     exposureDays: finding.exposureDays ?? null,

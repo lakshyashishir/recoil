@@ -130,6 +130,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   const manifest = repository?.manifest || {}
   const codeGraph = manifest.codeGraph || {}
   const sourceCollection = manifest.collection?.sourceFiles || {}
+  const sourceSampleLimit = sourceCollection.limit || sourceCollection.requested || codeGraph.fileCount || 0
   const resolvedVersion = manifest.resolved?.[packageName] || repositoryLockEntry(manifest, packageName)?.version || null
   const declaredRange = manifest.dependencies?.[packageName] || manifest.devDependencies?.[packageName] || null
   const imports = (codeGraph.externalImports || []).filter((item) => item.packageName === packageName)
@@ -200,8 +201,9 @@ export function classifyRepository({ repository, packageName, advisory, advisory
     rangeAllowsFix: fix.rangeAllowsFix,
     allowedVersion: fix.allowedVersion,
     sourceSampleSize: codeGraph.fileCount || 0,
+    sourceSampleLimit: sourceSampleLimit || null,
     sourceBound: codeGraph.fileCount
-      ? `${codeGraph.fileCount} sampled source files analyzed${imports.length ? ` · ${imports.length} import${imports.length === 1 ? '' : 's'} found` : ' · no import found'}${sourceEvidenceIncomplete ? ` · collection ${sourceCollection.status}` : ''}`
+      ? `${codeGraph.fileCount} of ${sourceSampleLimit || codeGraph.fileCount} candidate source files analyzed${imports.length ? ` · ${imports.length} import${imports.length === 1 ? '' : 's'} found` : ' · no import found'}${sourceEvidenceIncomplete ? ` · collection ${sourceCollection.status}` : ''}`
       : `No source files sampled${sourceEvidenceIncomplete ? ` · collection ${sourceCollection.status}` : ''}`,
     evidenceSources: [...new Set([
       repository?.sourceUrl,

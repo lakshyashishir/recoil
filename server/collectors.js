@@ -1,16 +1,7 @@
-const DEFAULT_PACKAGE = 'ua-parser-js'
-const KNOWN_AFFECTED_VERSIONS = ['0.7.29', '0.8.0', '1.0.0']
-
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { buildChangeImpact, buildCodeGraph, enrichImpactCandidates, parseCodeowners } from '../src/core/codegraph.js'
 import { buildObservedGraph, classifyRepository, fixedVersionsFromAdvisory } from '../src/core/evidence.js'
-
-const incidentSources = [
-  { label: 'CERT-EU advisory', url: 'https://cert.europa.eu/publications/security-advisories/2021-057/' },
-  { label: 'Mandiant analysis', url: 'https://cloud.google.com/blog/topics/threat-intelligence/supply-chain-node-js/' },
-  { label: 'GitHub incident thread', url: 'https://github.com/faisalman/ua-parser-js/issues/536' },
-]
 
 async function readJson(url, options) {
   const cached = readCache(url, options)
@@ -229,6 +220,8 @@ async function readGitHubCommitHistory(repository, path) {
 }
 
 async function collectSourceFiles(repository) {
+  const configuredLimit = Number.parseInt(process.env.RECOIL_SOURCE_FILE_LIMIT || '24', 10)
+  const sourceLimit = Number.isFinite(configuredLimit) ? Math.min(Math.max(configuredLimit, 1), 120) : 24
   let paths = []
   let status = 'collected'
   let error = null
@@ -243,7 +236,7 @@ async function collectSourceFiles(repository) {
     .filter((path) => /(?:^|\/)(?:src|lib|app|packages|crates)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
     .filter((path) => /\.(?:js|jsx|mjs|cjs|ts|tsx|rs)$/.test(path))
     .filter((path) => !/(?:node_modules|target|dist|build|vendor)\//.test(path))
-    .slice(0, 24)
+    .slice(0, sourceLimit)
   const responses = await Promise.all(candidates.map(async (path) => {
     try {
       return { file: await readGitHubFile(repository, path), error: null }
@@ -252,7 +245,7 @@ async function collectSourceFiles(repository) {
     }
   }))
   const failures = responses.map((item) => item.error).filter(Boolean)
-  return { files: responses.map((item) => item.file).filter(Boolean), requested: candidates.length, status: failures.length && status === 'collected' ? 'partial' : status, error: error || failures[0] || null }
+  return { files: responses.map((item) => item.file).filter(Boolean), requested: candidates.length, limit: sourceLimit, status: failures.length && status === 'collected' ? 'partial' : status, error: error || failures[0] || null }
 }
 
 async function collectLatestChange(repository, codeGraph) {
@@ -412,7 +405,7 @@ export async function collectRepository(repository, requestedPackage) {
       ciSignals,
       deploymentSignals,
       collection: {
-        sourceFiles: { status: sourceResult.status, error: sourceResult.error, sampled: sourceFiles.length, requested: sourceResult.requested || 0 },
+        sourceFiles: { status: sourceResult.status, error: sourceResult.error, sampled: sourceFiles.length, requested: sourceResult.requested || 0, limit: sourceResult.limit || sourceFiles.length },
       },
       temporal: {
         pathObservedAt: temporal?.firstCommitAt || null,
@@ -500,7 +493,9 @@ async function collectRegistry(packageName, ecosystem = 'npm', advisory = null) 
     entities: versions.length,
     package: payload.name,
     latest: payload['dist-tags']?.latest,
-    affectedVersions: packageName === DEFAULT_PACKAGE ? KNOWN_AFFECTED_VERSIONS : [],
+    affectedVersions: [...new Set((advisory?.affected || [])
+      .filter((entry) => !entry.package?.name || entry.package.name === packageName)
+      .flatMap((entry) => entry.versions || []))],
     fixedVersions: fixedVersionsFromAdvisory(advisory, packageName).filter((version) => versions.includes(version)),
     maintainers: (payload.maintainers || []).map((maintainer) => maintainer.name),
     observedAt: new Date().toISOString(),
@@ -549,37 +544,6 @@ async function collectAdvisoryById(advisoryId) {
     return { ...advisory, sourceUrl }
   } catch (error) {
     return { id: advisoryId, sourceUrl, error: error.message }
-  }
-}
-
-async function collectIncidentSources(packageName, ecosystem = 'npm') {
-  const sources = packageName === DEFAULT_PACKAGE
-    ? incidentSources
-    : ecosystem === 'cargo'
-      ? [
-          { label: 'crates.io package page', url: `https://crates.io/crates/${encodeURIComponent(packageName)}` },
-          { label: 'OSV package query', url: `https://osv.dev/list?q=${encodeURIComponent(packageName)}` },
-        ]
-    : [
-        { label: 'npm package page', url: `https://www.npmjs.com/package/${encodeURIComponent(packageName)}` },
-        { label: 'OSV package query', url: `https://osv.dev/list?q=${encodeURIComponent(packageName)}` },
-      ]
-  const results = await Promise.all(sources.map(async (source) => {
-    try {
-      const response = await fetchWithNetworkRetry(source.url, { headers: { 'user-agent': 'Recoil-HackHydra/0.1' } })
-      const html = await response.text()
-      const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() || source.label
-      return { ...source, status: response.ok ? 'reachable' : `http-${response.status}`, title }
-    } catch (error) {
-      return { ...source, status: 'unreachable', error: error.message }
-    }
-  }))
-  return {
-    collector: 'incident-researcher',
-    status: 'completed',
-    entities: results.length,
-    sources: results,
-    observedAt: new Date().toISOString(),
   }
 }
 
@@ -673,9 +637,10 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
     ...(advisory?.references || []).map((reference) => reference.url),
   ].filter(Boolean))]
   const failed = [advisoryRecord, registry, ...repositoryResults].some((collector) => collector.status === 'failed')
+  const partialEvidence = repositoryResults.some((repository) => repository.manifest?.collection?.sourceFiles?.status && repository.manifest.collection.sourceFiles.status !== 'collected')
   onProgress({ type: 'step', key: 'classification', status: 'complete', title: 'Reachability classified', detail: findings.map((finding) => `${finding.repository}: ${finding.verdict}`).join(' · ') || 'No repositories were classified.' })
   return {
-    status: failed ? 'partial' : packageName && advisory ? 'completed' : 'partial',
+    status: failed || partialEvidence ? 'partial' : packageName && advisory ? 'completed' : 'partial',
     query,
     scenarioId,
     package: packageName,
