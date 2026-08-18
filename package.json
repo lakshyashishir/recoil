@@ -10,7 +10,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "cli": "node cli/recoil.js",
     "test": "node --test",
-    "benchmark": "node scripts/arena-benchmark.js",
+    "benchmark": "node scripts/evidence-benchmark.js",
     "tui": "bun run tui/index.tsx",
     "server": "node --env-file-if-exists=.env server/index.js"
   },

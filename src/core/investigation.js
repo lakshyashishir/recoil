@@ -24,6 +24,9 @@ function challengeFinding(finding, advisory) {
   if (finding.verdict === 'NOT_AFFECTED') {
     return { repository: finding.repository, status: 'ALREADY_SAFE', detail: `${finding.packageName}@${finding.resolvedVersion || 'unknown'} is already outside the advisory range.`, proposedVersion: finding.resolvedVersion, residualPath: [] }
   }
+  if (finding.verdict === 'UNKNOWN') {
+    return { repository: finding.repository, status: 'UNVERIFIED', detail: 'The available evidence is incomplete, so Recoil will not claim that a proposed fix closes the path.', proposedVersion: finding.targetVersion || null, residualPath: finding.path || [] }
+  }
   const proposedVersion = finding.allowedVersion || finding.targetVersion
   if (!proposedVersion) {
     return { repository: finding.repository, status: 'NO_FIXED_VERSION', detail: 'The advisory did not provide a fixed version that Recoil can verify.' }
