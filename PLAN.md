@@ -61,6 +61,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Surface API startup failures in the browser landing state instead of silently rendering an empty product.
 - [x] Skip HydraDB writes for incomplete evidence by default so failed/unknown runs do not consume credits or become durable precedent.
 - [x] Expose the recording contract and evidence-proof capabilities through `/api/health` for operator and demo readiness checks.
+- [x] Require non-empty HydraDB memory and dated temporal recall before strict recording can pass.
 
 ### Still required before calling the hackathon build complete
 

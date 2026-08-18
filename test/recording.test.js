@@ -15,7 +15,15 @@ test('recording blockers accept a complete contrast with HydraDB temporal recall
     evidenceQuality: { readyForRecording: true, reason: 'complete' },
     repositories: [{ verdict: 'REACHED' }, { verdict: 'DECLARED_ONLY' }, { verdict: 'NOT_AFFECTED' }],
   }
-  assert.deepEqual(recordingBlockers({ report, evidenceStatus: 'completed', hydra: { status: 'persisted', recall: { status: 'recalled' } }, requireContrast: true, requireHydra: true }), [])
+  assert.deepEqual(recordingBlockers({ report, evidenceStatus: 'completed', hydra: { status: 'persisted', memoryCount: 4, recall: { status: 'recalled', datedChunkCount: 2 } }, requireContrast: true, requireHydra: true }), [])
+})
+
+test('recording blockers reject an empty HydraDB temporal read', () => {
+  const report = {
+    evidenceQuality: { readyForRecording: true, reason: 'complete' },
+    repositories: [{ verdict: 'REACHED' }, { verdict: 'DECLARED_ONLY' }, { verdict: 'NOT_AFFECTED' }],
+  }
+  assert.deepEqual(recordingBlockers({ report, evidenceStatus: 'completed', hydra: { status: 'persisted', memoryCount: 4, recall: { status: 'recalled', datedChunkCount: 0 } }, requireContrast: true, requireHydra: true }), ['HydraDB temporal recall returned no dated facts'])
 })
 
 test('recording blockers preserve incomplete evidence and HydraDB failures', () => {

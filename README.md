@@ -115,6 +115,9 @@ npm run doctor -- --network
 credentials. `--network` performs bounded reachability checks against OSV, GitHub, and HydraDB; failures
 are diagnostics, not evidence, and do not create a case.
 
+The strict recording gate also requires HydraDB to report at least one stored memory and one dated fact
+from temporal recall; an HTTP-successful but empty query cannot be recorded as memory proof.
+
 To enable the optional advisory-scope pass, provide `OPENAI_API_KEY` and set `RECOIL_ADVISORY_AGENT=on`. It extracts candidate affected symbols from advisory prose using structured output, then the server attaches only exact matches found in the indexed source graph. Leave it off for a fully deterministic run; the package-import verdict does not depend on the model.
 
 ## Browser and terminal clients

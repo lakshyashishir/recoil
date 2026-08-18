@@ -22,6 +22,8 @@ export function recordingBlockers({ report, evidenceStatus, hydra, requireContra
   }
   if (hydra?.status === 'failed') blockers.push('HydraDB write failed')
   if (requireHydra && hydra?.status !== 'persisted') blockers.push(`HydraDB write status is ${hydra?.status || 'unknown'}`)
+  if (requireHydra && hydra?.status === 'persisted' && !(hydra.memoryCount > 0)) blockers.push('HydraDB persisted zero evidence memories')
   if (requireHydra && hydra?.recall?.status !== 'recalled') blockers.push(`HydraDB temporal read status is ${hydra?.recall?.status || 'not-run'}`)
+  if (requireHydra && hydra?.recall?.status === 'recalled' && !(hydra.recall.datedChunkCount > 0)) blockers.push('HydraDB temporal recall returned no dated facts')
   return [...new Set(blockers)]
 }
