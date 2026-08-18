@@ -1,5 +1,10 @@
 # Recoil — superior-model product review brief
 
+> **Archived review input.** This brief captured the pre-redesign arena prototype on 19 August 2026.
+> The fictional Red/Blue runtime described below was removed from the shipped product. For the current
+> evidence-first architecture and demo contract, read [README.md](../README.md), [ATTACK-DEFENSE.md](ATTACK-DEFENSE.md),
+> and [DEMO.md](DEMO.md).
+
 **Date:** 19 August 2026
 **Repository:** `recoil`
 **Hackathon:** Hack Hydra 2026
