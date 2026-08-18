@@ -89,6 +89,12 @@ test('HydraDB adapter persists memories and filters temporal recall locally', as
       const request = JSON.parse(options.body)
       assert.match(request.query, /as of 2023-01-01T00:00:00\.000Z/)
       assert.equal(request.database, 'test-database')
+      assert.equal(request.query_by, 'hybrid')
+      assert.equal(request.max_results, 24)
+      assert.equal(request.graph_context, true)
+      assert.deepEqual(request.metadata_filters, { additional_metadata: { app: 'recoil' } })
+      assert.equal('queryBy' in request, false)
+      assert.equal('graphContext' in request, false)
       return {
         ok: true,
         status: 200,

@@ -364,13 +364,12 @@ export async function recallTemporal(queryText, asOf, signal, { excludeScenarioI
     collection: collectionId(),
     type: 'all',
     query: `${String(queryText || '').slice(0, 700)} as of ${asOf}`,
-    queryBy: 'hybrid',
+    query_by: 'hybrid',
     mode: 'thinking',
-    maxResults: 24,
-    numRelatedChunks: 3,
-    graphContext: true,
-    metadataFilters: { additionalMetadata: { app: 'recoil' } },
-    additionalContext: `Return only Recoil evidence facts that were valid on or before ${asOf}. Each fact has valid_from and valid_until metadata; preserve dates and source URLs.`,
+    max_results: 24,
+    graph_context: true,
+    metadata_filters: { additional_metadata: { app: 'recoil' } },
+    additional_context: `Return only Recoil evidence facts that were valid on or before ${asOf}. Each fact has valid_from and valid_until metadata; preserve dates and source URLs.`,
   }, signal)
   const rawChunks = result?.chunks || result?.results || []
   const chunks = temporalChunks(rawChunks, asOf)

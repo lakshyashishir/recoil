@@ -65,7 +65,8 @@ HydraDB stores the investigation as dated evidence memories rather than as a fin
 The observed graph is written through HydraDB's documented Bring-Your-Own-Graph (`graph_payload`) path:
 explicit advisory, package, repository, lockfile, source, and symbol entities are attached to the
 corresponding evidence memory with typed relations. Recoil never sends its internal graph helper field
-as a memory property. Recall requests `graph_context: true`; the report keeps only a bounded summary of
+as a memory property. Raw HTTP queries use HydraDB's documented v2 field names, including
+`query_by`, `metadata_filters`, and `graph_context: true`; the report keeps only a bounded summary of
 returned triplets so the receipt proves graph retrieval without copying raw chunks.
 
 The report exposes the write and recall result. Temporal rewind is computed from the collected lockfile history and uses HydraDB’s dated evidence as the durable investigation record. Without HydraDB credentials, the same local evidence proof remains available and is labelled local replay.
