@@ -44,6 +44,8 @@ export async function executeInvestigation(record) {
     const scope = await resolveAdvisoryScope(collectedEvidence)
     const scopedEvidence = applyAdvisoryScope(collectedEvidence, scope)
     state.evidence = scopedEvidence
+    record.ingestion = scopedEvidence
+    record.graph = scopedEvidence.graph || { nodes: [], edges: [] }
     pushEvent(state, {
       type: 'step',
       key: 'advisory-scope',
@@ -85,6 +87,7 @@ export async function executeInvestigation(record) {
       ? await recallTemporal(recallQuery, report.rewind.currentAsOf).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
       : { status: persisted.status, reason: persisted.reason, chunks: [] }
     state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0, recall: { ...recall, chunkCount: recall.chunks?.length || 0, datedChunkCount: recall.datedChunkCount || 0, relatedCaseCount: recall.relatedScenarioIds?.length || 0 } }
+    record.hydra = state.hydra
     pushEvent(state, {
       type: 'step',
       key: 'hydra',

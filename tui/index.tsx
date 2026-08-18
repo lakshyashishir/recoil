@@ -1,7 +1,8 @@
 /** @jsxImportSource @opentui/react */
 
 import { createCliRenderer } from '@opentui/core'
-import { createRoot, useEffect, useKeyboard, useRenderer, useState } from '@opentui/react'
+import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
+import { useEffect, useState } from 'react'
 
 const C = {
   bg: '#0b0e0c',
