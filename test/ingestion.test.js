@@ -104,6 +104,7 @@ test('multi-repository ingestion computes real evidence contrast without synthet
     assert.equal(report.repositories[0].repositoryUrl, 'https://github.com/example/reached/tree/fixture-ref')
     assert.ok(requests.some((url) => url.pathname.endsWith('/contents/package.json') && url.searchParams.get('ref') === 'fixture-ref'))
     assert.ok(requests.some((url) => url.pathname.endsWith('/git/trees/fixture-ref')))
+    assert.ok(requests.some((url) => url.hostname === 'raw.githubusercontent.com' && url.pathname.endsWith('/src/cli.js')))
     assert.ok(report.repositories[0].imports[0].sourceUrl.includes('/blob/fixture-ref/'))
     assert.ok(report.repositories[0].evidenceSources.some((source) => source.includes('src/cli.js')))
     assert.equal(report.repositories[0].pathObservedAt, '2021-01-01T00:00:00.000Z')

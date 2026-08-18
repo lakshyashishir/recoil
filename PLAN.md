@@ -62,6 +62,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Skip HydraDB writes for incomplete evidence by default so failed/unknown runs do not consume credits or become durable precedent.
 - [x] Expose the recording contract and evidence-proof capabilities through `/api/health` for operator and demo readiness checks.
 - [x] Require non-empty HydraDB memory and dated temporal recall before strict recording can pass.
+- [x] Prefer raw GitHub source reads after tree discovery to protect the strict recording workflow from API-rate exhaustion.
 
 ### Still required before calling the hackathon build complete
 

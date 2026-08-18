@@ -134,7 +134,30 @@ function githubSourceUrl(repository, path) {
   return `https://github.com/${repository.slug}/blob/${repositoryRef(repository)}/${path}`
 }
 
-async function readGitHubFile(repository, path) {
+async function readRawGitHubFile(repository, path) {
+  const rawUrl = `https://raw.githubusercontent.com/${repository.slug}/${repositoryRef(repository)}/${path}`
+  let response
+  try {
+    response = await fetchWithNetworkRetry(rawUrl, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+  } catch (error) {
+    throw networkError(rawUrl, error)
+  }
+  if (response.status === 404) return null
+  if (!response.ok) throw httpError(response, rawUrl)
+  return { path, sourceUrl: rawUrl, text: await response.text() }
+}
+
+async function readGitHubFile(repository, path, { preferRaw = false } = {}) {
+  let rawError = null
+  if (preferRaw) {
+    try {
+      const rawFile = await readRawGitHubFile(repository, path)
+      if (rawFile) return rawFile
+    } catch (error) {
+      rawError = error
+    }
+  }
+
   try {
     const payload = await readOptionalJson(githubContentsUrl(repository, path), {
       headers: { accept: 'application/vnd.github+json' },
@@ -148,19 +171,18 @@ async function readGitHubFile(repository, path) {
     }
     if (payload) return null
   } catch (error) {
-    if (!error.message.includes('403')) throw error
+    if (!error.message.includes('403') && !error.message.includes('rate limit')) {
+      if (rawError) throw new Error(`${rawError.message}; ${error.message}`, { cause: error })
+      throw error
+    }
   }
 
-  const rawUrl = `https://raw.githubusercontent.com/${repository.slug}/${repositoryRef(repository)}/${path}`
-  let rawResponse
   try {
-    rawResponse = await fetchWithNetworkRetry(rawUrl, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+    return await readRawGitHubFile(repository, path)
   } catch (error) {
-    throw networkError(rawUrl, error)
+    if (rawError) throw new Error(`${rawError.message}; ${error.message}`, { cause: error })
+    throw error
   }
-  if (rawResponse.status === 404) return null
-  if (!rawResponse.ok) throw httpError(rawResponse, rawUrl)
-  return { path, sourceUrl: rawUrl, text: await rawResponse.text() }
 }
 
 async function readGitHubDirectory(repository, path) {
@@ -239,7 +261,7 @@ async function collectSourceFiles(repository) {
   const candidates = eligiblePaths.slice(0, sourceLimit)
   const responses = await Promise.all(candidates.map(async (path) => {
     try {
-      return { file: await readGitHubFile(repository, path), error: null }
+      return { file: await readGitHubFile(repository, path, { preferRaw: true }), error: null }
     } catch (cause) {
       return { file: null, error: cause.message }
     }
