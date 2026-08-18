@@ -1,13 +1,25 @@
-import { runMultiRepositoryIngestion } from '../server/collectors.js'
+import { parseGitHubRepositories, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 import { persistInvestigation, recallTemporal } from '../server/hydra.js'
 import { missingRequiredVerdicts } from '../src/core/validation.js'
 
 const query = process.env.RECOIL_SMOKE_QUERY || 'GHSA-434x-w66g-qw3r https://github.com/hydra-db/hydradb'
 const scenarioId = process.env.RECOIL_SMOKE_SCENARIO || `real-${Date.now()}`
+const requiredContrast = process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
+const requiredHydra = process.env.RECOIL_SMOKE_REQUIRE_HYDRA === '1' || requiredContrast
 
 function print(label, value) {
   console.log(`${label.padEnd(12)} ${value}`)
+}
+
+const repositoryCount = parseGitHubRepositories(query).length
+if (requiredContrast && repositoryCount < 3) {
+  print('preflight', `contrast mode requires 3 public GitHub repositories; found ${repositoryCount}`)
+  process.exit(2)
+}
+if (requiredHydra && (!process.env.HYDRA_DB_API_KEY || !process.env.HYDRADB_DATABASE_ID)) {
+  print('preflight', 'HydraDB recording is required; set HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID')
+  process.exit(2)
 }
 
 const ingestion = await runMultiRepositoryIngestion({ query, scenarioId })
@@ -36,8 +48,6 @@ print('sources', `${report.sources?.length || 0} public URLs`)
 print('boundary', 'no install · no repository execution · no exploit payload')
 
 const hasUnresolvedFinding = (report.repositories || []).some((finding) => finding.verdict === 'UNKNOWN')
-const requiredContrast = process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
-const requiredHydra = process.env.RECOIL_SMOKE_REQUIRE_HYDRA === '1' || requiredContrast
 const missingContrast = missingRequiredVerdicts(report)
 if (requiredContrast && missingContrast.length) print('contrast', `missing ${missingContrast.join(', ')}`)
 if (requiredHydra && !['persisted', 'queued'].includes(hydra.status)) print('hydra-gate', `required persistence, received ${hydra.status}`)

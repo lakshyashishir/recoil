@@ -33,7 +33,9 @@ The strongest case contains three different outcomes: one repository that import
 Use `RECOIL_SMOKE_REQUIRE_CONTRAST=1` with the same query before recording. The smoke command then refuses
 to pass unless all three verdicts are present and HydraDB persistence succeeds. Recoil waits for HydraDB's
 async indexing status before it performs the recall; if the status endpoint cannot be reached, the run stays
-queued and the smoke gate fails rather than presenting an unverified memory read.
+queued and the smoke gate fails rather than presenting an unverified memory read. Strict mode also checks for
+three repository URLs and HydraDB credentials before starting collection, so it does not spend API calls on
+an invalid recording setup.
 
 ## What the judge sees
 

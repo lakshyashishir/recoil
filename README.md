@@ -135,7 +135,9 @@ For a repeatable external smoke against the configured `.env` (defaulting to the
 Set `RECOIL_SMOKE_REQUIRE_CONTRAST=1` for the recording gate. In that mode the case must contain one
 `REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, and HydraDB must be persisted or queued,
 in addition to the normal completeness checks. Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you want to require
-HydraDB persistence without requiring the three-way contrast.
+HydraDB persistence without requiring the three-way contrast. Strict modes fail before collection when the
+query has fewer than three GitHub repositories or the required HydraDB credentials are missing, avoiding a
+misleading partial run and unnecessary public/API requests.
 
 The OpenTUI console remains available for local operator use:
 
