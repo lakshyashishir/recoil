@@ -11,7 +11,7 @@ import {
   createEvents,
   evaluateInterventions,
   getActiveNodeIds,
-  getExposure,
+  getReachability,
   startDefenseRound,
   toggleAction,
 } from '../src/core/scenario.js'
@@ -42,7 +42,7 @@ function buildGraph(ingestion) {
   if (repository && !repository.synthetic && manifest) {
     const manifestId = 'manifest:observed'
     nodes.push({ id: manifestId, label: `${repository.repository} manifest`, type: 'repo', meta: manifest.lockfile ? 'public lockfile' : 'public package.json', x: 36, y: 14, activeAt: 4 })
-    edges.push(['repo', manifestId])
+    edges.push(['repo', manifestId], ['release', manifestId], [manifestId, 'repo'])
     const dependencies = Object.entries(manifest.dependencies || {}).slice(0, 12)
     dependencies.forEach(([name, range], index) => {
       const isTarget = name === packageName
@@ -87,15 +87,18 @@ function buildReport(record) {
   const registry = ingestion.collectors?.find((collector) => collector.collector === 'registry-resolver')
   const advisory = ingestion.collectors?.find((collector) => collector.collector === 'advisory-resolver')
   const repository = ingestion.collectors?.find((collector) => collector.collector === 'repository-extractor')
-  const plans = evaluateInterventions(record.state, record.graph.nodes)
+  const plans = evaluateInterventions(record.state, record.graph.nodes, record.graph.edges)
   const recommended = plans[0]
-  const activeNodeIds = [...getActiveNodeIds({ ...record.state, eventIndex: record.events.length }, record.graph.nodes)]
+  const peakState = { ...record.state, eventIndex: record.events.length }
+  const reachability = getReachability(peakState, record.graph.nodes, record.graph.edges)
+  const baselineReachability = getReachability({ ...peakState, selectedActions: [] }, record.graph.nodes, record.graph.edges)
+  const activeNodeIds = reachability.activeNodeIds
   const sources = (ingestion.collectors || []).flatMap((collector) => [collector.sourceUrl, ...(collector.sources || []).map((source) => source.url)]).filter(Boolean)
   return {
     scenarioId: record.id,
     query: record.query,
     conclusion: ingestion.status === 'completed'
-      ? `${ingestion.package || 'Target'} was traced from public ecosystem evidence into a bounded deployment model. The reachable path is modeled, not proof of compromise.`
+      ? `${ingestion.package || 'Target'} was traced from public ecosystem evidence into a bounded deployment model. ${reachability.reachableTargetIds.length ? 'A residual high-value route remains after the selected controls.' : 'The selected controls sever the modeled high-value paths.'} This is a modeled result, not proof of compromise.`
       : 'The investigation is incomplete; the available evidence does not support a complete conclusion.',
     observed: {
       package: ingestion.package || null,
@@ -113,14 +116,22 @@ function buildReport(record) {
       graphNodes: record.graph.nodes.length,
       graphEdges: record.graph.edges.length,
       activeNodes: activeNodeIds.length,
-      reachableExposure: getExposure(record.state),
+      reachableExposure: reachability.exposure,
       eventCount: record.events.length,
       defenseRounds: record.round || 0,
       completed: record.state.eventIndex >= record.events.length,
+      reachableTargets: reachability.reachableTargetIds,
+      primaryPath: reachability.primaryPath,
+      alternatePaths: reachability.alternatePaths,
+      baselineExposure: baselineReachability.exposure,
+      baselinePath: baselineReachability.primaryPath,
+      baselineAlternatePaths: baselineReachability.alternatePaths,
+      baselineTargets: baselineReachability.reachableTargetIds,
+      blockedNodes: reachability.blockedNodeIds,
     },
     recommendation: recommended,
     uncertainty: [
-      repository?.synthetic ? 'Deployment and service fan-out are synthetic demo records.' : null,
+      repository?.synthetic ? 'Deployment and service fan-out are synthetic demo records.' : 'Service and data fan-out is modeled; repository evidence is not a runtime inventory.',
       repository?.status === 'failed' ? `Repository evidence collection failed: ${repository.error || 'unknown error'}.` : null,
       repository && !repository.manifest?.lockfile ? 'The public repository did not expose a lockfile; dependency resolution is range-based.' : null,
       'No package code or exploit payload was executed.',
@@ -140,13 +151,22 @@ function json(res, status, payload) {
 
 function snapshot(record) {
   const state = record.state
-  const exposure = getExposure(state)
+  const reachability = getReachability(state, record.graph.nodes, record.graph.edges)
+  const exposure = reachability.exposure
   const collectors = new Map((record.ingestion?.collectors || []).map((collector) => [collector.collector, collector]))
   const sourceStatus = (collectorName) => collectors.get(collectorName)?.status || (record.ingestion?.status === 'running' ? 'working' : 'ready')
   return {
     id: record.id,
     scenario: { ...SCENARIO, query: record.query, mode: record.mode, round: record.round || 0 },
-    graph: { ...record.graph, activeNodeIds: [...getActiveNodeIds(state, record.graph.nodes)] },
+    graph: {
+      ...record.graph,
+      activeNodeIds: reachability.activeNodeIds,
+      blockedNodeIds: reachability.blockedNodeIds,
+      primaryPath: reachability.primaryPath,
+      alternatePaths: reachability.alternatePaths,
+      reachableTargetIds: reachability.reachableTargetIds,
+      exposure: reachability.exposure,
+    },
     events: record.events,
     interventions: INTERVENTIONS,
     state,
@@ -257,18 +277,23 @@ function route(req, res) {
         if (!changed) return json(res, 200, snapshot(record))
         const wasComplete = record.state.eventIndex >= record.events.length
         if (wasComplete) {
-          const round = startDefenseRound(record.state, record.events, payload.id, record.graph.nodes)
+          const round = startDefenseRound(record.state, record.events, payload.id, record.graph.nodes, record.graph.edges)
           record.state = round.state
           record.events = round.events
           record.round = round.round
         }
+        const decisionReachability = getReachability(record.state, record.graph.nodes, record.graph.edges)
         return persistDecision({
           scenarioId: record.id,
           queryText: record.query,
           action: payload.id,
           selectedActions: record.state.selectedActions,
-          exposure: getExposure(record.state),
-          activeNodeIds: [...getActiveNodeIds(record.state, record.graph.nodes)],
+          exposure: decisionReachability.exposure,
+          activeNodeIds: decisionReachability.activeNodeIds,
+          blockedNodeIds: decisionReachability.blockedNodeIds,
+          attackPath: decisionReachability.primaryPath,
+          alternatePaths: decisionReachability.alternatePaths,
+          controlEnabled: record.state.selectedActions.includes(payload.id),
           round: record.round || 0,
         }).then((persisted) => {
           record.hydra = { ...record.hydra, lastDecision: persisted }
@@ -294,7 +319,7 @@ function route(req, res) {
       return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'evaluate') {
-      const plans = evaluateInterventions(record.state, record.graph.nodes)
+      const plans = evaluateInterventions(record.state, record.graph.nodes, record.graph.edges)
       const recommended = plans[0]
       const alternatives = plans.slice(0, 6)
       return persistEvaluation({ scenarioId: record.id, queryText: record.query, recommended, alternatives }).then((persisted) => {

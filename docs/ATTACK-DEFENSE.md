@@ -28,7 +28,7 @@ The attacker is a bounded graph policy, not an exploit runner. Its objective is 
 4. Fan out through the modeled artifact and services.
 5. Reach a high-value data node.
 
-Each step has an actor (`attack planner`), intent, label, and explanation. No package code, payload, or target system is executed.
+Each step has an actor (`attack planner`), intent, label, and explanation. At the response boundary, the planner runs a bounded path search over the current graph and selects the highest-value residual route. Recoil records the route as node IDs, not just a score, so the operator can see exactly which trust edges remain. No package code, payload, or target system is executed.
 
 ## Defender side
 
@@ -49,7 +49,13 @@ Current controls are:
 - rotate runtime secrets;
 - restore and validate.
 
-The recommendation is a counterfactual graph result. Applying it updates the live graph and writes a `defense_decision` memory to HydraDB.
+The recommendation is a counterfactual graph result. Applying it blocks concrete graph nodes, recalculates reachable high-value assets, tests the remaining route, and starts the next response round. Each decision writes the round, blocked nodes, primary route, and alternate paths considered to a `defense_decision` memory in HydraDB.
+
+## Reachability model
+
+The baseline graph currently includes publisher/release trust, registry resolution, lockfile and CI promotion, artifact fan-out, five services, and multiple high-value data surfaces: customer data, payment tokens, analytics, feature flags, and audit evidence. Repository ingestion can add observed manifest, dependency, workflow, and container nodes around this baseline.
+
+The modeled exposure is a weighted reachable-risk ratio against the full no-control graph. It is not a claim that every modeled deployment edge exists in production. A path is considered high-value when it reaches a data node; the report preserves both the primary path and bounded alternate paths so a control can be judged by what it actually cuts.
 
 ## HydraDB role
 

@@ -16,8 +16,13 @@ export const NODES = [
   { id: 'payments', label: 'payments-worker', type: 'service', meta: 'deployed · us-east-1', x: 78, y: 48 },
   { id: 'checkout', label: 'checkout-worker', type: 'service', meta: 'deployed · eu-west-1', x: 78, y: 65 },
   { id: 'admin', label: 'admin-console', type: 'service', meta: 'internal surface', x: 78, y: 82 },
+  { id: 'partner-webhook', label: 'partner-webhook', type: 'service', meta: 'external integration', x: 78, y: 94 },
   { id: 'customer-db', label: 'customer database', type: 'data', meta: 'high-value asset', x: 93, y: 48 },
+  { id: 'billing-vault', label: 'billing vault', type: 'data', meta: 'payment tokens', x: 93, y: 20 },
+  { id: 'analytics-lake', label: 'analytics lake', type: 'data', meta: 'behavioral data', x: 93, y: 76 },
+  { id: 'feature-flags', label: 'feature flag store', type: 'data', meta: 'release control', x: 93, y: 94 },
   { id: 'observability', label: 'runtime telemetry', type: 'telemetry', meta: 'detection signal', x: 65, y: 50 },
+  { id: 'audit-log', label: 'audit log archive', type: 'data', meta: 'forensic evidence', x: 65, y: 8 },
   { id: 'security', label: 'security response', type: 'person', meta: 'defender decision', x: 51, y: 92 },
 ]
 
@@ -39,13 +44,19 @@ export const EDGES = [
   ['artifact', 'payments'],
   ['artifact', 'checkout'],
   ['artifact', 'admin'],
+  ['artifact', 'partner-webhook'],
   ['secrets', 'payments'],
   ['gateway', 'observability'],
   ['payments', 'observability'],
   ['checkout', 'customer-db'],
   ['payments', 'customer-db'],
+  ['payments', 'billing-vault'],
   ['admin', 'customer-db'],
+  ['admin', 'feature-flags'],
+  ['storefront', 'analytics-lake'],
+  ['partner-webhook', 'analytics-lake'],
   ['observability', 'security'],
+  ['observability', 'audit-log'],
 ]
 
 export const INTERVENTIONS = [
@@ -56,6 +67,21 @@ export const INTERVENTIONS = [
   { id: 'rotate-secrets', title: 'Rotate runtime secrets', description: 'Cut credential-assisted lateral movement', cost: 3, reduction: 14 },
   { id: 'restore', title: 'Restore and validate', description: 'Redeploy from a verified artifact', cost: 1, reduction: 9 },
 ]
+
+const RISK_WEIGHTS = {
+  data: 40,
+  service: 12,
+  artifact: 9,
+  infra: 7,
+  secret: 6,
+  repo: 5,
+  package: 4,
+  resolver: 3,
+  registry: 3,
+  person: 2,
+  telemetry: 2,
+  default: 1,
+}
 
 export function createEvents(packageName = 'ua-parser-js', advisory = 'CVE-2021-4229', context = {}) {
   const repositoryLine = context.repository ? ` from ${context.repository}` : ''
@@ -80,14 +106,14 @@ export const SCENARIO = {
   id: '0017',
   query: 'CVE-2021-4229  /  fixture/storefront-api',
   advisory: 'CVE-2021-4229 / GHSA-pjwm-rvh2-c87w',
-  graphVersion: 'v0.5.0',
+  graphVersion: 'v0.6.0',
 }
 
 export function createInitialState() {
   return {
     running: false,
     eventIndex: 0,
-    selectedActions: ['upgrade'],
+    selectedActions: [],
     selectedNode: 'release',
   }
 }
@@ -104,50 +130,11 @@ export function getReduction(state) {
   return state.selectedActions.reduce((sum, id) => sum + (INTERVENTIONS.find((item) => item.id === id)?.reduction || 0), 0)
 }
 
-export function getExposure(state) {
-  return Math.max(4, 100 - getReduction(state))
+function nodeWeight(node) {
+  return node.riskWeight || RISK_WEIGHTS[node.type] || RISK_WEIGHTS.default
 }
 
-export function evaluateInterventions(state, graphNodes = NODES) {
-  const plans = []
-  const combinations = 1 << INTERVENTIONS.length
-  for (let mask = 0; mask < combinations; mask += 1) {
-    const selectedActions = INTERVENTIONS.filter((_, index) => mask & (1 << index)).map((action) => action.id)
-    const candidate = { ...state, selectedActions }
-    const cost = getSpent(candidate)
-    if (cost > RESPONSE_BUDGET) continue
-    const exposure = getExposure(candidate)
-    const worstCase = { ...candidate, eventIndex: EVENTS.length }
-    plans.push({
-      actions: selectedActions,
-      cost,
-      exposure,
-      contained: 100 - exposure,
-      activeNodes: getActiveNodeIds(worstCase, graphNodes).size,
-    })
-  }
-  return plans.sort((left, right) => left.exposure - right.exposure || left.cost - right.cost || left.activeNodes - right.activeNodes)
-}
-
-export function startDefenseRound(state, events, actionId, graphNodes = NODES) {
-  const action = INTERVENTIONS.find((item) => item.id === actionId)
-  if (!action || state.eventIndex < events.length) return { state, events, round: 0 }
-  const round = Math.floor((events.length - EVENTS.length) / 3) + 1
-  const activeNodes = getActiveNodeIds({ ...state, eventIndex: events.length }, graphNodes).size
-  const prefix = `round-${round}-${events.length}`
-  return {
-    state: { ...state, running: true },
-    events: [
-      ...events,
-      { id: `${prefix}-control`, side: 'defense', actor: 'defender operator', intent: 'apply a control', label: 'Control applied', detail: `${action.title} reduced modeled exposure to ${getExposure(state)}%` },
-      { id: `${prefix}-countermove`, side: 'attack', actor: 'attack planner', intent: 'test the residual route', label: 'Residual route tested', detail: `The attacker searched the remaining graph after round ${round}` },
-      { id: `${prefix}-recomputed`, side: 'system', actor: 'orchestrator', intent: 'rebuild reachability', label: 'Path recalculated', detail: `${activeNodes} active nodes remain; the next response window is ready` },
-    ],
-    round,
-  }
-}
-
-export function getActiveNodeIds(state, graphNodes = NODES) {
+function getProgressNodeIds(state, graphNodes = NODES) {
   const active = new Set()
   if (state.eventIndex >= 1) active.add('maintainer')
   if (state.eventIndex >= 2) active.add('release')
@@ -169,33 +156,191 @@ export function getActiveNodeIds(state, graphNodes = NODES) {
     active.add('payments')
     active.add('checkout')
     active.add('admin')
+    active.add('partner-webhook')
   }
   if (state.eventIndex >= 7) {
     active.add('observability')
     active.add('customer-db')
+    active.add('billing-vault')
+    active.add('analytics-lake')
+    active.add('feature-flags')
+    active.add('audit-log')
   }
   if (state.eventIndex >= 8) active.add('security')
   graphNodes.filter((node) => !NODES.some((known) => known.id === node.id)).forEach((node) => {
     if (state.eventIndex >= (node.activeAt || 4)) active.add(node.id)
   })
+  return active
+}
 
+export function getBlockedNodeIds(state, graphNodes = NODES) {
+  const blocked = new Set()
   if (state.selectedActions.includes('upgrade')) {
-    active.delete('resolver')
-    active.delete('lockfile')
-    graphNodes.filter((node) => node.role === 'target-dependency').forEach((node) => active.delete(node.id))
+    blocked.add('resolver')
+    blocked.add('lockfile')
+    graphNodes.filter((node) => node.role === 'target-dependency').forEach((node) => blocked.add(node.id))
   }
   if (state.selectedActions.includes('block-promotion')) {
-    ['repo', 'ci', 'artifact', 'secrets', 'gateway', 'storefront', 'payments', 'checkout', 'admin'].forEach((id) => active.delete(id))
+    blocked.add('ci')
+    blocked.add('artifact')
   }
   if (state.selectedActions.includes('quarantine')) {
-    ['gateway', 'storefront', 'payments', 'checkout', 'admin'].forEach((id) => active.delete(id))
+    ;['gateway', 'storefront', 'payments', 'checkout', 'admin', 'partner-webhook'].forEach((id) => blocked.add(id))
   }
-  if (state.selectedActions.includes('revoke')) active.delete('maintainer')
+  if (state.selectedActions.includes('revoke')) blocked.add('maintainer')
   if (state.selectedActions.includes('rotate-secrets')) {
-    active.delete('secrets')
-    active.delete('customer-db')
+    blocked.add('secrets')
+    blocked.add('customer-db')
   }
-  return active
+  if (state.selectedActions.includes('restore')) blocked.add('artifact')
+  return blocked
+}
+
+function graphTraversal(graphNodes, graphEdges, state) {
+  const eligible = getProgressNodeIds({ ...state, selectedActions: [] }, graphNodes)
+  const blocked = getBlockedNodeIds(state, graphNodes)
+  const traversable = new Set([...eligible].filter((id) => !blocked.has(id)))
+  const adjacency = new Map([...traversable].map((id) => [id, []]))
+  graphEdges.forEach(([from, to]) => {
+    if (adjacency.has(from) && traversable.has(to)) adjacency.get(from).push(to)
+  })
+  const sources = ['release', 'maintainer'].filter((id) => traversable.has(id))
+  const reachable = new Set()
+  const previous = new Map()
+  const queue = [...sources]
+  sources.forEach((id) => reachable.add(id))
+  while (queue.length) {
+    const current = queue.shift()
+    for (const next of adjacency.get(current) || []) {
+      if (reachable.has(next)) continue
+      reachable.add(next)
+      previous.set(next, current)
+      queue.push(next)
+    }
+  }
+  return { eligible, blocked, traversable, adjacency, sources, reachable, previous }
+}
+
+function reconstructPath(previous, source, target) {
+  if (source === target) return [source]
+  if (!previous.has(target)) return []
+  const path = [target]
+  let current = target
+  while (current !== source && previous.has(current)) {
+    current = previous.get(current)
+    path.unshift(current)
+  }
+  return path[0] === source ? path : []
+}
+
+function enumeratePaths(adjacency, sources, target, limit = 3) {
+  const paths = []
+  function walk(current, path) {
+    if (paths.length >= limit) return
+    if (current === target) {
+      paths.push([...path])
+      return
+    }
+    for (const next of adjacency.get(current) || []) {
+      if (path.includes(next)) continue
+      walk(next, [...path, next])
+    }
+  }
+  sources.forEach((source) => walk(source, [source]))
+  return paths
+}
+
+export function getReachability(state, graphNodes = NODES, graphEdges = EDGES) {
+  const traversal = graphTraversal(graphNodes, graphEdges, state)
+  const nodeById = new Map(graphNodes.map((node) => [node.id, node]))
+  const targets = graphNodes.filter((node) => node.type === 'data' || node.role === 'high-value')
+  const reachableTargets = targets.filter((node) => traversal.reachable.has(node.id))
+  const primaryTarget = [...reachableTargets].sort((left, right) => nodeWeight(right) - nodeWeight(left))[0]
+  const source = primaryTarget
+    ? traversal.sources.find((candidate) => reconstructPath(traversal.previous, candidate, primaryTarget.id).length)
+    : null
+  const primaryPath = source ? reconstructPath(traversal.previous, source, primaryTarget.id) : []
+  const alternatePaths = primaryTarget ? enumeratePaths(traversal.adjacency, traversal.sources, primaryTarget.id) : []
+  const reachableRisk = [...traversal.reachable].reduce((sum, id) => sum + nodeWeight(nodeById.get(id) || {}), 0)
+  const baselineEventIndex = Math.max(EVENTS.length, ...graphNodes.map((node) => node.activeAt || 0))
+  const baselineTraversal = graphTraversal(graphNodes, graphEdges, { ...state, eventIndex: baselineEventIndex, selectedActions: [] })
+  const baselineRisk = [...baselineTraversal.reachable].reduce((sum, id) => sum + nodeWeight(nodeById.get(id) || {}), 0)
+  const exposure = baselineRisk ? Math.round((reachableRisk / baselineRisk) * 100) : 0
+  return {
+    activeNodeIds: [...traversal.reachable],
+    blockedNodeIds: [...traversal.blocked],
+    eligibleNodeIds: [...traversal.eligible],
+    targetNodeIds: targets.map((node) => node.id),
+    reachableTargetIds: reachableTargets.map((node) => node.id),
+    primaryPath,
+    primaryPathLabels: primaryPath.map((id) => nodeById.get(id)?.label || id),
+    alternatePaths,
+    exposure,
+    reachableRisk,
+    baselineRisk,
+  }
+}
+
+export function getGraphExposure(state, graphNodes = NODES, graphEdges = EDGES) {
+  return getReachability(state, graphNodes, graphEdges).exposure
+}
+
+export function getExposure(state, graphNodes, graphEdges) {
+  return graphNodes && graphEdges
+    ? getGraphExposure(state, graphNodes, graphEdges)
+    : Math.max(4, 100 - getReduction(state))
+}
+
+export function evaluateInterventions(state, graphNodes = NODES, graphEdges = EDGES) {
+  const plans = []
+  const combinations = 1 << INTERVENTIONS.length
+  for (let mask = 0; mask < combinations; mask += 1) {
+    const selectedActions = INTERVENTIONS.filter((_, index) => mask & (1 << index)).map((action) => action.id)
+    const candidate = { ...state, selectedActions }
+    const cost = getSpent(candidate)
+    if (cost > RESPONSE_BUDGET) continue
+    const worstCase = { ...candidate, eventIndex: Math.max(EVENTS.length, ...graphNodes.map((node) => node.activeAt || 0)) }
+    const reachability = getReachability(worstCase, graphNodes, graphEdges)
+    const exposure = reachability.exposure
+    plans.push({
+      actions: selectedActions,
+      cost,
+      exposure,
+      contained: 100 - exposure,
+      activeNodes: reachability.activeNodeIds.length,
+      blockedNodes: reachability.blockedNodeIds,
+      attackPath: reachability.primaryPath,
+    })
+  }
+  return plans.sort((left, right) => left.exposure - right.exposure || left.cost - right.cost || left.activeNodes - right.activeNodes)
+}
+
+export function startDefenseRound(state, events, actionId, graphNodes = NODES, graphEdges = EDGES) {
+  const action = INTERVENTIONS.find((item) => item.id === actionId)
+  if (!action || state.eventIndex < events.length) return { state, events, round: 0 }
+  const round = Math.floor((events.length - EVENTS.length) / 3) + 1
+  const reachability = getReachability(state, graphNodes, graphEdges)
+  const prefix = `round-${round}-${events.length}`
+  const route = reachability.primaryPathLabels.join(' → ')
+  const enabled = state.selectedActions.includes(actionId)
+  const controlLabel = enabled ? 'Control applied' : 'Control withdrawn'
+  const routeEvent = reachability.primaryPath.length
+    ? { label: 'Residual route tested', detail: `The attacker tested ${route}` }
+    : { label: 'High-value path severed', detail: `No path from the release to a high-value data node remains after ${action.title.toLowerCase()}` }
+  return {
+    state: { ...state, running: true },
+    events: [
+      ...events,
+      { id: `${prefix}-control`, side: 'defense', actor: 'defender operator', intent: enabled ? 'apply a control' : 'withdraw a control', label: controlLabel, detail: `${action.title} ${enabled ? 'blocks' : 'releases'} ${reachability.blockedNodeIds.length} graph nodes; modeled exposure is now ${reachability.exposure}%` },
+      { id: `${prefix}-countermove`, side: 'attack', actor: 'attack planner', intent: 'test the residual route', ...routeEvent },
+      { id: `${prefix}-recomputed`, side: 'system', actor: 'orchestrator', intent: 'rebuild reachability', label: 'Path recalculated', detail: `${reachability.activeNodeIds.length} reachable nodes; ${reachability.reachableTargetIds.length} high-value targets remain reachable` },
+    ],
+    round,
+  }
+}
+
+export function getActiveNodeIds(state, graphNodes = NODES, graphEdges = EDGES) {
+  return new Set(getReachability(state, graphNodes, graphEdges).activeNodeIds)
 }
 
 export function advanceState(state, eventCount = EVENTS.length) {

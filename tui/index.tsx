@@ -14,7 +14,7 @@ import {
   createInitialState,
   evaluateInterventions,
   getActiveNodeIds,
-  getExposure,
+  getGraphExposure,
   getSpent,
   isComplete,
   startDefenseRound,
@@ -56,11 +56,11 @@ function App() {
   const complete = isComplete(state, events.length)
   const round = Math.floor((events.length - EVENTS.length) / 3)
   const activeNodes = getActiveNodeIds(state)
-  const exposure = getExposure(state)
+  const exposure = getGraphExposure(state, NODES, EDGES)
   const reduction = 100 - exposure
   const remainingBudget = Math.max(0, RESPONSE_BUDGET - getSpent(state))
   const currentEvent = events[Math.min(state.eventIndex, events.length - 1)]
-  const bestPlan = evaluateInterventions(state)[0]
+  const bestPlan = evaluateInterventions(state, NODES, EDGES)[0]
 
   useEffect(() => {
     if (!state.running || complete) return undefined
@@ -78,7 +78,7 @@ function App() {
       const next = toggleAction(current, action.id)
       if (next === current) return current
       if (current.eventIndex >= events.length) {
-        const round = startDefenseRound(next, events, action.id)
+        const round = startDefenseRound(next, events, action.id, NODES, EDGES)
         setEvents(round.events)
         return round.state
       }

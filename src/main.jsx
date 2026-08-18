@@ -29,8 +29,8 @@ import {
   NODES,
   RESPONSE_BUDGET,
   SCENARIO,
-  getActiveNodeIds,
-  getExposure,
+  getGraphExposure,
+  getReachability,
   getSpent,
   toggleAction as toggleScenarioAction,
 } from './core/scenario.js'
@@ -68,19 +68,24 @@ function App() {
   const [running, setRunning] = useState(false)
   const [eventIndex, setEventIndex] = useState(0)
   const [round, setRound] = useState(0)
-  const [selectedActions, setSelectedActions] = useState(['upgrade'])
+  const [selectedActions, setSelectedActions] = useState([])
   const [selectedNode, setSelectedNode] = useState('release')
   const [backendStatus, setBackendStatus] = useState('checking')
   const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0, lastDecision: null })
   const [graph, setGraph] = useState({ nodes: NODES, edges: EDGES })
   const [events, setEvents] = useState(EVENTS)
+  const [reachability, setReachability] = useState({ activeNodeIds: [], blockedNodeIds: [], primaryPath: [], reachableTargetIds: [], exposure: 0 })
   const [recommendation, setRecommendation] = useState(null)
   const [report, setReport] = useState(null)
 
   const completed = eventIndex >= events.length
-  const exposure = getExposure({ eventIndex, selectedActions })
+  const exposure = reachability.exposure ?? getGraphExposure({ eventIndex, selectedActions }, graph.nodes, graph.edges)
   const reduction = 100 - exposure
   const currentEvent = events[Math.min(eventIndex, events.length - 1)]
+  const activeNodes = useMemo(() => new Set(reachability.activeNodeIds || getReachability({ eventIndex, selectedActions }, graph.nodes, graph.edges).activeNodeIds), [eventIndex, selectedActions, graph, reachability])
+  const blockedNodes = useMemo(() => new Set(reachability.blockedNodeIds || []), [reachability])
+  const routeEdges = useMemo(() => new Set((reachability.primaryPath || []).slice(1).map((id, index) => `${reachability.primaryPath[index]}->${id}`)), [reachability.primaryPath])
+  const primaryPathLabels = (reachability.primaryPath || []).map((id) => graph.nodes.find((node) => node.id === id)?.label || id)
 
   useEffect(() => {
     if (!running || completed) return undefined
@@ -90,6 +95,14 @@ function App() {
         .then((payload) => {
           setEventIndex(payload.state?.eventIndex ?? events.length)
           setRunning(Boolean(payload.state?.running))
+          setSelectedActions(payload.state?.selectedActions || [])
+          setReachability({
+            activeNodeIds: payload.graph?.activeNodeIds || [],
+            blockedNodeIds: payload.graph?.blockedNodeIds || [],
+            primaryPath: payload.graph?.primaryPath || [],
+            reachableTargetIds: payload.graph?.reachableTargetIds || [],
+            exposure: payload.graph?.exposure ?? 0,
+          })
         })
         .catch(() => setEventIndex((value) => {
           const next = Math.min(events.length, value + 1)
@@ -99,8 +112,6 @@ function App() {
     }, 780)
     return () => window.clearTimeout(timer)
   }, [running, eventIndex, completed, events])
-
-  const activeNodes = useMemo(() => getActiveNodeIds({ eventIndex, selectedActions }, graph.nodes), [eventIndex, selectedActions, graph.nodes])
 
   useEffect(() => {
     fetch('/api/health')
@@ -123,11 +134,12 @@ function App() {
     setEventIndex(0)
     setRound(0)
     setRunning(true)
-    setSelectedActions(['upgrade'])
+    setSelectedActions([])
     setRecommendation(null)
     setReport(null)
     setEvents(EVENTS)
     setGraph({ nodes: NODES, edges: EDGES })
+    setReachability({ activeNodeIds: [], blockedNodeIds: [], primaryPath: [], reachableTargetIds: [], exposure: 0 })
     setMesh({ status: 'running', collectors: [], hydra: 'running', recallChunks: 0, lastDecision: null })
     fetch('/api/scenarios/0017/run', {
       method: 'POST',
@@ -139,6 +151,13 @@ function App() {
         setGraph({ nodes: payload.graph?.nodes || NODES, edges: payload.graph?.edges || EDGES })
         setEvents(payload.events || EVENTS)
         setRound(payload.scenario?.round || 0)
+        setReachability({
+          activeNodeIds: payload.graph?.activeNodeIds || [],
+          blockedNodeIds: payload.graph?.blockedNodeIds || [],
+          primaryPath: payload.graph?.primaryPath || [],
+          reachableTargetIds: payload.graph?.reachableTargetIds || [],
+          exposure: payload.graph?.exposure ?? 0,
+        })
         setMesh({
           status: payload.ingestion?.status || 'partial',
           collectors: payload.ingestion?.collectors || [],
@@ -161,9 +180,10 @@ function App() {
     setRunning(false)
     setEventIndex(0)
     setRound(0)
-    setSelectedActions(['upgrade'])
+    setSelectedActions([])
     setGraph({ nodes: NODES, edges: EDGES })
     setEvents(EVENTS)
+    setReachability({ activeNodeIds: [], blockedNodeIds: [], primaryPath: [], reachableTargetIds: [], exposure: 0 })
     setMesh({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0, lastDecision: null })
     setRecommendation(null)
     setReport(null)
@@ -193,6 +213,13 @@ function App() {
         setEventIndex(payload.state?.eventIndex ?? eventIndex)
         setRunning(Boolean(payload.state?.running))
         setRound(payload.scenario?.round || 0)
+        setReachability({
+          activeNodeIds: payload.graph?.activeNodeIds || [],
+          blockedNodeIds: payload.graph?.blockedNodeIds || [],
+          primaryPath: payload.graph?.primaryPath || [],
+          reachableTargetIds: payload.graph?.reachableTargetIds || [],
+          exposure: payload.graph?.exposure ?? 0,
+        })
         setMesh((current) => ({ ...current, hydra: payload.hydra?.status || current.hydra, lastDecision: payload.hydra?.lastDecision || current.lastDecision }))
       })), Promise.resolve()).catch(() => {})
   }
@@ -216,6 +243,13 @@ function App() {
         setRunning(Boolean(payload.state?.running))
         setSelectedActions(payload.state?.selectedActions || [])
         setRound(payload.scenario?.round || 0)
+        setReachability({
+          activeNodeIds: payload.graph?.activeNodeIds || [],
+          blockedNodeIds: payload.graph?.blockedNodeIds || [],
+          primaryPath: payload.graph?.primaryPath || [],
+          reachableTargetIds: payload.graph?.reachableTargetIds || [],
+          exposure: payload.graph?.exposure ?? 0,
+        })
         setMesh((current) => ({
           ...current,
           hydra: payload.hydra?.status || current.hydra,
@@ -304,6 +338,7 @@ function App() {
               <h1>Package to deployment surface</h1>
               <p className="phase-detail">{currentEvent.detail}</p>
               <div className="phase-meta"><span>{currentEvent.actor}</span><span>intent: {currentEvent.intent}</span></div>
+              <div className="route-readout"><span>primary route</span><strong>{primaryPathLabels.length ? primaryPathLabels.join(' → ') : completed ? 'No reachable high-value route' : 'Expanding evidence graph…'}</strong></div>
             </div>
             <div className="panel-header-actions">
               <div className={`phase-summary ${currentEvent.side}`}><span className="phase-kicker">NOW</span><strong>{currentEvent.side === 'attack' ? 'ATTACKER' : currentEvent.side === 'defense' ? 'DEFENDER' : 'SYSTEM'}</strong><span>{currentEvent.label}</span></div>
@@ -321,22 +356,24 @@ function App() {
                 const start = graph.nodes.find((node) => node.id === from)
                 const end = graph.nodes.find((node) => node.id === to)
                 const isActive = activeNodes.has(from) && activeNodes.has(to) && eventIndex >= 2
-                return start && end ? <line key={`${from}-${to}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={isActive ? 'graph-edge active' : 'graph-edge'} /> : null
+                const isRoute = routeEdges.has(`${from}->${to}`)
+                return start && end ? <line key={`${from}-${to}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={`graph-edge ${isActive ? 'active' : ''} ${isRoute ? 'route' : ''}`} /> : null
               })}
             </svg>
             <div className="graph-axis axis-x">dependency → service → data</div>
             <div className="graph-axis axis-y">trust boundary</div>
             {graph.nodes.map((node) => {
               const isActive = activeNodes.has(node.id)
+              const isBlocked = blockedNodes.has(node.id)
               const isSelected = selectedNode === node.id
               return (
                 <button
                   key={node.id}
-                  className={`graph-node node-${node.type} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
+                  className={`graph-node node-${node.type} ${isActive ? 'active' : ''} ${isBlocked ? 'blocked' : ''} ${isSelected ? 'selected' : ''}`}
                   style={{ left: `${node.x}%`, top: `${node.y}%` }}
                   onClick={() => setSelectedNode(node.id)}
                 >
-                  <span className="node-icon">{node.type === 'package' ? <Package size={15} /> : node.type === 'repo' ? <GitBranch size={15} /> : node.type === 'service' ? <Server size={15} /> : node.type === 'infra' ? <Layers3 size={15} /> : node.type === 'person' ? <Shield size={15} /> : <Activity size={15} />}</span>
+                  <span className="node-icon">{isBlocked ? <LockKeyhole size={15} /> : node.type === 'package' ? <Package size={15} /> : node.type === 'repo' ? <GitBranch size={15} /> : node.type === 'service' ? <Server size={15} /> : node.type === 'infra' ? <Layers3 size={15} /> : node.type === 'person' ? <Shield size={15} /> : <Activity size={15} />}</span>
                   <span className="node-copy"><strong>{node.label}</strong><small>{node.meta}</small></span>
                   {isActive && <span className="node-pulse" />}
                 </button>
@@ -345,6 +382,7 @@ function App() {
             <div className="graph-legend">
               <span><i className="legend-dot attack" /> attack source</span>
               <span><i className="legend-dot path" /> reachable path</span>
+              <span><i className="legend-dot blocked" /> blocked</span>
               <span><i className="legend-dot neutral" /> observed entity</span>
             </div>
           </div>
@@ -425,6 +463,10 @@ function App() {
             <p>{report?.conclusion || (completed ? 'The selected controls disconnect the highest-risk paths from the compromised release.' : 'Start an investigation to calculate the reachable path and expose response points.')}</p>
             <div className="report-line"><span>repository target</span><strong>{report?.observed?.repository || 'fixture'}</strong></div>
             <div className="report-line"><span>modeled graph</span><strong>{report ? `${report.modeled.graphNodes}n / ${report.modeled.graphEdges}e` : '—'}</strong></div>
+            <div className="report-line"><span>reachable exposure</span><strong>{report ? `${report.modeled.reachableExposure}%` : '—'}</strong></div>
+            <div className="report-line"><span>initial attack route</span><strong>{report?.modeled?.baselinePath?.length ? `${report.modeled.baselinePath.length} hops` : '—'}</strong></div>
+            <div className="report-line"><span>alternate routes tested</span><strong>{report ? report.modeled.baselineAlternatePaths?.length || 0 : '—'}</strong></div>
+            <div className="report-line"><span>residual route</span><strong>{report?.modeled?.primaryPath?.length ? `${report.modeled.primaryPath.length} hops` : 'severed'}</strong></div>
             <div className="report-line"><span>observed CI / runtime</span><strong>{report?.observed ? `${report.observed.ciSignals?.workflowFiles?.length || 0} / ${report.observed.deploymentSignals?.length || 0}` : '—'}</strong></div>
             <div className="report-line"><span>evidence sources</span><strong>{report ? report.sources.length : '—'}</strong></div>
             <div className="report-line"><span>active nodes at peak</span><strong>{report ? report.modeled.activeNodes : '—'}</strong></div>

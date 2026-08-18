@@ -14,6 +14,7 @@ The graph separates observed evidence from modeled reachability:
 - real public `package.json`, lockfile, GitHub Actions, Docker, and Compose signals when available;
 - modeled build, deployment, service, and data fan-out, explicitly marked synthetic when no public runtime evidence exists;
 - temporal attack events and counterfactual defender controls;
+- concrete route search over alternate dependency, CI, service, and data paths;
 - HydraDB memories for the incident anchor, topology, timeline, collector evidence, decisions, and ranked containment plans.
 
 ## Run locally
