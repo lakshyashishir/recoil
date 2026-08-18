@@ -5,13 +5,14 @@ const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(
 const args = process.argv.slice(2)
 const jsonOutput = args.includes('--json')
 const fast = args.includes('--fast')
+const proofOutput = args.includes('--proof')
 const query = args.filter((arg) => !arg.startsWith('--')).join(' ').trim()
 const pollDelay = fast ? 100 : 650
 const maxWaitMs = 180000
 
 function usage() {
   console.log('Usage: npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository"')
-  console.log('       npm run cli -- "CVE-2021-4229 https://github.com/org/repo-a https://github.com/org/repo-b" [--fast] [--json]')
+  console.log('       npm run cli -- "CVE-2021-4229 https://github.com/org/repo-a https://github.com/org/repo-b" [--fast] [--proof] [--json]')
 }
 
 async function request(path, options = {}) {
@@ -110,6 +111,10 @@ async function main() {
   if (quality.sourceCoverage?.boundedRepositories) line(`sampling ${quality.sourceCoverage.sampledFiles}/${quality.sourceCoverage.candidateFiles} eligible source files across ${quality.sourceCoverage.boundedRepositories} bounded repos`)
   for (const finding of result.report.repositories || []) {
     line(`repo    ${finding.verdict.padEnd(14)} ${finding.repository || 'unknown'} · ${finding.packageName || 'package'}@${finding.resolvedVersion || 'unresolved'}`)
+    const proof = finding.proof || []
+    const cited = proof.filter((step) => ['observed', 'validated'].includes(step.status) && step.source).length
+    if (proof.length) line(`proof   ${cited}/${proof.length} hops have cited public evidence`)
+    if (proofOutput) for (const step of proof) line(`        ${step.status.padEnd(12)} ${step.kind.padEnd(10)} ${step.label}${step.source ? ` · ${step.source}` : ''}`)
   }
   for (const item of result.report.challenge || []) {
     line(`fix     ${item.status.padEnd(22)} ${item.repository} · ${item.proposedVersion || 'no version'}`)

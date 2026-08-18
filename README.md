@@ -119,6 +119,8 @@ The CLI uses the same API and state machine:
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository"
 npm run cli -- "CVE-2021-4229 https://github.com/owner/repository-a https://github.com/owner/repository-b" --fast
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --json
+# Expand every advisory → lockfile → import/date proof hop in terminal output
+npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --proof
 ```
 
 The CLI exits nonzero when collection is partial or a repository is `UNKNOWN`, including with `--json`, even though it still prints
