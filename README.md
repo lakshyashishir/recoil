@@ -97,7 +97,7 @@ npm run server
 npm run dev
 ```
 
-Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, `RECOIL_NETWORK_RETRIES`, and `RECOIL_SOURCE_FILE_LIMIT`. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source. Raise `RECOIL_SOURCE_FILE_LIMIT` for a large, trusted demo repository only when you are comfortable with the extra public reads; the chosen bound is preserved in each finding.
+Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `HYDRADB_INDEX_WAIT_MS`, `HYDRADB_INDEX_POLL_MS`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, `RECOIL_NETWORK_RETRIES`, and `RECOIL_SOURCE_FILE_LIMIT`. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source. Raise `RECOIL_SOURCE_FILE_LIMIT` for a large, trusted demo repository only when you are comfortable with the extra public reads; the chosen bound is preserved in each finding.
 
 To enable the optional advisory-scope pass, provide `OPENAI_API_KEY` and set `RECOIL_ADVISORY_AGENT=on`. It extracts candidate affected symbols from advisory prose using structured output, then the server attaches only exact matches found in the indexed source graph. Leave it off for a fully deterministic run; the package-import verdict does not depend on the model.
 
@@ -133,8 +133,9 @@ repositories and failed collectors, and surfaces mixed lockfile-version ambiguit
 For a repeatable external smoke against the configured `.env` (defaulting to the real bytes advisory and HydraDB repository), run `npm run smoke:real`. Set `RECOIL_SMOKE_QUERY` to use a different advisory/repository set. The command exits nonzero when collection is partial, a finding is `UNKNOWN`, or HydraDB fails, so an incomplete demo cannot look green.
 
 Set `RECOIL_SMOKE_REQUIRE_CONTRAST=1` for the recording gate. In that mode the case must contain one
-`REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, in addition to the normal completeness
-checks.
+`REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, and HydraDB must be persisted or queued,
+in addition to the normal completeness checks. Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you want to require
+HydraDB persistence without requiring the three-way contrast.
 
 The OpenTUI console remains available for local operator use:
 

@@ -221,6 +221,7 @@ Manual checks:
 - `cd21bcd` — bound optional advisory-scope model calls
 - `60920c3` — wait for HydraDB graph indexing before recall
 - `645eab9` — expose the sanitized HydraDB graph receipt in the final report
+- `7a00cd3` — record the graph receipt checkpoint
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
