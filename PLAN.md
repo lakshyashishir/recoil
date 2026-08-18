@@ -222,6 +222,9 @@ Manual checks:
 
 ## Checkpoint history
 
+- `f46817d` — explain resolved dependency paths in HydraDB temporal memories
+- `7370f34` — cite transitive dependency hops in reports and receipts
+- `b62adaa` — preserve observed transitive dependency paths across graph and receipt surfaces
 - `62b5786` — preserve real package reachability evidence
 - `be9455d` — autonomous evidence investigation flow
 - `97f19ad` — autonomous evidence investigation and CLI
