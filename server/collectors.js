@@ -470,6 +470,7 @@ async function collectRegistry(packageName, ecosystem = 'npm', advisory = null) 
     }
     const crate = payload.crate || {}
     const versions = payload.versions || []
+    const publishedVersions = new Set(versions.map((version) => version.num).filter(Boolean))
     return {
       collector: 'registry-resolver',
       status: 'completed',
@@ -478,8 +479,10 @@ async function collectRegistry(packageName, ecosystem = 'npm', advisory = null) 
       entities: versions.length,
       package: crate.name || packageName,
       latest: crate.max_version || versions.find((version) => version.yanked === false)?.num || null,
-      affectedVersions: [],
-      fixedVersions: [],
+      affectedVersions: [...new Set((advisory?.affected || [])
+        .filter((entry) => !entry.package?.name || entry.package.name === packageName)
+        .flatMap((entry) => entry.versions || []))].filter((version) => publishedVersions.has(version)),
+      fixedVersions: fixedVersionsFromAdvisory(advisory, packageName).filter((version) => publishedVersions.has(version)),
       maintainers: [],
       observedAt: new Date().toISOString(),
     }

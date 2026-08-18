@@ -115,6 +115,8 @@ test('advisory symbol suggestions are attached only after exact source validatio
   const scoped = applyAdvisoryScope(ingestion, { status: 'completed', affectedSymbols: [{ name: 'parseArgs', reason: 'advisory names the parser entry point' }] })
   assert.equal(scoped.findings[0].advisoryScope.status, 'VALIDATED_SYMBOL')
   assert.equal(scoped.findings[0].advisoryScope.symbols[0].name, 'parseArgs')
+  assert.equal(scoped.findings[0].path.at(-1), 'symbol:parseArgs@src/cli.js:4')
+  assert.ok(scoped.findings[0].evidenceSources.includes('https://github.com/example/app/blob/HEAD/src/cli.js'))
   const unscoped = applyAdvisoryScope(ingestion, { status: 'completed', affectedSymbols: [{ name: 'doesNotExist', reason: 'not indexed' }] })
   assert.equal(unscoped.findings[0].advisoryScope.status, 'MODULE_LEVEL_ONLY')
 })

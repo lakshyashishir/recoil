@@ -10,6 +10,31 @@ Recoil is an evidence-backed software-supply-chain investigation tool. Give it a
 
 Recoil is deliberately not a vulnerability dashboard and not a live exploit runner. Every conclusion is tied to collected public evidence, and incomplete collection is reported as `UNKNOWN` rather than guessed.
 
+## Why this is different from a dependency dashboard
+
+The winning demo is not “we drew a larger package graph.” It is a controlled contrast that ordinary
+dependency scanners collapse into one alert:
+
+- **Reachability, not declaration:** an affected lockfile entry is separated from an observed import in
+  application source. The same proof works across npm/JavaScript and Cargo/Rust repositories.
+- **A dated answer:** the lockfile’s public history and the advisory publication date produce a
+  pre-disclosure rewind. The question becomes “was this path already present when the advisory was
+  published?” rather than “is this package somewhere in the tree?”
+- **A fix that has to survive:** Blue does not recommend an arbitrary upgrade. It checks the advisory’s
+  actual fixed version against the repository’s declared range and reports when a manifest change is
+  required.
+- **A model with a narrow job:** when enabled, the OpenAI step extracts a likely affected symbol from
+  advisory prose. Recoil validates that name against indexed source and appends the matched symbol to
+  the evidence path; an invalid model answer cannot create a finding.
+- **HydraDB as the evidence timeline:** HydraDB stores the advisory, observed paths, graph provenance,
+  change impact, and fix proofs as dated memories. Recoil recalls prior related cases, while the local
+  source-cited classifier remains the verdict authority.
+
+This positions Recoil as a **cross-ecosystem reachability and remediation proof layer** for Track 2:
+Track 2A’s supply-chain blast radius is the entry point, while Cargo/Rust source proof, changed-symbol
+impact, temporal rewind, and fix verification give the project a credible Track 2B-quality depth. We do
+not claim a runtime compromise; the strength is that every displayed hop can be opened and audited.
+
 ## The product loop
 
 ```text
@@ -123,6 +148,7 @@ The tests cover semver and OSV range evaluation, JavaScript/Rust source graphs, 
 - one incomplete `UNKNOWN` repository;
 - a computed fixed-version proof;
 - a temporal rewind;
+- Rust external-crate import evidence and validated advisory-symbol path attachment;
 - no fictional deployment nodes;
 - no package code execution.
 

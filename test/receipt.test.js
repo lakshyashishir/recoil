@@ -11,6 +11,7 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
       repository: 'example/app', repositoryUrl: 'https://github.com/example/app', packageName: 'minimist', resolvedVersion: '1.2.5',
       verdict: 'REACHED', path: ['GHSA-test', 'minimist@1.2.5', 'example/app', 'src/cli.js'],
       imports: [{ path: 'src/cli.js', line: 1, specifier: 'minimist', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' }],
+      advisoryScope: { status: 'VALIDATED_SYMBOL', symbols: [{ name: 'parseArgs', path: 'src/cli.js', line: 4 }] },
       evidenceSources: ['https://github.com/example/app/blob/HEAD/package-lock.json'], sourceSampleSize: 3,
     }],
     challenge: [{ repository: 'example/app', status: 'FIX_SURVIVES', proposedVersion: '1.2.6' }],
@@ -24,6 +25,7 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.equal(receipt.scenarioId, 'case-1')
   assert.equal(receipt.repositories[0].verdict, 'REACHED')
   assert.equal(receipt.repositories[0].imports[0].sourceUrl, 'https://github.com/example/app/blob/HEAD/src/cli.js')
+  assert.equal(receipt.repositories[0].advisoryScope.status, 'VALIDATED_SYMBOL')
   assert.equal(receipt.hydra.memoryCount, 4)
   assert.equal(receipt.hydra.error, null)
   assert.equal('chunks' in receipt.hydra, false)

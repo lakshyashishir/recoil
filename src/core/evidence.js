@@ -249,11 +249,14 @@ export function applyAdvisoryScope(ingestion, scope) {
       candidate: candidate.name,
       reason: candidate.reason || null,
     })))
+    const validatedSymbols = [...new Map(matches.map((symbol) => [`${symbol.path}:${symbol.line}:${symbol.name}`, symbol])).values()]
+    const symbolHops = validatedSymbols.slice(0, 4).map((symbol) => `symbol:${symbol.name}@${symbol.path}:${symbol.line}`)
     return {
       ...finding,
       advisoryScope: matches.length
-        ? { status: 'VALIDATED_SYMBOL', symbols: [...new Map(matches.map((symbol) => [`${symbol.path}:${symbol.line}:${symbol.name}`, symbol])).values()] }
+        ? { status: 'VALIDATED_SYMBOL', symbols: validatedSymbols }
         : { status: candidates.length ? 'MODULE_LEVEL_ONLY' : 'NOT_REQUESTED', symbols: [] },
+      path: symbolHops.length ? [...(finding.path || []), ...symbolHops] : finding.path,
       evidenceSources: [...new Set([...(finding.evidenceSources || []), ...matches.map((symbol) => symbol.sourceUrl).filter(Boolean)])],
     }
   })

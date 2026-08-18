@@ -81,8 +81,12 @@ function Verdict({ value }) {
 function EvidencePath({ finding, advisorySource }) {
   const sources = [advisorySource, finding.repositoryUrl, ...(finding.imports || []).map((item) => item.sourceUrl), ...(finding.evidenceSources || [])].filter(Boolean)
   const uniqueSources = [...new Set(sources)]
+  const labelFor = (part) => {
+    const symbol = String(part).match(/^symbol:([^@]+)@(.+):(\d+)$/)
+    return symbol ? `${symbol[1]} · ${symbol[2]}:${symbol[3]}` : part
+  }
   return <div className="proof-path">
-    <div className="path-line">{(finding.path || []).map((part, index) => <span className="path-hop" key={`${part}-${index}`}><span>{part}</span>{index < finding.path.length - 1 && <b>→</b>}</span>)}</div>
+    <div className="path-line">{(finding.path || []).map((part, index) => <span className="path-hop" key={`${part}-${index}`}><span title={part}>{labelFor(part)}</span>{index < finding.path.length - 1 && <b>→</b>}</span>)}</div>
     <div className="path-sources">{uniqueSources.slice(0, 4).map((source) => <SourceLink href={source} key={source}>{sourceHost(source)}</SourceLink>)}</div>
   </div>
 }
@@ -90,7 +94,7 @@ function EvidencePath({ finding, advisorySource }) {
 function RepositoryFinding({ finding, advisorySource }) {
   return <details className={`repository-finding finding-${finding.verdict?.toLowerCase()}`}>
     <summary><div className="finding-main"><Verdict value={finding.verdict} /><strong>{finding.repository || 'Unknown repository'}</strong></div><div className="finding-version">{finding.packageName}@{finding.resolvedVersion || 'unresolved'} <ChevronDown size={15} /></div></summary>
-    <div className="finding-detail"><p className="finding-reason">{finding.reason}</p><EvidencePath finding={finding} advisorySource={advisorySource} />{finding.changeEvidence?.importerFilesChanged?.length > 0 && <p className="change-note">Latest public change touched the importing file{finding.changeEvidence.importerFilesChanged.length === 1 ? '' : 's'}: {finding.changeEvidence.importerFilesChanged.map((item) => item.path).join(', ')}{finding.changeEvidence.sourceUrl && <> · <SourceLink href={finding.changeEvidence.sourceUrl}>commit</SourceLink></>}</p>}<dl className="finding-facts"><div><dt>declared range</dt><dd>{finding.declaredRange || 'not found'}</dd></div><div><dt>sampled imports</dt><dd>{finding.imports?.length || 0}</dd></div><div><dt>source boundary</dt><dd>{finding.sourceBound || 'not recorded'}</dd></div><div><dt>fix</dt><dd>{finding.targetVersion ? `${finding.targetVersion}${finding.rangeAllowsFix ? ' · range allows it' : ' · manifest change required'}` : 'not available'}</dd></div>{finding.exposureDays !== null && finding.exposureDays !== undefined && <div><dt>exposure window</dt><dd>{finding.exposureDays} days before publication</dd></div>}</dl></div>
+    <div className="finding-detail"><p className="finding-reason">{finding.reason}</p><EvidencePath finding={finding} advisorySource={advisorySource} />{finding.advisoryScope?.status === 'VALIDATED_SYMBOL' && <p className="scope-proof">Advisory scope matched indexed symbol{finding.advisoryScope.symbols.length === 1 ? '' : 's'}: {finding.advisoryScope.symbols.map((symbol) => `${symbol.name} (${symbol.path}:${symbol.line})`).join(', ')}</p>}{finding.changeEvidence?.importerFilesChanged?.length > 0 && <p className="change-note">Latest public change touched the importing file{finding.changeEvidence.importerFilesChanged.length === 1 ? '' : 's'}: {finding.changeEvidence.importerFilesChanged.map((item) => item.path).join(', ')}{finding.changeEvidence.sourceUrl && <> · <SourceLink href={finding.changeEvidence.sourceUrl}>commit</SourceLink></>}</p>}<dl className="finding-facts"><div><dt>declared range</dt><dd>{finding.declaredRange || 'not found'}</dd></div><div><dt>sampled imports</dt><dd>{finding.imports?.length || 0}</dd></div><div><dt>source boundary</dt><dd>{finding.sourceBound || 'not recorded'}</dd></div><div><dt>fix</dt><dd>{finding.targetVersion ? `${finding.targetVersion}${finding.rangeAllowsFix ? ' · range allows it' : ' · manifest change required'}` : 'not available'}</dd></div>{finding.exposureDays !== null && finding.exposureDays !== undefined && <div><dt>exposure window</dt><dd>{finding.exposureDays} days before publication</dd></div>}</dl></div>
   </details>
 }
 

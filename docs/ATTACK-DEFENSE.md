@@ -27,6 +27,12 @@ advisory
 
 Every hop has a source URL or is marked unavailable. A repository with an affected lockfile but no sampled import is `DECLARED_ONLY`. A repository whose source collection was incomplete is `UNKNOWN`; Red is not allowed to turn missing evidence into a negative result.
 
+The path prover is ecosystem-aware. JavaScript package specifiers and Rust crate imports (including
+qualified paths such as `bytes::BytesMut`) are normalized to the package identity from the manifest and
+lockfile. Local Rust modules and standard crates are not treated as third-party evidence. When the optional
+advisory-scope model names an affected function, Recoil appends it only after an exact match in the indexed
+symbol table; a model response can increase precision, but cannot create a route.
+
 The optional model boundary is narrow: a model may read advisory prose and identify a likely affected symbol or entry point. The server validates that suggestion against the indexed source graph. It cannot create a graph edge, claim runtime execution, or override a verdict.
 
 ## Blue: fix planner

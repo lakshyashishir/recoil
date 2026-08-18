@@ -45,6 +45,8 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Network-free integration test with mocked public records.
 - [x] Product benchmark covering `REACHED`, `DECLARED_ONLY`, `NOT_AFFECTED`, `UNKNOWN`, fix proof, and rewind.
 - [x] Portable source-cited evidence receipt with integrity hash and explicit non-execution boundary.
+- [x] Cross-ecosystem external-import proof for JavaScript/npm and Rust/Cargo, including qualified Rust crate paths.
+- [x] Optional advisory-symbol scope is validated against indexed source and appended to the cited path/receipt.
 - [x] Browser production build and regression suite.
 - [x] Repeatable real smoke command with strict partial/unknown failure status.
 
@@ -166,6 +168,11 @@ The spoken sequence:
 8. Show HydraDB memory count and temporal recall.
 
 The visual product is a calm investigation timeline and a result-first report. The judge should never need to operate an arena, understand a fictional deployment graph, or interpret an exposure percentage.
+
+The competitive claim is intentionally narrow: Recoil turns “package appears in the dependency tree” into
+three auditable outcomes across real repositories—reached source, declared-only noise, or already safe—then
+rewinds the same evidence and proves whether the advisory’s fixed version is admissible. The graph and
+HydraDB are the evidence substrate; they are not a decorative score or a simulated production environment.
 
 ## Validation gates
 

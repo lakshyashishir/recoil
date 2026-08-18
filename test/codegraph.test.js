@@ -31,6 +31,18 @@ test('Rust code graph resolves crate modules and records bounded unknowns', () =
   assert.deepEqual(graph.unresolved, [{ from: 'src/lib.rs', specifier: 'graph' }])
 })
 
+test('Rust code graph records external crate imports without confusing local modules or std', () => {
+  const graph = buildCodeGraph([
+    { path: 'src/lib.rs', text: 'mod policy;\nuse bytes::{Bytes, BytesMut};\nuse std::io::Read;\nfn build() { bytes::BytesMut::new(); }' },
+    { path: 'src/policy.rs', text: 'pub fn decide() {}' },
+  ])
+
+  assert.deepEqual(graph.externalImports.map((item) => ({ packageName: item.packageName, path: item.path })), [
+    { packageName: 'bytes', path: 'src/lib.rs' },
+  ])
+  assert.deepEqual(graph.edges, [['code:src/lib.rs', 'code:src/policy.rs']])
+})
+
 test('code graph is bounded to the configured public-file sample', () => {
   const files = Array.from({ length: 6 }, (_, index) => ({ path: `src/file-${index}.js`, text: 'export const x = 1' }))
   const graph = buildCodeGraph(files, { maxFiles: 3 })

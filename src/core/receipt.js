@@ -33,6 +33,7 @@ function compactFinding(finding) {
     sourceCandidateCount: finding.sourceCandidateCount ?? null,
     sourceSampleLimit: finding.sourceSampleLimit ?? null,
     sourceBound: finding.sourceBound || null,
+    advisoryScope: finding.advisoryScope || { status: 'not_requested', symbols: [] },
     pathObservedAt: finding.pathObservedAt || null,
     exposureDays: finding.exposureDays ?? null,
     fixedVersions: finding.fixedVersions || [],

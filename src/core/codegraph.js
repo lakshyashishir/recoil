@@ -44,6 +44,25 @@ function localRustSpecifiers(text = '') {
   return [...new Set([...modules, ...crateUses])]
 }
 
+const RUST_BUILTIN_CRATES = new Set(['alloc', 'core', 'proc_macro', 'self', 'std', 'super', 'crate'])
+
+function rustExternalSpecifiers(text = '') {
+  const specifiers = []
+  for (const match of text.matchAll(/\b(?:pub\s+)?use\s+([A-Za-z_][A-Za-z0-9_-]*)::/g)) {
+    specifiers.push({ specifier: match[1], line: lineNumber(text, match.index || 0) })
+  }
+  for (const match of text.matchAll(/\bextern\s+crate\s+([A-Za-z_][A-Za-z0-9_-]*)\b/g)) {
+    specifiers.push({ specifier: match[1], line: lineNumber(text, match.index || 0) })
+  }
+  // Capture qualified crate paths used without a `use` statement, such as
+  // `bytes::BytesMut::new()`. The graph builder filters local modules and
+  // standard crates before treating these as external package evidence.
+  for (const match of text.matchAll(/(?<!:)(\b[a-z][A-Za-z0-9_-]*)::(?=[A-Za-z_][A-Za-z0-9_]*)(?!:)/g)) {
+    specifiers.push({ specifier: match[1], line: lineNumber(text, match.index || 0) })
+  }
+  return [...new Map(specifiers.filter((item) => !RUST_BUILTIN_CRATES.has(item.specifier)).map((item) => [item.specifier, item])).values()]
+}
+
 function lineNumber(text, offset) {
   return text.slice(0, offset).split('\n').length
 }
@@ -237,11 +256,26 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24, inferSurfaces 
   const unresolved = []
   const externalImports = []
   for (const file of files.values()) {
-    const specifiers = languageFor(file.path) === 'rust'
-      ? localRustSpecifiers(file.text).map((specifier) => ({ specifier, line: null }))
-      : javascriptSpecifiers(file.text)
+    const language = languageFor(file.path)
+    const localSpecifiers = language === 'rust'
+      ? localRustSpecifiers(file.text).map((specifier) => ({ specifier, line: null, local: true }))
+      : []
+    const externalRust = language === 'rust'
+      ? rustExternalSpecifiers(file.text).filter(({ specifier }) => !resolveRust(file.path, specifier, files)).map((item) => ({ ...item, local: false }))
+      : []
+    const specifiers = language === 'rust' ? [...localSpecifiers, ...externalRust] : javascriptSpecifiers(file.text)
     for (const specifier of specifiers) {
-      if (languageFor(file.path) !== 'rust' && !specifier.specifier.startsWith('.') && !specifier.specifier.startsWith('#') && !specifier.specifier.startsWith('node:')) {
+      if (language === 'rust' && !specifier.local) {
+        externalImports.push({
+          path: file.path,
+          sourceUrl: file.sourceUrl || null,
+          specifier: specifier.specifier,
+          packageName: specifier.specifier.replace(/_/g, '-'),
+          line: specifier.line,
+        })
+        continue
+      }
+      if (language !== 'rust' && !specifier.specifier.startsWith('.') && !specifier.specifier.startsWith('#') && !specifier.specifier.startsWith('node:')) {
         externalImports.push({
           path: file.path,
           sourceUrl: file.sourceUrl || null,
