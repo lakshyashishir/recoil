@@ -247,6 +247,7 @@ Manual checks:
 - `168b01b` — preserve HydraDB graph triplets across report surfaces
 - `8ba1a10` — make strict recording workflow explicit in the demo runbook
 - `0298623` — surface API startup failures in the browser
+- `2635831` — defer HydraDB writes for incomplete evidence
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
