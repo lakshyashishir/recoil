@@ -16,7 +16,7 @@ import {
   toggleAction,
 } from '../src/core/scenario.js'
 import { runIngestion } from './collectors.js'
-import { hydraStatus, persistDecision, persistEvaluation, persistIngestion, recall } from './hydra.js'
+import { hydraStatus, persistDecision, persistEvaluation, persistIngestion, pollIngestion, recall } from './hydra.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
@@ -273,6 +273,7 @@ function route(req, res) {
       record.state = { ...createInitialState(), running: true }
       record.round = 0
       record.ingestion = { status: 'running', collectors: [] }
+      record.hydra = { status: 'running', memoryCount: 0, recall: null }
       return runIngestion({ query: record.query, scenarioId: record.id }).then((result) => {
         record.ingestion = result
         record.graph = buildGraph(result)
@@ -296,6 +297,12 @@ function route(req, res) {
     if (req.method === 'POST' && action === 'recall') {
       return body(req).then((payload) => recall(payload.query || record.query, undefined, record.id)).then((result) => {
         record.hydra = { ...record.hydra, recall: result, recalledAt: new Date().toISOString() }
+        return json(res, 200, snapshot(record))
+      }).catch((error) => json(res, 502, { error: error.message, hydra: hydraStatus() }))
+    }
+    if (req.method === 'POST' && action === 'hydra-status') {
+      return pollIngestion(record.hydra?.sourceIds || []).then((status) => {
+        record.hydra = { ...record.hydra, ...status, persistedAt: status.status === 'persisted' ? new Date().toISOString() : record.hydra.persistedAt || null }
         return json(res, 200, snapshot(record))
       }).catch((error) => json(res, 502, { error: error.message, hydra: hydraStatus() }))
     }
@@ -342,6 +349,8 @@ function route(req, res) {
         record.graph = { nodes: NODES, edges: EDGES }
         record.events = EVENTS
         record.round = 0
+        record.ingestion = { status: 'not_started', collectors: [] }
+        record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
         return json(res, 202, snapshot(record))
       }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
     }
@@ -367,6 +376,11 @@ const server = http.createServer((req, res) => {
     console.error(error)
     if (!res.headersSent) json(res, 500, { error: 'Internal server error' })
   })
+})
+
+server.on('error', (error) => {
+  console.error(`Recoil API could not listen on ${port}: ${error.message}`)
+  process.exitCode = 1
 })
 
 server.listen(port, '127.0.0.1', () => {

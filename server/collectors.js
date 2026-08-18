@@ -86,7 +86,7 @@ async function collectRepository(repository, requestedPackage) {
   if (!packageFile) throw new Error(`package.json not found in ${repository.slug}`)
   const packageJson = JSON.parse(packageFile.text)
   const dependencies = packageDependencies(packageJson)
-  const inferredPackage = requestedPackage || Object.keys(dependencies)[0] || null
+  const inferredPackage = requestedPackage || packageJson.name || Object.keys(dependencies)[0] || null
   const lockFile = await readGitHubFile(repository, 'package-lock.json')
     || await readGitHubFile(repository, 'npm-shrinkwrap.json')
   const lockfile = lockFile ? JSON.parse(lockFile.text) : null

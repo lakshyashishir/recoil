@@ -66,13 +66,15 @@ The GitHub collector uses the public Contents API and falls back to raw GitHub f
 ```text
 POST /api/scenarios/:id/run       set the target and start a case
 POST /api/scenarios/:id/ingest    collect public evidence and write HydraDB memories
+POST /api/scenarios/:id/hydra-status  poll asynchronous HydraDB indexing status
+POST /api/scenarios/:id/recall     retrieve indexed evidence and graph context
 POST /api/scenarios/:id/advance   advance one attack/defense event
 POST /api/scenarios/:id/evaluate  rank bounded response combinations
 POST /api/scenarios/:id/action    apply or remove a defensive control
 GET  /api/scenarios/:id/report    return observed facts, modeled state, sources, and uncertainty
 ```
 
-HydraDB memory ingestion is asynchronous. Recoil reports accepted memories as queued and only treats an API response as indexed when it exposes a terminal completed status. See the [HydraDB API reference](https://docs.hydradb.com/api-reference).
+HydraDB memory ingestion is asynchronous. Recoil reports accepted memories as queued, polls each accepted source through the status endpoint, and only treats the case as indexed when every source reaches a terminal completed state. It then requests hybrid recall with graph context. See the [HydraDB API reference](https://docs.hydradb.com/api-reference).
 
 ## Safety and uncertainty
 

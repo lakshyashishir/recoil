@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Component, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   Activity,
@@ -62,6 +62,14 @@ function formatPct(value) {
   return `${Math.max(0, Math.min(100, value))}%`
 }
 
+function sourceLabel(value) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '')
+  } catch {
+    return value
+  }
+}
+
 function App() {
   const [mode, setMode] = useState('incident')
   const [query, setQuery] = useState(SCENARIO.query)
@@ -71,7 +79,7 @@ function App() {
   const [selectedActions, setSelectedActions] = useState([])
   const [selectedNode, setSelectedNode] = useState('release')
   const [backendStatus, setBackendStatus] = useState('checking')
-  const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0, lastDecision: null })
+  const [mesh, setMesh] = useState({ status: 'idle', collectors: [], hydra: 'not_started', sourceIds: [], recallChunks: 0, lastDecision: null })
   const [graph, setGraph] = useState({ nodes: NODES, edges: EDGES })
   const [events, setEvents] = useState(EVENTS)
   const [reachability, setReachability] = useState({ activeNodeIds: [], blockedNodeIds: [], primaryPath: [], reachableTargetIds: [], exposure: 0 })
@@ -79,6 +87,7 @@ function App() {
   const [report, setReport] = useState(null)
 
   const completed = eventIndex >= events.length
+  const hasInvestigation = mesh.status !== 'idle' && mesh.status !== 'not_started'
   const exposure = reachability.exposure ?? getGraphExposure({ eventIndex, selectedActions }, graph.nodes, graph.edges)
   const reduction = 100 - exposure
   const currentEvent = events[Math.min(eventIndex, events.length - 1)] || EVENTS[0]
@@ -145,12 +154,43 @@ function App() {
           status: snapshot.ingestion?.status || 'idle',
           collectors: snapshot.ingestion?.collectors || [],
           hydra: snapshot.hydra?.status || 'not_started',
+          sourceIds: snapshot.hydra?.sourceIds || [],
           recallChunks: snapshot.hydra?.recall?.chunks?.length || 0,
           lastDecision: snapshot.hydra?.lastDecision || null,
         })
       })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (mesh.hydra !== 'queued' || !mesh.sourceIds?.length) return undefined
+    const timer = window.setTimeout(() => {
+      fetch('/api/scenarios/0017/hydra-status', { method: 'POST' })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('HydraDB status unavailable')))
+        .then((payload) => setMesh((current) => ({
+          ...current,
+          hydra: payload.hydra?.status || current.hydra,
+          sourceIds: payload.hydra?.sourceIds || current.sourceIds,
+        })))
+        .catch(() => {})
+    }, 2500)
+    return () => window.clearTimeout(timer)
+  }, [mesh.hydra, mesh.sourceIds?.length])
+
+  useEffect(() => {
+    if (!hasInvestigation || mesh.hydra !== 'persisted' || mesh.recallChunks > 0) return undefined
+    const controller = new AbortController()
+    fetch('/api/scenarios/0017/recall', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query }),
+      signal: controller.signal,
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Recall unavailable')))
+      .then((payload) => setMesh((current) => ({ ...current, recallChunks: payload.hydra?.recall?.chunks?.length || 0 })))
+      .catch(() => {})
+    return () => controller.abort()
+  }, [hasInvestigation, mesh.hydra, mesh.recallChunks, query])
 
   useEffect(() => {
     if (!completed) return undefined
@@ -165,14 +205,14 @@ function App() {
   function startSimulation() {
     setEventIndex(0)
     setRound(0)
-    setRunning(true)
+    setRunning(false)
     setSelectedActions([])
     setRecommendation(null)
     setReport(null)
     setEvents(EVENTS)
     setGraph({ nodes: NODES, edges: EDGES })
     setReachability({ activeNodeIds: [], blockedNodeIds: [], primaryPath: [], reachableTargetIds: [], exposure: 0 })
-    setMesh({ status: 'running', collectors: [], hydra: 'running', recallChunks: 0, lastDecision: null })
+    setMesh({ status: 'running', collectors: [], hydra: 'running', sourceIds: [], recallChunks: 0, lastDecision: null })
     fetch('/api/scenarios/0017/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -194,9 +234,11 @@ function App() {
           status: payload.ingestion?.status || 'partial',
           collectors: payload.ingestion?.collectors || [],
           hydra: payload.hydra?.status || 'skipped',
+          sourceIds: payload.hydra?.sourceIds || [],
           recallChunks: 0,
           lastDecision: null,
         })
+        setRunning(Boolean(payload.state?.running))
         return fetch('/api/scenarios/0017/recall', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -216,7 +258,7 @@ function App() {
     setGraph({ nodes: NODES, edges: EDGES })
     setEvents(EVENTS)
     setReachability({ activeNodeIds: [], blockedNodeIds: [], primaryPath: [], reachableTargetIds: [], exposure: 0 })
-    setMesh({ status: 'idle', collectors: [], hydra: 'not_started', recallChunks: 0, lastDecision: null })
+    setMesh({ status: 'idle', collectors: [], hydra: 'not_started', sourceIds: [], recallChunks: 0, lastDecision: null })
     setRecommendation(null)
     setReport(null)
     fetch('/api/scenarios/0017/reset', { method: 'POST' }).catch(() => {})
@@ -317,9 +359,9 @@ function App() {
 
       <main className="workspace">
         <aside className="left-rail">
-          <div className="eyebrow">CASE 0017  /  ACTIVE</div>
-          <div className="case-heading">Supply-chain<br /><em>exposure</em></div>
-          <p className="case-summary">Trace the package from publication to the services and data it can reach.</p>
+          <div className="eyebrow">{hasInvestigation ? 'CASE 0017  /  ACTIVE' : 'RECOIL  /  READY'}</div>
+          <div className="case-heading">{hasInvestigation ? <>Supply-chain<br /><em>exposure</em></> : <>Trace an<br /><em>incident</em></>}</div>
+          <p className="case-summary">{hasInvestigation ? 'Trace the package from publication to the services and data it can reach.' : 'Enter a package, advisory, or public repository. Recoil will collect evidence before it models propagation.'}</p>
 
           <div className="rail-section">
             <div className="section-label">Investigation target</div>
@@ -502,8 +544,8 @@ function App() {
             </div>
           )}
 
-          <div className="report-card">
-            <div className="report-card-head"><span className="section-label">Decision summary</span><span className="confidence"><span /> {mesh.recallChunks ? 'evidence linked' : 'awaiting trace'}</span></div>
+          <div className={`report-card ${completed ? 'is-complete' : ''}`}>
+            <div className="report-card-head"><span className="section-label">{completed ? 'Case report' : 'Working summary'}</span><span className="confidence"><span /> {mesh.recallChunks ? 'evidence linked' : completed ? 'evidence pending' : 'trace in progress'}</span></div>
             <p>{report?.conclusion || (completed ? 'The selected controls disconnect the highest-risk paths from the compromised release.' : 'Start an investigation to calculate the reachable path and expose response points.')}</p>
             <div className="report-line"><span>repository target</span><strong>{report?.observed?.repository || 'fixture'}</strong></div>
             <div className="report-line"><span>modeled graph</span><strong>{report ? `${report.modeled.graphNodes}n / ${report.modeled.graphEdges}e` : '—'}</strong></div>
@@ -518,6 +560,7 @@ function App() {
             <div className="report-line"><span>uncertainties</span><strong>{report ? report.uncertainty.length : '—'}</strong></div>
             <div className="report-line"><span>HydraDB evidence context</span><strong>{mesh.recallChunks ? `${mesh.recallChunks} chunks` : '—'}</strong></div>
             {report?.uncertainty?.[0] && <div className="report-uncertainty">Uncertainty · {report.uncertainty[0]}</div>}
+            {report?.sources?.length ? <div className="report-sources"><span className="section-label">Evidence sources</span>{report.sources.slice(0, 5).map((source) => <a key={source} href={source} target="_blank" rel="noreferrer">{sourceLabel(source)} <ChevronRight size={11} /></a>)}{report.sources.length > 5 && <span className="report-more">+{report.sources.length - 5} more sources</span>}</div> : null}
           </div>
 
           <div className="right-footer"><ShieldCheck size={15} /><span>Analysis only. Recoil never executes package code.</span></div>
@@ -529,4 +572,19 @@ function App() {
 
 export default App
 
-createRoot(document.getElementById('root')).render(<App />)
+class AppBoundary extends Component {
+  state = { error: null }
+
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+
+  render() {
+    if (this.state.error) {
+      return <main className="runtime-error"><div><span className="eyebrow">RECOIL / RUNTIME</span><h1>Unable to render the case workspace.</h1><p>{this.state.error.message}</p><button onClick={() => window.location.reload()}>Reload workspace</button></div></main>
+    }
+    return this.props.children
+  }
+}
+
+createRoot(document.getElementById('root')).render(<AppBoundary><App /></AppBoundary>)

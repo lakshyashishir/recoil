@@ -40,6 +40,11 @@ function annotateIndexing(result) {
   return { ...result, indexingStatus: completed ? 'completed' : 'queued' }
 }
 
+function normalizeIndexingStatus(payload) {
+  const value = unwrap(payload)
+  return String(value?.indexing_status || value?.indexingStatus || value?.status || value?.state || '').toLowerCase()
+}
+
 async function ingest(memories, signal) {
   const results = []
   let lastResult = {}
@@ -234,6 +239,33 @@ export async function persistIngestion(ingestion, signal) {
     memoryCount: memories.length,
     sourceIds: result.results?.map((item) => item.id).filter(Boolean) || [],
     result,
+  }
+}
+
+export async function pollIngestion(sourceIds = [], signal) {
+  if (!enabled()) return { status: 'skipped', sourceIds: [], statuses: [] }
+  const uniqueIds = [...new Set(sourceIds.filter(Boolean))]
+  const statuses = await Promise.all(uniqueIds.map(async (sourceId) => {
+    const url = new URL(`${apiBase()}/context/status`)
+    url.searchParams.set('database', databaseId())
+    url.searchParams.set('id', sourceId)
+    try {
+      const response = await fetch(url, { headers: headers(false), signal })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) return { id: sourceId, status: response.status === 404 ? 'unknown' : 'error', error: errorMessage(payload, response) }
+      return { id: sourceId, status: normalizeIndexingStatus(payload) || 'unknown' }
+    } catch (error) {
+      return { id: sourceId, status: 'unknown', error: error.message }
+    }
+  }))
+  const terminal = statuses.length > 0 && statuses.every((item) => ['completed', 'complete', 'errored', 'error', 'failed'].includes(item.status))
+  const failed = statuses.some((item) => ['errored', 'error', 'failed'].includes(item.status))
+  return {
+    status: failed ? 'failed' : terminal ? 'persisted' : 'queued',
+    sourceIds: uniqueIds,
+    statuses,
+    completedCount: statuses.filter((item) => ['completed', 'complete'].includes(item.status)).length,
+    failedCount: statuses.filter((item) => ['errored', 'error', 'failed'].includes(item.status)).length,
   }
 }
 
