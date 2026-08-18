@@ -115,7 +115,7 @@ function memory({ id, title, text, additionalMetadata = {} }) {
     is_markdown: true,
     infer: true,
     metadata: { app: 'recoil' },
-    additional_metadata: additionalMetadata,
+    additional_metadata: { app: 'recoil', ...additionalMetadata },
   }
 }
 
@@ -222,7 +222,7 @@ export function hydraStatus() {
   const hasDatabase = Boolean(databaseId())
   return {
     configured: hasKey && hasDatabase,
-    status: hasKey && hasDatabase ? 'ready' : hasKey || hasDatabase ? 'needs-database-id' : 'replay-only',
+    status: hasKey && hasDatabase ? 'ready' : hasKey ? 'needs-database-id' : hasDatabase ? 'needs-api-key' : 'replay-only',
     apiVersion: 'v2',
     databaseId: hasDatabase ? databaseId() : null,
     collection: hasDatabase ? collectionId() : null,

@@ -37,4 +37,5 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
   const graphMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'observed_graph')
   assert.match(graphMemory.text, /advisory:GHSA-test → repo:example\/app/)
   assert.equal(memories.every((memory) => memory.metadata.app === 'recoil'), true)
+  assert.equal(memories.every((memory) => memory.additional_metadata.app === 'recoil'), true)
 })
