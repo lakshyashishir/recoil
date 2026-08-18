@@ -1,18 +1,20 @@
 import { randomUUID } from 'node:crypto'
-import { hasIncompleteEvidence } from '../src/core/validation.js'
+import { hasIncompleteEvidence, missingRequiredVerdicts } from '../src/core/validation.js'
+import { parseGitHubRepositories } from '../server/collectors.js'
 
 const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
 const args = process.argv.slice(2)
 const jsonOutput = args.includes('--json')
 const fast = args.includes('--fast')
 const proofOutput = args.includes('--proof')
+const recordingMode = args.includes('--recording')
 const query = args.filter((arg) => !arg.startsWith('--')).join(' ').trim()
 const pollDelay = fast ? 100 : 650
 const maxWaitMs = 180000
 
 function usage() {
   console.log('Usage: npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository"')
-  console.log('       npm run cli -- "CVE-2021-4229 https://github.com/org/repo-a https://github.com/org/repo-b" [--fast] [--proof] [--json]')
+  console.log('       npm run cli -- "CVE-2021-4229 https://github.com/org/repo-a https://github.com/org/repo-b" [--fast] [--proof] [--recording] [--json]')
 }
 
 async function request(path, options = {}) {
@@ -36,6 +38,24 @@ function line(message) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function recordingPreflight(queryText) {
+  const blockers = []
+  const repositoryCount = parseGitHubRepositories(queryText).length
+  if (repositoryCount < 3) blockers.push(`requires 3 public GitHub repositories; found ${repositoryCount}`)
+  if (!process.env.HYDRA_DB_API_KEY || !process.env.HYDRADB_DATABASE_ID) blockers.push('requires HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID')
+  return blockers
+}
+
+function recordingBlockers(result) {
+  const blockers = []
+  if (hasIncompleteEvidence(result)) blockers.push(result.report?.evidenceQuality?.reason || 'public evidence is incomplete')
+  const missing = missingRequiredVerdicts(result.report)
+  if (missing.length) blockers.push(`missing contrast verdicts: ${missing.join(', ')}`)
+  if (result.hydra?.status !== 'persisted') blockers.push(`HydraDB write status is ${result.hydra?.status || 'unknown'}`)
+  if (result.hydra?.recall?.status !== 'recalled') blockers.push(`HydraDB temporal read status is ${result.hydra?.recall?.status || 'not-run'}`)
+  return blockers
 }
 
 function printEvents(events, seen) {
@@ -62,6 +82,7 @@ function finalResult(id, queryText, snapshot) {
     hydra: investigation.hydra,
     events: investigation.events || [],
     receiptPath: `/api/scenarios/${id}/receipt`,
+    recording: { requested: recordingMode, ready: false, blockers: [] },
   }
 }
 
@@ -69,6 +90,11 @@ async function main() {
   if (!query || query === '--help' || query === '-h') {
     usage()
     return
+  }
+
+  if (recordingMode) {
+    const blockers = recordingPreflight(query)
+    if (blockers.length) throw new Error(`Recording preflight failed: ${blockers.join(' · ')}`)
   }
 
   const id = `cli-${randomUUID().slice(0, 8)}`
@@ -90,9 +116,11 @@ async function main() {
   }
 
   const result = finalResult(id, query, snapshot)
+  const blockers = recordingMode ? recordingBlockers(result) : []
+  result.recording = { requested: recordingMode, ready: recordingMode && blockers.length === 0, blockers }
   if (jsonOutput) {
     console.log(JSON.stringify(result, null, 2))
-    if (result.status === 'failed' || hasIncompleteEvidence(result)) process.exitCode = 1
+    if (result.status === 'failed' || hasIncompleteEvidence(result) || blockers.length) process.exitCode = 1
     return
   }
 
@@ -130,6 +158,14 @@ async function main() {
   if (hasIncompleteEvidence(result)) {
     line('warning incomplete evidence · do not treat this run as a verified case')
     process.exitCode = 1
+  }
+  if (recordingMode) {
+    if (blockers.length) {
+      line(`recording not-ready · ${blockers.join(' · ')}`)
+      process.exitCode = 1
+    } else {
+      line('recording ready · three-way contrast and HydraDB temporal proof verified')
+    }
   }
 }
 

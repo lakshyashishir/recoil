@@ -133,6 +133,8 @@ npm run cli -- "CVE-2021-4229 https://github.com/owner/repository-a https://gith
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --json
 # Expand every advisory → lockfile → import/date proof hop in terminal output
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --proof
+# Enforce the three-way contrast plus completed HydraDB write/read proof
+npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository-a https://github.com/owner/repository-b https://github.com/owner/repository-c" --recording
 ```
 
 The CLI exits nonzero when collection is partial or a repository is `UNKNOWN`, including with `--json`, even though it still prints
