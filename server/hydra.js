@@ -36,7 +36,8 @@ function networkError(url, error) {
 }
 
 async function fetchWithNetworkRetry(url, options = {}) {
-  const attempts = Math.max(1, Number(process.env.RECOIL_NETWORK_RETRIES || 3))
+  const configured = Number.parseInt(process.env.RECOIL_NETWORK_RETRIES || '3', 10)
+  const attempts = Number.isFinite(configured) ? Math.min(Math.max(configured, 1), 10) : 3
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       return await fetch(url, options)
