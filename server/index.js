@@ -351,7 +351,7 @@ async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
   if (req.method === 'OPTIONS') return json(res, 204, {})
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'recoil-api', hydra: hydraStatus(), agents: getAgentStatus(), advisoryScopeAgent: advisoryAgentStatus(), capabilities: ['npm', 'cargo', 'osv', 'repository-evidence', 'source-reachability', 'temporal-rewind', 'fix-proof', 'hydradb-temporal-memory'], time: new Date().toISOString() })
+    return json(res, 200, { ok: true, service: 'recoil-api', product: 'evidence-proof', version: 'evidence-v1', mode: 'autonomous', hydra: hydraStatus(), agents: getAgentStatus(), advisoryScopeAgent: advisoryAgentStatus(), capabilities: ['npm', 'cargo', 'osv', 'repository-evidence', 'source-reachability', 'temporal-rewind', 'fix-proof', 'hydradb-temporal-memory', 'evidence-receipt'], time: new Date().toISOString() })
   }
   if (req.method === 'GET' && url.pathname === '/api/scenario') return json(res, 200, snapshot(getOrCreate()))
   if (req.method === 'POST' && url.pathname === '/api/scenarios') {

@@ -47,7 +47,7 @@ cp .env.example .env
 npm run start
 ```
 
-The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`.
+The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Verify that the API reports `product: evidence-proof` before recording; an older process may still expose the retired arena surface until it is restarted.
 
 For separate processes:
 
