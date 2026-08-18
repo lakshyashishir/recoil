@@ -23,6 +23,7 @@ The graph separates observed evidence from modeled reachability:
 - temporal attack events, alternate-route reconstruction, and counterfactual defender controls;
 - concrete route search over alternate dependency, CI, service, and data paths;
 - HydraDB memories for incident evidence, topology, prior decisions, and arena rounds so later defenders can recall what worked.
+- terminal arena rounds and the final ranked response plan persist their candidate decisions, not only the selected control.
 
 ## Run locally
 

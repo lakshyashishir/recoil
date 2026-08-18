@@ -76,6 +76,7 @@ The TUI should show the same events as an operator stream. This is the shared bo
 - Store failed or conflicting evidence as first-class warnings rather than silently dropping it.
 - Persist defender controls as decision memories with the selected controls, exposure after the decision, and the active node set so a case can be reconstructed after the live run.
 - Persist the ranked counterfactual containment plan as a separate memory so a later operator can inspect why a response was recommended, not only which button was clicked.
+- Persist each arena round's Red route candidates and Blue counterfactual control scores alongside the selected decision so HydraDB retains the policy trace.
 - Persist one explicit graph-topology memory and one attack/defense timeline memory per case; keep the full topology in the memory body and compact counts/kinds in metadata so HydraDB can retrieve both structure and provenance.
 - For public repositories, include a bounded static source graph for local JavaScript/TypeScript imports, Rust modules, and source symbols. Unresolved imports remain explicit uncertainty; source is never installed, built, or executed.
 - When GitHub exposes the latest commit patch, map added lines to the sampled source symbols and preserve the commit URL, timestamp, changed files, and symbol-match mode as observed evidence. A file without a patch remains file-level impact rather than pretending to know the changed function.

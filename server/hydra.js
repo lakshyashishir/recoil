@@ -357,10 +357,12 @@ export async function recall(queryText, signal, scenarioId = '0017', { allEpisod
 export async function persistArenaRound({ scenarioId, queryText, packageName, round, red, blue, before, after, status }, signal) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
   const key = `${scenarioId}:${queryText}:arena:${round}`
+  const redCandidates = red.candidates || []
+  const blueCandidates = blue.candidates || []
   const episode = memory({
     id: `recoil:arena:${stableId(key)}`,
     title: `Recoil arena round ${round} · ${packageName}`,
-    text: `# Recoil adaptive arena · round ${round}\n\n- Scenario: ${scenarioId}\n- Query: ${queryText}\n- Package: ${packageName}\n- Red move: ${red.label}\n- Red intent: ${red.intent}\n- Red route: ${red.pathLabel || 'no reachable route'}\n- Blue control: ${blue.title || 'none'}\n- Blue rationale: ${blue.rationale}\n- Memory used: ${blue.memoryUsed ? 'yes' : 'no'}\n- Exposure before control: ${before.exposure}%\n- Exposure after control: ${after.exposure}%\n- Reachable high-value targets after control: ${after.reachableTargets.join(', ') || 'none'}\n- Episode status: ${status}\n\nThis is a bounded defensive simulation. No package code or exploit payload was executed.`,
+    text: `# Recoil adaptive arena · round ${round}\n\n- Scenario: ${scenarioId}\n- Query: ${queryText}\n- Package: ${packageName}\n- Red move: ${red.label}\n- Red intent: ${red.intent}\n- Red route: ${red.pathLabel || 'no reachable route'}\n- Red routes evaluated: ${redCandidates.map((candidate) => candidate.pathLabel).join(' | ') || 'none'}\n- Blue control: ${blue.title || 'none'}\n- Blue rationale: ${blue.rationale}\n- Blue controls compared: ${blueCandidates.map((candidate) => `${candidate.title} (${candidate.predictedExposure}% exposure)`).join(' | ') || 'none'}\n- Memory used: ${blue.memoryUsed ? 'yes' : 'no'}\n- Exposure before control: ${before.exposure}%\n- Exposure after control: ${after.exposure}%\n- Reachable high-value targets after control: ${after.reachableTargets.join(', ') || 'none'}\n- Episode status: ${status}\n\nThis is a bounded defensive simulation. No package code or exploit payload was executed.`,
     additionalMetadata: {
       recoil_kind: 'arena_round',
       recoil_scenario_id: scenarioId,
@@ -373,6 +375,9 @@ export async function persistArenaRound({ scenarioId, queryText, packageName, ro
       recoil_status: status,
       recoil_attack_path: red.path.join('>'),
       recoil_residual_path: after.primaryPath.join('>'),
+      recoil_red_candidate_count: redCandidates.length,
+      recoil_blue_candidate_count: blueCandidates.length,
+      recoil_blue_candidates: JSON.stringify(blueCandidates.slice(0, 8)),
     },
   })
   const result = await ingest([episode], signal)
