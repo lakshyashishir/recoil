@@ -37,6 +37,7 @@ function compactFinding(finding) {
     targetVersion: finding.targetVersion || null,
     rangeAllowsFix: finding.rangeAllowsFix ?? null,
     evidenceSources: sourceUrlsForFinding(finding),
+    changeEvidence: finding.changeEvidence || null,
   }
 }
 

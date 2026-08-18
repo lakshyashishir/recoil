@@ -11,7 +11,7 @@ const advisory = {
   }],
 }
 
-function repository({ version = '1.2.5', imports = ['src/cli.js'], range = '^1.2.0' } = {}) {
+function repository({ version = '1.2.5', imports = ['src/cli.js'], range = '^1.2.0', recentChange = null } = {}) {
   return {
     repository: 'example/app',
     repositoryUrl: 'https://github.com/example/app',
@@ -25,6 +25,7 @@ function repository({ version = '1.2.5', imports = ['src/cli.js'], range = '^1.2
       codeGraph: {
         fileCount: 3,
         externalImports: imports.map((path) => ({ packageName: 'minimist', path, sourceUrl: `https://github.com/example/app/blob/HEAD/${path}`, line: 1 })),
+        recentChange,
       },
     },
   }
@@ -48,6 +49,26 @@ test('advisory ranges classify reached, declared-only, and fixed repositories', 
   assert.equal(fixed.verdict, 'NOT_AFFECTED')
   assert.equal(reached.targetVersion, '1.2.6')
   assert.equal(reached.rangeAllowsFix, true)
+})
+
+test('reachability can attach latest importer change evidence without changing the verdict', () => {
+  const finding = classifyRepository({
+    repository: repository({ recentChange: {
+      sha: 'abc123',
+      message: 'refactor parser boundary',
+      committedAt: '2026-08-18T12:00:00Z',
+      sourceUrl: 'https://github.com/example/app/commit/abc123',
+      sampledFilesChanged: 1,
+      totalFilesChanged: 2,
+      files: [{ path: 'src/cli.js', symbols: ['main'], owners: ['@security'], symbolMatch: 'hunk-line' }],
+    } }),
+    packageName: 'minimist',
+    advisory,
+    advisoryId: advisory.id,
+  })
+  assert.equal(finding.verdict, 'REACHED')
+  assert.equal(finding.changeEvidence.importerFilesChanged[0].path, 'src/cli.js')
+  assert.deepEqual(finding.changeEvidence.importerFilesChanged[0].owners, ['@security'])
 })
 
 test('observed graph contains only advisory, repository, lockfile, and source evidence nodes', () => {

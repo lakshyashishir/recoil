@@ -133,6 +133,27 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   const resolvedVersion = manifest.resolved?.[packageName] || repositoryLockEntry(manifest, packageName)?.version || null
   const declaredRange = manifest.dependencies?.[packageName] || manifest.devDependencies?.[packageName] || null
   const imports = (codeGraph.externalImports || []).filter((item) => item.packageName === packageName)
+  const recentChange = codeGraph.recentChange || null
+  const changedFiles = recentChange?.files || []
+  const changedImportFiles = imports
+    .map((item) => ({ item, change: changedFiles.find((file) => file.path === item.path) }))
+    .filter(({ change }) => change)
+  const changeEvidence = recentChange ? {
+    sha: recentChange.sha || null,
+    message: recentChange.message || null,
+    committedAt: recentChange.committedAt || null,
+    sourceUrl: recentChange.sourceUrl || null,
+    totalFilesChanged: recentChange.totalFilesChanged || 0,
+    sampledFilesChanged: recentChange.sampledFilesChanged || changedFiles.length,
+    importerFilesChanged: changedImportFiles.map(({ item, change }) => ({
+      path: item.path,
+      line: item.line || null,
+      sourceUrl: item.sourceUrl || null,
+      symbols: change.symbols || [],
+      owners: change.owners || [],
+      symbolMatch: change.symbolMatch || null,
+    })),
+  } : null
   const affected = versionAffectedByAdvisory(advisory, packageName, resolvedVersion)
   const fix = chooseFixedVersion(advisory, packageName, declaredRange)
   const sourceEvidenceIncomplete = ['unavailable', 'partial'].includes(sourceCollection.status)
@@ -186,6 +207,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
       manifest.temporal?.sourceUrl,
       ...imports.map((item) => item.sourceUrl),
     ].filter(Boolean))],
+    changeEvidence,
   }
 }
 

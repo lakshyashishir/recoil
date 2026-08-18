@@ -113,6 +113,7 @@ h1 i, .verdict-block h1 i { color: var(--cream); font-style: normal; }
 .verdict-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .finding-detail { padding: 0 0 22px 144px; }
 .finding-reason { max-width: 650px; margin: 0 0 15px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.change-note { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin: 12px 0 0; color: var(--amber); font: 10px/1.5 'IBM Plex Mono', monospace; }
 .proof-path { padding: 13px 14px; border-left: 2px solid var(--amber); background: var(--surface); }
 .path-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px; color: var(--text); font: 11px/1.8 'IBM Plex Mono', monospace; }
 .path-hop { display: inline-flex; align-items: baseline; gap: 7px; }.path-hop b { color: var(--faint); font-weight: 400; }

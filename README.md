@@ -34,6 +34,7 @@ HydraDB stores the investigation as dated evidence memories rather than as a fin
 - repository reachability facts with `valid_from`, source URLs, and verdicts;
 - fix proofs and residual-path results;
 - observed graph topology and provenance;
+- latest public commit impact on sampled importers, with CODEOWNERS attribution when available;
 - cross-case retrieval of related package/repository evidence.
 
 The report exposes the write and recall result. Temporal rewind is computed from the collected lockfile history and uses HydraDB’s dated evidence as the durable investigation record. Without HydraDB credentials, the same local evidence proof remains available and is labelled local replay.
