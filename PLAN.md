@@ -6,7 +6,19 @@
 
 > When a package, maintainer, or shared build system is compromised, Recoil runs an adaptive attacker and defender over the dependency graph, remembers every attempted route, and finds the smallest set of controls that stops the next one.
 
-This is a new project for Hack Hydra. The existing ClaimTrace application remains in the repository root and is intentionally not moved or modified as part of this plan. Its current worktree contains uncommitted changes, so isolating Recoil avoids accidentally breaking the side project.
+This is a new project for Hack Hydra. The existing ClaimTrace application lives beside this directory at `../claimtrace` and is intentionally isolated from Recoil. Recoil has its own Git history, dependencies, and runtime so the side project cannot collide with the hackathon build.
+
+## 0.1 Shipped checkpoint — 18 August 2026
+
+- [x] Public npm, Cargo, OSV, and repository evidence collectors with honest partial-failure reporting.
+- [x] Bounded graph with observed repository nodes separated from modeled deployment fan-out.
+- [x] Adaptive red/blue arena: Red selects a reachable route, Blue responds to that route, and Red searches again after the graph changes.
+- [x] HydraDB persistence for evidence, topology, decisions, and every arena round; prior rounds can influence a route-matched Blue decision.
+- [x] Browser workspace, CLI, and OpenTUI operator console backed by the same arena engine.
+- [x] Nine regression tests, a network-free adaptive benchmark, and a production bundle build.
+- [ ] Hosted HydraDB live smoke run against the configured hackathon database.
+- [ ] Private GitHub repository setup/push; blocked until the local `gh` token is re-authenticated.
+- [ ] Optional Track 2B code-graph layer after the supply-chain arena is demo-stable.
 
 ## 0. Current product contract: the adaptive arena
 
@@ -176,18 +188,14 @@ Use a reproducible, bounded scenario rather than claiming to assess arbitrary pr
 
 ### The key visual moment
 
-The user sees an attack path spread across the dependency graph, then clicks **Find minimum containment**. Recoil tests interventions and rewrites the affected region:
+The user sees Red select a path across the dependency graph, Blue apply the smallest route-aware control, and Red immediately search the residual graph:
 
 ```text
-24 repositories reachable
-7 services potentially exposed
-
-Recommended containment:
-  1. Upgrade package-x to version y
-  2. Quarantine repository-z
-
-Estimated reduction: 91% of reachable exposure
-Remaining unknowns: 2 deployment records
+RED  release → runner → CI → artifact → payments → customer database
+BLUE block artifact promotion
+RED  release → resolver → lockfile → repository → artifact → payments → customer database
+BLUE pin a known-good release
+CONTAINED  0 high-value targets reachable
 ```
 
 The system must label this as a modeled scenario, not proof that a real production system was compromised.
@@ -513,19 +521,19 @@ The user receives a cited incident report with affected paths, exposure windows,
 
 ## 17. Definition of done
 
-- [ ] Public no-login demo works.
-- [ ] One advisory and one public repository ingest successfully.
-- [ ] HydraDB contains typed nodes and relationship edges.
-- [ ] At least one multi-hop temporal query works.
-- [ ] Attack propagation is visible.
-- [ ] At least two interventions can be compared.
-- [ ] Final report contains evidence and uncertainty.
-- [ ] Benchmark includes a baseline.
-- [ ] README explains HydraDB's role clearly.
-- [ ] Public GitHub repository has an open-source license.
-- [ ] Three-minute video shows problem, product, demo, and HydraDB.
-- [ ] No downloaded package code is executed.
-- [ ] Deployment and setup instructions work from a clean environment.
+The adaptive arena is the first complete product slice. It is done when:
+
+- [x] A no-login browser flow accepts an npm/Cargo package, advisory, or public repository.
+- [x] Evidence collection produces sources, provenance, and explicit partial failures.
+- [x] The graph shows a multi-hop path and alternate routes.
+- [x] At least two controls are selected from current graph state and compared through recomputation.
+- [x] The final report contains evidence, uncertainty, route history, and containment outcome.
+- [x] CLI and TUI exercise the same engine as the browser.
+- [x] The local benchmark asserts route adaptation and both containment and attacker-win outcomes.
+- [x] No downloaded package code is executed.
+- [ ] Hosted HydraDB round-trip is demonstrated in the recording.
+- [ ] A clean-machine setup and private GitHub push are verified.
+- [ ] Optional source-level code graph is added only after this slice is reliable.
 
 ## 18. Decision rule
 
