@@ -53,7 +53,7 @@ This is a bounded defensive simulation. It never executes package code, sends ex
 
 ### Future Track 2 coverage
 
-The code-graph evidence layer now includes bounded local imports/modules, indexed symbols, inferred deployment surfaces, and the latest public commit mapped from changed hunks to sampled symbols. The next layer can add ownership and verified code-to-deployment paths without diluting the adaptive supply-chain arena.
+The code-graph evidence layer now includes bounded local imports/modules, indexed symbols, inferred deployment surfaces, and the latest public commit mapped from changed hunks to sampled symbols. Candidate surfaces now disclose whether those latest changed symbols touch them. The next layer can add ownership and verified code-to-deployment paths without diluting the adaptive supply-chain arena.
 
 ## 1. Product framing
 

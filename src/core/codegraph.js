@@ -116,6 +116,23 @@ export function buildChangeImpact(codeGraph, commit) {
   }
 }
 
+export function enrichImpactCandidates(codeGraph) {
+  if (!codeGraph) return codeGraph
+  const changes = new Map((codeGraph.recentChange?.files || []).map((file) => [file.path, file]))
+  return {
+    ...codeGraph,
+    impactCandidates: (codeGraph.impactCandidates || []).map((candidate) => {
+      const change = changes.get(candidate.file)
+      return {
+        ...candidate,
+        changed: Boolean(change),
+        changedSymbols: change?.symbols || [],
+        changeMatch: change?.symbolMatch || null,
+      }
+    }),
+  }
+}
+
 function resolveJavaScript(from, specifier, files) {
   const base = normalizePath(`${from.split('/').slice(0, -1).join('/')}/${specifier}`)
   const candidates = [base, ...SOURCE_EXTENSIONS.map((extension) => `${base}${extension}`), ...SOURCE_EXTENSIONS.map((extension) => `${base}/index${extension}`)]

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildChangeImpact, buildCodeGraph, parseSourceSymbols } from '../src/core/codegraph.js'
+import { buildChangeImpact, buildCodeGraph, enrichImpactCandidates, parseSourceSymbols } from '../src/core/codegraph.js'
 
 test('JavaScript code graph resolves relative imports without executing source', () => {
   const graph = buildCodeGraph([
@@ -78,4 +78,23 @@ test('latest public commit maps changed hunks to indexed symbols', () => {
   assert.equal(impact.totalFilesChanged, 2)
   assert.deepEqual(impact.files[0].symbols, ['refund'])
   assert.equal(impact.files[0].symbolMatch, 'hunk-line')
+})
+
+test('impact candidates identify surfaces touched by the latest changed symbols', () => {
+  const graph = buildCodeGraph([
+    { path: 'src/payments.ts', text: 'export function chargePayment(token) { return stripe.charge(token) }' },
+    { path: 'src/auth/session.ts', text: 'export function verifyToken(jwt) { return jwt.verify() }' },
+  ])
+  const enriched = enrichImpactCandidates({
+    ...graph,
+    recentChange: {
+      files: [
+        { path: 'src/payments.ts', symbols: ['chargePayment'], symbolMatch: 'hunk-line' },
+      ],
+    },
+  })
+
+  assert.deepEqual(enriched.impactCandidates.map((candidate) => candidate.changedSymbols), [['chargePayment'], []])
+  assert.equal(enriched.impactCandidates[0].changed, true)
+  assert.equal(enriched.impactCandidates[0].changeMatch, 'hunk-line')
 })

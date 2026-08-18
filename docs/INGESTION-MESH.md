@@ -79,6 +79,7 @@ The TUI should show the same events as an operator stream. This is the shared bo
 - Persist one explicit graph-topology memory and one attack/defense timeline memory per case; keep the full topology in the memory body and compact counts/kinds in metadata so HydraDB can retrieve both structure and provenance.
 - For public repositories, include a bounded static source graph for local JavaScript/TypeScript imports, Rust modules, and source symbols. Unresolved imports remain explicit uncertainty; source is never installed, built, or executed.
 - When GitHub exposes the latest commit patch, map added lines to the sampled source symbols and preserve the commit URL, timestamp, changed files, and symbol-match mode as observed evidence. A file without a patch remains file-level impact rather than pretending to know the changed function.
+- Surface candidates carry the changed symbols that overlap their sampled file, if any. This is a signal for operator review, not a verified runtime dependency or a security finding.
 - Upload memory batches in small idempotent chunks because the hosted per-request memory-token budget is bounded; report the case as queued until every batch is accepted.
 - Treat HydraDB memory ingestion as asynchronous: show accepted/queued in the operator feed and only call it indexed when the API result reports a terminal completed status.
 - Poll `GET /context/status?database=<database>&id=<source_id>` for every accepted source through Recoil's `/hydra-status` route; do not issue a recall query until the sources are indexed.
