@@ -240,7 +240,7 @@ async function collectSourceFiles(repository) {
     error = cause.message
   }
   const candidates = paths
-    .filter((path) => /^(?:src|lib|app|packages|crates)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
+    .filter((path) => /(?:^|\/)(?:src|lib|app|packages|crates)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
     .filter((path) => /\.(?:js|jsx|mjs|cjs|ts|tsx|rs)$/.test(path))
     .filter((path) => !/(?:node_modules|target|dist|build|vendor)\//.test(path))
     .slice(0, 24)
