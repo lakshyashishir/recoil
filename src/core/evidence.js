@@ -126,6 +126,68 @@ function repositoryLockEntry(manifest, packageName) {
   return (manifest?.lockPackages || []).find((item) => item.name === packageName) || null
 }
 
+function dependencyName(value) {
+  return String(value || '').trim().split(/\s+/)[0] || null
+}
+
+function packageParentPath(path = '') {
+  if (!path) return null
+  const nested = path.lastIndexOf('/node_modules/')
+  if (nested >= 0) return path.slice(0, nested)
+  return ''
+}
+
+/**
+ * Resolve one lockfile dependency using Node's nearest-node_modules rule when
+ * paths are available. Cargo entries do not carry install paths, so they are
+ * resolved only when the lockfile has one unambiguous package version.
+ */
+function resolveDependencyEntry(entries, name, fromPath = '') {
+  if (!name) return null
+  const byPath = new Map(entries.filter((entry) => entry.path).map((entry) => [entry.path, entry]))
+  let parent = fromPath || ''
+  while (true) {
+    const candidatePath = `${parent ? `${parent}/` : ''}node_modules/${name}`
+    if (byPath.has(candidatePath)) return byPath.get(candidatePath)
+    if (!parent) break
+    parent = packageParentPath(parent)
+    if (parent === null) break
+  }
+  const matches = entries.filter((entry) => entry.name === name)
+  const versions = [...new Set(matches.map((entry) => entry.version).filter(Boolean))]
+  return versions.length === 1 ? matches[0] : null
+}
+
+function dependencyPathFor(manifest, packageName, sourceUrl = null) {
+  const entries = (manifest?.lockPackages || []).filter((entry) => entry?.name && entry?.version)
+  if (!entries.length || !packageName) return []
+  const roots = Object.keys({ ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) })
+    .map((name) => resolveDependencyEntry(entries, name))
+    .filter(Boolean)
+  const queue = roots.map((entry) => ({ entry, path: [entry] }))
+  const visited = new Set()
+  while (queue.length) {
+    const current = queue.shift()
+    const key = current.entry.path || `${current.entry.name}@${current.entry.version}`
+    if (visited.has(key)) continue
+    visited.add(key)
+    if (current.entry.name === packageName) {
+      return current.path.slice(0, 12).map((entry) => ({
+        name: entry.name,
+        version: entry.version,
+        path: entry.path || null,
+        sourceUrl,
+      }))
+    }
+    for (const rawDependency of current.entry.dependencies || []) {
+      const name = dependencyName(rawDependency)
+      const dependency = resolveDependencyEntry(entries, name, current.entry.path || '')
+      if (dependency) queue.push({ entry: dependency, path: [...current.path, dependency] })
+    }
+  }
+  return []
+}
+
 export function classifyRepository({ repository, packageName, advisory, advisoryId }) {
   const manifest = repository?.manifest || {}
   const codeGraph = manifest.codeGraph || {}
@@ -187,6 +249,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   }
   const advisoryLabel = advisoryId || advisory?.id || 'advisory'
   const lockfilePath = manifest.lockfile || 'lockfile not collected'
+  const lockfileSource = manifest.lockfile ? (repository?.sources || []).find((source) => source.path === manifest.lockfile)?.url : null
   const versionLabel = resolvedVersions.length > 1 ? `${packageName}@${resolvedVersions.join(', ')}` : `${packageName}@${resolvedVersion || 'unresolved'}`
   const path = resolvedVersion
     ? [advisoryLabel, versionLabel, repository?.repository || 'repository', lockfilePath, ...imports.slice(0, 4).map((item) => item.path)]
@@ -205,6 +268,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
     pathObservationSource: manifest.temporal?.sourceUrl || null,
     imports,
     path,
+    dependencyPath: dependencyPathFor(manifest, packageName, lockfileSource),
     fixedVersions: fix.fixedVersions,
     targetVersion: fix.targetVersion,
     rangeAllowsFix: fix.rangeAllowsFix,
@@ -241,6 +305,19 @@ export function buildObservedGraph({ advisoryId, packageName, repositoryFindings
       const packageId = `package:${finding.packageName}@${version}`
       nodes.push({ id: packageId, label: packageId.replace('package:', ''), type: 'package', meta: { verdict: finding.verdict, resolvedVersions } })
       edges.push([`advisory:${advisoryId}`, packageId], [packageId, repoId])
+    }
+    const dependencyPath = finding.dependencyPath || []
+    for (const [index, dependency] of dependencyPath.entries()) {
+      const packageId = `package:${dependency.name}@${dependency.version}`
+      nodes.push({
+        id: packageId,
+        label: packageId.replace('package:', ''),
+        type: 'package',
+        sourceUrl: dependency.sourceUrl || null,
+        meta: { role: dependency.name === finding.packageName ? 'affected-dependency' : 'transitive-dependency', repository: finding.repository },
+      })
+      const next = dependencyPath[index + 1]
+      if (next) edges.push([packageId, `package:${next.name}@${next.version}`])
     }
     edges.push([repoId, lockId])
     for (const item of finding.imports || []) {

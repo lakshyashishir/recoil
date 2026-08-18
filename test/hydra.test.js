@@ -54,6 +54,22 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
   assert.equal(memories.every((memory) => memory.additional_metadata.app === 'recoil'), true)
 })
 
+test('HydraDB graph payload preserves observed package dependency edges', () => {
+  const memories = buildInvestigationMemories({
+    scenarioId: 'dependency-graph-test',
+    package: 'minimist',
+    graph: {
+      nodes: [
+        { id: 'package:parent@2.0.0', label: 'parent@2.0.0', type: 'package' },
+        { id: 'package:minimist@1.2.5', label: 'minimist@1.2.5', type: 'package' },
+      ],
+      edges: [['package:parent@2.0.0', 'package:minimist@1.2.5']],
+    },
+  }, { advisory: { id: 'GHSA-test' }, repositories: [], challenge: [] })
+  const graphMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'observed_graph')
+  assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'DEPENDS_ON')
+})
+
 test('HydraDB persistence skips incomplete reports unless explicitly enabled', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.HYDRA_DB_API_KEY

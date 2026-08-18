@@ -216,6 +216,8 @@ test('npm ingestion resolves a nested transitive package from package-lock paths
     const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-nested-1234-5678 https://github.com/example/nested-app', scenarioId: 'nested-integration-test' })
     assert.equal(ingestion.findings[0].resolvedVersion, '1.2.5')
     assert.equal(ingestion.findings[0].verdict, 'REACHED')
+    assert.deepEqual(ingestion.findings[0].dependencyPath.map((item) => `${item.name}@${item.version}`), ['parent@2.0.0', 'minimist@1.2.5'])
+    assert.ok(ingestion.graph.edges.some(([from, to]) => from === 'package:parent@2.0.0' && to === 'package:minimist@1.2.5'))
     assert.equal(ingestion.repositories[0].manifest.lockPackages.find((item) => item.name === 'minimist').path, 'node_modules/parent/node_modules/minimist')
   } finally {
     globalThis.fetch = previousFetch

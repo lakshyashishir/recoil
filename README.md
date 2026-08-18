@@ -64,8 +64,10 @@ HydraDB stores the investigation as dated evidence memories rather than as a fin
 
 The observed graph is written through HydraDB's documented Bring-Your-Own-Graph (`graph_payload`) path:
 explicit advisory, package, repository, lockfile, source, and symbol entities are attached to the
-corresponding evidence memory with typed relations. Recoil never sends its internal graph helper field
-as a memory property. Raw HTTP queries use HydraDB's documented v2 field names, including
+corresponding evidence memory with typed relations. When a lockfile exposes install paths, Recoil also
+resolves a bounded root-to-affected transitive chain and writes each observed package-to-package
+`DEPENDS_ON` edge; ambiguous package versions are left unresolved rather than guessed. Recoil never
+sends its internal graph helper field as a memory property. Raw HTTP queries use HydraDB's documented v2 field names, including
 `query_by`, `metadata_filters`, and `graph_context: true`; the report keeps only a bounded summary of
 returned triplets so the receipt proves graph retrieval without copying raw chunks.
 
@@ -205,7 +207,9 @@ npm run build
 npm run verify
 ```
 
-The tests cover semver and OSV range evaluation, JavaScript/Rust source graphs, incomplete-source safety, temporal rewind, HydraDB memory construction, and an end-to-end mocked multi-repository ingestion. The benchmark generates four deterministic evidence cases and asserts:
+The tests cover semver and OSV range evaluation, JavaScript/Rust source graphs, nested lockfile dependency
+paths, incomplete-source safety, temporal rewind, HydraDB memory construction, and an end-to-end mocked
+multi-repository ingestion. The benchmark generates four deterministic evidence cases and asserts:
 
 - one `REACHED` repository;
 - one `DECLARED_ONLY` repository;

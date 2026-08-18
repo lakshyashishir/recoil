@@ -82,12 +82,16 @@ function Verdict({ value }) {
 function EvidencePath({ finding, advisorySource }) {
   const sources = [advisorySource, finding.repositoryUrl, ...(finding.imports || []).map((item) => item.sourceUrl), ...(finding.evidenceSources || [])].filter(Boolean)
   const uniqueSources = [...new Set(sources)]
+  const dependencyHops = (finding.dependencyPath || []).map((item) => `${item.name}@${item.version}`)
+  const displayedPath = dependencyHops.length > 1
+    ? [...(finding.path || []).slice(0, 1), ...dependencyHops, ...(finding.path || []).slice(2)]
+    : finding.path || []
   const labelFor = (part) => {
     const symbol = String(part).match(/^symbol:([^@]+)@(.+):(\d+)$/)
     return symbol ? `${symbol[1]} · ${symbol[2]}:${symbol[3]}` : part
   }
   return <div className="proof-path">
-    <div className="path-line">{(finding.path || []).map((part, index) => <span className="path-hop" key={`${part}-${index}`}><span title={part}>{labelFor(part)}</span>{index < finding.path.length - 1 && <b>→</b>}</span>)}</div>
+    <div className="path-line">{displayedPath.map((part, index) => <span className="path-hop" key={`${part}-${index}`}><span title={part}>{labelFor(part)}</span>{index < displayedPath.length - 1 && <b>→</b>}</span>)}</div>
     {finding.proof?.length > 0 ? <div className="proof-chain" aria-label="Evidence proof chain">{finding.proof.map((step, index) => <div className={`proof-step proof-step-${step.status}`} key={`${step.kind}-${step.label}-${index}`}><span className="proof-step-kind">{step.kind}</span><strong>{step.label}</strong><span className="proof-step-detail">{step.detail}</span>{step.source ? <SourceLink href={step.source}>{sourceHost(step.source)}</SourceLink> : <span className="proof-step-source">no source</span>}</div>)}</div> : <div className="path-sources">{uniqueSources.slice(0, 4).map((source) => <SourceLink href={source} key={source}>{sourceHost(source)}</SourceLink>)}</div>}
   </div>
 }

@@ -30,6 +30,7 @@ function compactFinding(finding) {
     verdict: finding.verdict || 'UNKNOWN',
     reason: finding.reason || null,
     path: finding.path || [],
+    dependencyPath: (finding.dependencyPath || []).map((item) => ({ name: item.name, version: item.version, path: item.path, sourceUrl: item.sourceUrl || null })),
     imports: (finding.imports || []).map((item) => ({ path: item.path, line: item.line, specifier: item.specifier, packageName: item.packageName, packageAlias: item.packageAlias || null, sourceUrl: item.sourceUrl })).filter((item) => item.path || item.sourceUrl),
     sourceSampleSize: finding.sourceSampleSize ?? null,
     sourceCandidateCount: finding.sourceCandidateCount ?? null,

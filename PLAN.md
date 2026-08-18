@@ -58,6 +58,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Add CLI `--recording` enforcement for the three-way contrast plus completed HydraDB write and temporal-read proof.
 - [x] Share the same recording blocker contract between the CLI and real smoke, with regression coverage for ready and failed cases.
 - [x] Normalize HydraDB graph-context response shapes so top-level triplets remain visible in rewind, browser, and receipts.
+- [x] Resolve bounded transitive lockfile paths and preserve observed package-to-package `DEPENDS_ON` edges in the graph, HydraDB payload, receipt, and report.
 - [x] Surface API startup failures in the browser landing state instead of silently rendering an empty product.
 - [x] Skip HydraDB writes for incomplete evidence by default so failed/unknown runs do not consume credits or become durable precedent.
 - [x] Expose the recording contract and evidence-proof capabilities through `/api/health` for operator and demo readiness checks.

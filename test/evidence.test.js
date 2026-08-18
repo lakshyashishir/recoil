@@ -79,6 +79,31 @@ test('observed graph contains only advisory, repository, lockfile, and source ev
   assert.ok(graph.edges.some(([from, to]) => from === `lock:example/app:package-lock.json` && to.includes('code:example/app:src/cli.js')))
 })
 
+test('dependency path follows nested lockfile resolution and declines ambiguous fallback', () => {
+  const nested = repository({ imports: [] })
+  nested.manifest.dependencies = { parent: '^2.0.0' }
+  nested.manifest.resolved = { parent: '2.0.0', minimist: '1.2.5' }
+  nested.manifest.lockPackages = [
+    { name: 'parent', version: '2.0.0', path: 'node_modules/parent', dependencies: ['minimist'] },
+    { name: 'minimist', version: '1.2.5', path: 'node_modules/parent/node_modules/minimist', dependencies: [] },
+  ]
+  const finding = classifyRepository({ repository: nested, packageName: 'minimist', advisory, advisoryId: advisory.id })
+  assert.deepEqual(finding.dependencyPath.map((item) => item.name), ['parent', 'minimist'])
+
+  const graph = buildObservedGraph({ advisoryId: advisory.id, packageName: 'minimist', repositoryFindings: [finding] })
+  assert.ok(graph.edges.some(([from, to]) => from === 'package:parent@2.0.0' && to === 'package:minimist@1.2.5'))
+
+  const ambiguous = repository({ imports: [] })
+  ambiguous.manifest.dependencies = { parent: '^2.0.0' }
+  ambiguous.manifest.lockPackages = [
+    { name: 'parent', version: '2.0.0', dependencies: ['minimist'] },
+    { name: 'minimist', version: '1.2.5', dependencies: [] },
+    { name: 'minimist', version: '1.2.6', dependencies: [] },
+  ]
+  const ambiguousFinding = classifyRepository({ repository: ambiguous, packageName: 'minimist', advisory, advisoryId: advisory.id })
+  assert.deepEqual(ambiguousFinding.dependencyPath, [])
+})
+
 test('incomplete source collection is unknown instead of falsely declared-only', () => {
   const partialRepository = repository({ imports: [] })
   partialRepository.repository = 'example/partial'

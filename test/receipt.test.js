@@ -10,6 +10,10 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
     repositories: [{
       repository: 'example/app', repositoryUrl: 'https://github.com/example/app', packageName: 'minimist', resolvedVersion: '1.2.5',
       resolvedVersions: ['1.2.5'],
+      dependencyPath: [
+        { name: 'parent', version: '2.0.0', path: 'node_modules/parent', sourceUrl: 'https://github.com/example/app/blob/HEAD/package-lock.json' },
+        { name: 'minimist', version: '1.2.5', path: 'node_modules/parent/node_modules/minimist', sourceUrl: 'https://github.com/example/app/blob/HEAD/package-lock.json' },
+      ],
       verdict: 'REACHED', path: ['GHSA-test', 'minimist@1.2.5', 'example/app', 'src/cli.js'],
       imports: [{ path: 'src/cli.js', line: 1, specifier: 'minimist', packageName: 'minimist', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' }],
       advisoryScope: { status: 'VALIDATED_SYMBOL', symbols: [{ name: 'parseArgs', path: 'src/cli.js', line: 4 }] },
@@ -42,6 +46,7 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.equal(receipt.repositories[0].verdict, 'REACHED')
   assert.equal(receipt.repositories[0].imports[0].sourceUrl, 'https://github.com/example/app/blob/HEAD/src/cli.js')
   assert.equal(receipt.repositories[0].imports[0].packageName, 'minimist')
+  assert.deepEqual(receipt.repositories[0].dependencyPath.map((item) => item.name), ['parent', 'minimist'])
   assert.equal(receipt.repositories[0].advisoryScope.status, 'VALIDATED_SYMBOL')
   assert.equal(receipt.repositories[0].proof.length, 6)
   assert.equal(receipt.repositories[0].proof.find((step) => step.kind === 'import').source, 'https://github.com/example/app/blob/HEAD/src/cli.js')
