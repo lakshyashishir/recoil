@@ -79,6 +79,8 @@ npm run cli -- "CVE-2021-4229 https://github.com/owner/repository-a https://gith
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --json
 ```
 
+For a repeatable external smoke against the configured `.env` (defaulting to the real bytes advisory and HydraDB repository), run `npm run smoke:real`. Set `RECOIL_SMOKE_QUERY` to use a different advisory/repository set. The command exits nonzero when collection is partial, a finding is `UNKNOWN`, or HydraDB fails, so an incomplete demo cannot look green.
+
 The OpenTUI console remains available for local operator use:
 
 ```bash

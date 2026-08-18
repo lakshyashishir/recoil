@@ -12,6 +12,7 @@
     "test": "node --test",
     "benchmark": "node scripts/evidence-benchmark.js",
     "verify": "node scripts/verify.js",
+    "smoke:real": "node --env-file-if-exists=.env scripts/smoke-real.mjs",
     "tui": "bun run tui/index.tsx",
     "server": "node --env-file-if-exists=.env server/index.js"
   },

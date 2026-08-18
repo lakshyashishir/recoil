@@ -46,6 +46,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Product benchmark covering `REACHED`, `DECLARED_ONLY`, `NOT_AFFECTED`, `UNKNOWN`, fix proof, and rewind.
 - [x] Portable source-cited evidence receipt with integrity hash and explicit non-execution boundary.
 - [x] Browser production build and regression suite.
+- [x] Repeatable real smoke command with strict partial/unknown failure status.
 
 ### Still required before calling the hackathon build complete
 
