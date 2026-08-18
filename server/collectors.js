@@ -334,10 +334,25 @@ function parseCargoLock(text) {
 
 function resolveFromLockfile(lockfile, packageName) {
   if (!lockfile || !packageName) return null
-  const packageEntry = lockfile.packages?.[`node_modules/${packageName}`]
-  if (packageEntry?.version) return packageEntry.version
+  const packageEntries = Object.entries(lockfile.packages || {})
+    .filter(([path, entry]) => entry?.version && packageNameFromNodeModulesPath(path) === packageName)
+    .sort(([left], [right]) => {
+      const leftDepth = left.split('/node_modules/').length
+      const rightDepth = right.split('/node_modules/').length
+      return leftDepth - rightDepth || left.localeCompare(right)
+    })
+  if (packageEntries[0]?.[1]?.version) return packageEntries[0][1].version
   const legacyEntry = lockfile.dependencies?.[packageName]
   return legacyEntry?.version || null
+}
+
+function packageNameFromNodeModulesPath(path = '') {
+  const marker = 'node_modules/'
+  const index = path.lastIndexOf(marker)
+  if (index < 0) return null
+  const remainder = path.slice(index + marker.length)
+  if (remainder.startsWith('@')) return remainder.split('/').slice(0, 2).join('/')
+  return remainder.split('/')[0] || null
 }
 
 export async function collectRepository(repository, requestedPackage) {
@@ -362,7 +377,8 @@ export async function collectRepository(repository, requestedPackage) {
       .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
       .slice(0, 120)
       .map(([path, entry]) => ({
-        name: path.replace(/^node_modules\//, ''),
+        name: packageNameFromNodeModulesPath(path),
+        path,
         version: entry.version,
         resolved: entry.resolved,
         dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
@@ -680,4 +696,4 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   }
 }
 
-export { inferTarget, parseCargoLock, parseCargoManifest }
+export { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest }

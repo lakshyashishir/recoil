@@ -170,6 +170,59 @@ test('Cargo ingestion resolves an external crate import and registry fixed versi
   }
 })
 
+test('npm ingestion resolves a nested transitive package from package-lock paths', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const nestedAdvisory = {
+    id: 'GHSA-nested-1234-5678',
+    summary: 'Test advisory for a nested package',
+    published: '2026-01-01T00:00:00Z',
+    affected: [{ package: { ecosystem: 'npm', name: 'minimist' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.2.6' }] }] }],
+    sourceUrl: 'https://api.osv.dev/v1/vulns/ghsa-nested-1234-5678',
+  }
+  const nestedLock = JSON.stringify({
+    lockfileVersion: 3,
+    packages: {
+      '': { dependencies: { parent: '^2.0.0' } },
+      'node_modules/parent': { version: '2.0.0', dependencies: { minimist: '1.2.5' } },
+      'node_modules/parent/node_modules/minimist': { version: '1.2.5', resolved: 'https://registry.npmjs.org/minimist/-/minimist-1.2.5.tgz' },
+    },
+  })
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') return response(nestedAdvisory)
+    if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', versions: { '1.2.5': {}, '1.2.6': {} }, maintainers: [] })
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
+    if (!match || match[1] !== 'example/nested-app') return response({}, 404)
+    const operation = match[2]
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'src/cli.js' }] })
+    if (operation.startsWith('commits')) {
+      if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/nested-app/commit/oldest', commit: { author: { date: '2025-01-01T00:00:00Z' } } }])
+      return response([])
+    }
+    if (operation.startsWith('contents/')) {
+      const path = decodeURIComponent(operation.slice('contents/'.length))
+      if (path === 'package.json') return response(githubFile(path, JSON.stringify({ name: 'nested-app', dependencies: { parent: '^2.0.0' } }), 'example/nested-app'))
+      if (path === 'package-lock.json') return response(githubFile(path, nestedLock, 'example/nested-app'))
+      if (path === 'src/cli.js') return response(githubFile(path, "import minimist from 'minimist'\nexport function main() { return minimist(process.argv) }", 'example/nested-app'))
+      return response({}, 404)
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-nested-1234-5678 https://github.com/example/nested-app', scenarioId: 'nested-integration-test' })
+    assert.equal(ingestion.findings[0].resolvedVersion, '1.2.5')
+    assert.equal(ingestion.findings[0].verdict, 'REACHED')
+    assert.equal(ingestion.repositories[0].manifest.lockPackages.find((item) => item.name === 'minimist').path, 'node_modules/parent/node_modules/minimist')
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+  }
+})
+
 test('network failures preserve the endpoint and downgrade evidence honestly', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (input) => {

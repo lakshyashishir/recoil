@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inferTarget, parseCargoLock, parseCargoManifest, parseInvestigationInput } from '../server/collectors.js'
+import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput } from '../server/collectors.js'
 
 test('target inference keeps a GitHub repository separate from an optional package selector', () => {
   const target = inferTarget('https://github.com/hydra-db/hydradb hydradb')
@@ -81,4 +81,10 @@ test('Cargo manifest preserves renamed package identity for source normalization
 
   assert.equal(manifest.dependencies.bytes_alias, '1.10')
   assert.deepEqual(manifest.dependencyAliases, { bytes_alias: 'bytes' })
+})
+
+test('npm lockfile paths normalize nested and scoped package identities', () => {
+  assert.equal(packageNameFromNodeModulesPath('node_modules/minimist'), 'minimist')
+  assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/minimist'), 'minimist')
+  assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/@scope/parser'), '@scope/parser')
 })
