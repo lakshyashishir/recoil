@@ -25,12 +25,16 @@ const scenarios = new Map()
 function buildGraph(ingestion) {
   const packageName = ingestion?.package || 'ua-parser-js'
   const repository = ingestion?.collectors?.find((collector) => collector.collector === 'repository-extractor')
+  const ecosystem = repository?.ecosystem || 'npm'
   const requestedRepository = ingestion?.target?.repository?.slug || ingestion?.target?.repository?.url
   const resolvedVersion = repository?.manifest?.resolved?.[packageName] || ingestion?.target?.version || 'unresolved'
   const registry = ingestion?.collectors?.find((collector) => collector.collector === 'registry-resolver')
   const advisory = ingestion?.target?.advisoryId || registry?.latest || 'advisory target'
   const nodes = NODES.map((node) => {
       if (node.id === 'release') return { ...node, label: `${packageName}@${resolvedVersion}`, meta: advisory === 'CVE-2021-4229' ? 'compromised release' : 'resolved package target' }
+      if (node.id === 'registry') return { ...node, label: ecosystem === 'cargo' ? 'crates.io registry' : 'npm registry', meta: 'public package source' }
+      if (node.id === 'resolver') return { ...node, label: ecosystem === 'cargo' ? 'Cargo resolver' : 'npm semver resolver', meta: ecosystem === 'cargo' ? 'Cargo dependency resolution' : 'transitive resolution' }
+      if (node.id === 'lockfile') return { ...node, label: repository?.manifest?.lockfile || (ecosystem === 'cargo' ? 'Cargo manifest' : 'package lockfile'), meta: repository?.manifest?.lockfile ? 'resolved dependency evidence' : 'range-based dependency evidence' }
       if (node.id === 'maintainer' && registry?.maintainers?.[0]) return { ...node, label: `maintainer: ${registry.maintainers[0]}`, meta: 'registry publisher' }
       if (node.id === 'repo') {
         if (repository?.status === 'failed') return { ...node, label: requestedRepository || 'repository unavailable', meta: 'collection failed' }

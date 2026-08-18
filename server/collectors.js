@@ -385,3 +385,5 @@ export async function runIngestion({ query = `${DEFAULT_ADVISORY} / fixture/stor
     completedAt: new Date().toISOString(),
   }
 }
+
+export { inferTarget, parseCargoLock, parseCargoManifest }
