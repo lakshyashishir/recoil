@@ -81,11 +81,13 @@ function App() {
   const completed = eventIndex >= events.length
   const exposure = reachability.exposure ?? getGraphExposure({ eventIndex, selectedActions }, graph.nodes, graph.edges)
   const reduction = 100 - exposure
-  const currentEvent = events[Math.min(eventIndex, events.length - 1)]
+  const currentEvent = events[Math.min(eventIndex, events.length - 1)] || EVENTS[0]
   const activeNodes = useMemo(() => new Set(reachability.activeNodeIds || getReachability({ eventIndex, selectedActions }, graph.nodes, graph.edges).activeNodeIds), [eventIndex, selectedActions, graph, reachability])
   const blockedNodes = useMemo(() => new Set(reachability.blockedNodeIds || []), [reachability])
   const routeEdges = useMemo(() => new Set((reachability.primaryPath || []).slice(1).map((id, index) => `${reachability.primaryPath[index]}->${id}`)), [reachability.primaryPath])
   const primaryPathLabels = (reachability.primaryPath || []).map((id) => graph.nodes.find((node) => node.id === id)?.label || id)
+  const selectedEntity = graph.nodes.find((node) => node.id === selectedNode) || graph.nodes[0]
+  const selectedEntityState = blockedNodes.has(selectedEntity?.id) ? 'blocked by control' : activeNodes.has(selectedEntity?.id) ? 'reachable in current model' : 'observed, not currently reachable'
 
   useEffect(() => {
     if (!running || completed) return undefined
@@ -118,6 +120,36 @@ function App() {
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('API unavailable')))
       .then((payload) => setBackendStatus(payload.hydra?.status === 'ready' ? 'ready' : 'offline'))
       .catch(() => setBackendStatus('offline'))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/scenarios/0017')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Snapshot unavailable')))
+      .then((payload) => {
+        const snapshot = payload || {}
+        setQuery(snapshot.scenario?.query || SCENARIO.query)
+        setEventIndex(snapshot.state?.eventIndex || 0)
+        setRunning(Boolean(snapshot.state?.running))
+        setRound(snapshot.scenario?.round || 0)
+        setSelectedActions(snapshot.state?.selectedActions || [])
+        setGraph({ nodes: snapshot.graph?.nodes?.length ? snapshot.graph.nodes : NODES, edges: snapshot.graph?.edges?.length ? snapshot.graph.edges : EDGES })
+        setEvents(snapshot.events?.length ? snapshot.events : EVENTS)
+        setReachability({
+          activeNodeIds: snapshot.graph?.activeNodeIds || [],
+          blockedNodeIds: snapshot.graph?.blockedNodeIds || [],
+          primaryPath: snapshot.graph?.primaryPath || [],
+          reachableTargetIds: snapshot.graph?.reachableTargetIds || [],
+          exposure: snapshot.graph?.exposure ?? 0,
+        })
+        setMesh({
+          status: snapshot.ingestion?.status || 'idle',
+          collectors: snapshot.ingestion?.collectors || [],
+          hydra: snapshot.hydra?.status || 'not_started',
+          recallChunks: snapshot.hydra?.recall?.chunks?.length || 0,
+          lastDecision: snapshot.hydra?.lastDecision || null,
+        })
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -387,6 +419,17 @@ function App() {
             </div>
           </div>
 
+          {selectedEntity && (
+            <div className="node-inspector">
+              <div>
+                <span className="section-label">Selected entity</span>
+                <strong>{selectedEntity.label}</strong>
+              </div>
+              <span>{selectedEntity.meta}</span>
+              <span className={`entity-state ${blockedNodes.has(selectedEntity.id) ? 'blocked' : activeNodes.has(selectedEntity.id) ? 'reachable' : ''}`}>{selectedEntityState}</span>
+            </div>
+          )}
+
           <div className="event-strip">
             <div className="event-strip-head"><span className="section-label">Attack / defense sequence</span><span className="event-count">round {round} · {eventIndex} / {events.length} steps</span></div>
             <div className="loop-legend"><span>observe</span><i>→</i><span>choose control</span><i>→</i><span>test residual path</span><i>→</i><span>recalculate</span></div>
@@ -464,6 +507,7 @@ function App() {
             <p>{report?.conclusion || (completed ? 'The selected controls disconnect the highest-risk paths from the compromised release.' : 'Start an investigation to calculate the reachable path and expose response points.')}</p>
             <div className="report-line"><span>repository target</span><strong>{report?.observed?.repository || 'fixture'}</strong></div>
             <div className="report-line"><span>modeled graph</span><strong>{report ? `${report.modeled.graphNodes}n / ${report.modeled.graphEdges}e` : '—'}</strong></div>
+            <div className="report-line"><span>lockfile neighborhood</span><strong>{report?.modeled?.graphRadius ? `${report.modeled.graphRadius.transitiveIncluded} / ${report.modeled.graphRadius.transitiveAvailable}` : '—'}</strong></div>
             <div className="report-line"><span>reachable exposure</span><strong>{report ? `${report.modeled.reachableExposure}%` : '—'}</strong></div>
             <div className="report-line"><span>initial attack route</span><strong>{report?.modeled?.baselinePath?.length ? `${report.modeled.baselinePath.length} hops` : '—'}</strong></div>
             <div className="report-line"><span>alternate routes tested</span><strong>{report ? report.modeled.baselineAlternatePaths?.length || 0 : '—'}</strong></div>

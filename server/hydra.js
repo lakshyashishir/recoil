@@ -1,6 +1,7 @@
 import { EDGES, NODES, createEvents } from '../src/core/scenario.js'
 
 const DEFAULT_API_URL = 'https://api.hydradb.com'
+const MAX_MEMORY_CHARS = 2200
 
 function databaseId() {
   return process.env.HYDRADB_DATABASE_ID || ''
@@ -42,8 +43,8 @@ function annotateIndexing(result) {
 async function ingest(memories, signal) {
   const results = []
   let lastResult = {}
-  for (let offset = 0; offset < memories.length; offset += 2) {
-    const batch = memories.slice(offset, offset + 2)
+  for (let offset = 0; offset < memories.length; offset += 1) {
+    const batch = memories.slice(offset, offset + 1)
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const form = new FormData()
       form.append('database', databaseId())
@@ -111,6 +112,32 @@ function memory({ id, title, text, additionalMetadata = {} }) {
     metadata: { app: 'recoil' },
     additional_metadata: additionalMetadata,
   }
+}
+
+function chunkMemory(item, maxChars = MAX_MEMORY_CHARS) {
+  if (item.text.length <= maxChars) return [item]
+  const chunks = []
+  let remaining = item.text
+  while (remaining.length > maxChars) {
+    const boundary = remaining.lastIndexOf('\n', maxChars)
+    const splitAt = boundary > Math.floor(maxChars * 0.55) ? boundary : maxChars
+    chunks.push(remaining.slice(0, splitAt))
+    remaining = remaining.slice(splitAt).replace(/^\n+/, '')
+  }
+  if (remaining) chunks.push(remaining)
+  return chunks.map((text, index) => ({
+    ...item,
+    id: `${item.id}:part-${index + 1}`,
+    source_id: `${item.id}:part-${index + 1}`,
+    title: `${item.title} · part ${index + 1}/${chunks.length}`,
+    text,
+    additional_metadata: {
+      ...item.additional_metadata,
+      recoil_chunk_index: index + 1,
+      recoil_chunk_count: chunks.length,
+      recoil_chunked: true,
+    },
+  }))
 }
 
 function buildMemories(ingestion) {
@@ -182,7 +209,7 @@ function buildMemories(ingestion) {
     }))
   }
 
-  return memories
+  return memories.flatMap((item) => chunkMemory(item))
 }
 
 export function hydraStatus() {
@@ -202,7 +229,12 @@ export async function persistIngestion(ingestion, signal) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
   const memories = buildMemories(ingestion)
   const result = await ingest(memories, signal)
-  return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', memoryCount: memories.length, result }
+  return {
+    status: result.indexingStatus === 'completed' ? 'persisted' : 'queued',
+    memoryCount: memories.length,
+    sourceIds: result.results?.map((item) => item.id).filter(Boolean) || [],
+    result,
+  }
 }
 
 export async function persistDecision({ scenarioId, queryText, action, selectedActions, exposure, activeNodeIds, blockedNodeIds = [], attackPath = [], alternatePaths = [], controlEnabled = true, round = 0 }, signal) {
@@ -220,7 +252,7 @@ export async function persistDecision({ scenarioId, queryText, action, selectedA
       recoil_operation: controlEnabled ? 'enabled' : 'disabled',
       recoil_selected_actions: selectedActions.join(','),
       recoil_exposure: exposure,
-      recoil_active_node_ids: activeNodeIds.join(','),
+      recoil_active_node_count: activeNodeIds.length,
       recoil_blocked_node_ids: blockedNodeIds.join(','),
       recoil_attack_path: attackPath.join('>'),
       recoil_alternate_path_count: alternatePaths.length,

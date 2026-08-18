@@ -104,7 +104,12 @@ async function collectRepository(repository, requestedPackage) {
   const lockPackages = Object.entries(lockfile?.packages || {})
     .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
     .slice(0, 120)
-    .map(([path, entry]) => ({ name: path.replace(/^node_modules\//, ''), version: entry.version, resolved: entry.resolved }))
+    .map(([path, entry]) => ({
+      name: path.replace(/^node_modules\//, ''),
+      version: entry.version,
+      resolved: entry.resolved,
+      dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
+    }))
   return {
     collector: 'repository-extractor',
     status: 'completed',

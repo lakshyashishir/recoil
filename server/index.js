@@ -36,13 +36,14 @@ function buildGraph(ingestion) {
         return { ...node, label: repository?.repository || 'fixture / storefront-api', meta: repository?.synthetic ? 'synthetic demo repo' : 'public repository' }
       }
       return node
-    })
+  })
   const edges = [...EDGES]
+  const radius = { lockfilePackages: 0, transitiveAvailable: 0, transitiveIncluded: 0 }
   const manifest = repository?.manifest
   if (repository && !repository.synthetic && manifest) {
     const manifestId = 'manifest:observed'
     nodes.push({ id: manifestId, label: `${repository.repository} manifest`, type: 'repo', meta: manifest.lockfile ? 'public lockfile' : 'public package.json', x: 36, y: 14, activeAt: 4 })
-    edges.push(['repo', manifestId], ['release', manifestId], [manifestId, 'repo'])
+    edges.push(['repo', manifestId], [manifestId, 'repo'])
     const dependencies = Object.entries(manifest.dependencies || {}).slice(0, 12)
     dependencies.forEach(([name, range], index) => {
       const isTarget = name === packageName
@@ -60,6 +61,30 @@ function buildGraph(ingestion) {
       edges.push([manifestId, id])
       if (isTarget) edges.push([id, 'release'])
     })
+    const directNames = new Set(Object.keys(manifest.dependencies || {}))
+    const directIds = new Map(Object.keys(manifest.dependencies || {}).map((name) => [name, `dependency:${name}`]))
+    const transitivePackages = (manifest.lockPackages || [])
+      .filter((item) => item?.name && !directNames.has(item.name))
+      .slice(0, 12)
+    radius.lockfilePackages = manifest.lockPackages?.length || 0
+    radius.transitiveAvailable = (manifest.lockPackages || []).filter((item) => item?.name && !directNames.has(item.name)).length
+    radius.transitiveIncluded = transitivePackages.length
+    transitivePackages.forEach((item, index) => {
+      const id = `lock:${item.name}`
+      nodes.push({
+        id,
+        label: `${item.name}@${item.version}`,
+        type: 'package',
+        meta: 'lockfile transitive dependency',
+        role: 'transitive-dependency',
+        x: 34 + ((index % 6) * 11),
+        y: 6 + (Math.floor(index / 6) * 17),
+        activeAt: 4,
+      })
+      edges.push([manifestId, id])
+      const parent = item.dependencies?.map((name) => directIds.get(name) || `lock:${name}`).find((candidate) => nodes.some((node) => node.id === candidate))
+      if (parent) edges.push([parent, id])
+    })
     if (manifest.ciSignals?.workflowFiles?.length) {
       const ciId = 'observed:ci'
       nodes.push({ id: ciId, label: `GitHub Actions · ${manifest.ciSignals.workflowFiles.length}`, type: 'infra', meta: manifest.ciSignals.runners.join(', ') || 'workflow evidence', x: 36, y: 88, activeAt: 5 })
@@ -71,7 +96,7 @@ function buildGraph(ingestion) {
       edges.push(['repo', runtimeId], [runtimeId, 'artifact'])
     }
   }
-  return { nodes, edges }
+  return { nodes, edges, radius }
 }
 
 function buildEvents(ingestion) {
@@ -111,6 +136,8 @@ function buildReport(record) {
       resolvedVersion: repository?.manifest?.resolved?.[ingestion.package] || null,
       ciSignals: repository?.manifest?.ciSignals || null,
       deploymentSignals: repository?.manifest?.deploymentSignals || [],
+      lockfilePackageCount: repository?.manifest?.lockPackages?.length || 0,
+      transitiveDependencyCount: record.graph.radius?.transitiveAvailable || 0,
     },
     modeled: {
       graphNodes: record.graph.nodes.length,
@@ -128,12 +155,16 @@ function buildReport(record) {
       baselineAlternatePaths: baselineReachability.alternatePaths,
       baselineTargets: baselineReachability.reachableTargetIds,
       blockedNodes: reachability.blockedNodeIds,
+      graphRadius: record.graph.radius || null,
     },
     recommendation: recommended,
     uncertainty: [
       repository?.synthetic ? 'Deployment and service fan-out are synthetic demo records.' : 'Service and data fan-out is modeled; repository evidence is not a runtime inventory.',
       repository?.status === 'failed' ? `Repository evidence collection failed: ${repository.error || 'unknown error'}.` : null,
       repository && !repository.manifest?.lockfile ? 'The public repository did not expose a lockfile; dependency resolution is range-based.' : null,
+      record.graph.radius?.transitiveAvailable > record.graph.radius?.transitiveIncluded
+        ? `The graph includes ${record.graph.radius.transitiveIncluded} of ${record.graph.radius.transitiveAvailable} available transitive lockfile packages to keep the live view bounded.`
+        : null,
       'No package code or exploit payload was executed.',
     ].filter(Boolean),
     sources: [...new Set(sources)],
