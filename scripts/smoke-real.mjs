@@ -35,4 +35,8 @@ print('sources', `${report.sources?.length || 0} public URLs`)
 print('boundary', 'no install · no repository execution · no exploit payload')
 
 const hasUnresolvedFinding = (report.repositories || []).some((finding) => finding.verdict === 'UNKNOWN')
-if (ingestion.status !== 'completed' || hasUnresolvedFinding || hydra.status === 'failed') process.exitCode = 1
+const requiredContrast = process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
+const requiredVerdicts = ['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED']
+const missingContrast = requiredVerdicts.filter((verdict) => !(report.repositories || []).some((finding) => finding.verdict === verdict))
+if (requiredContrast && missingContrast.length) print('contrast', `missing ${missingContrast.join(', ')}`)
+if (ingestion.status !== 'completed' || hasUnresolvedFinding || hydra.status === 'failed' || missingContrast.length && requiredContrast) process.exitCode = 1

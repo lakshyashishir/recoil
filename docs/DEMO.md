@@ -30,6 +30,9 @@ For a historical comparison, pin a repository URL to a public tag or commit, for
 
 The strongest case contains three different outcomes: one repository that imports the affected package, one that only declares it, and one already outside the affected range. Validate the advisory and repository lockfiles before recording; Recoil must not be presented with invented evidence.
 
+Use `RECOIL_SMOKE_REQUIRE_CONTRAST=1` with the same query before recording. The smoke command then refuses
+to pass unless all three verdicts are present and HydraDB persistence succeeds.
+
 ## What the judge sees
 
 After one click, the investigation runs automatically:
@@ -67,6 +70,9 @@ npm run cli -- "<verified advisory> https://github.com/<owner>/<repository>" --j
 ```
 
 The CLI and browser consume the same autonomous API state machine. `--json` is useful for showing that the report is structured evidence rather than terminal animation.
+
+The CLI exits nonzero when public collection is partial or any repository is `UNKNOWN`; keep the printed
+receipt for diagnosis, but do not record that run as the final demo.
 
 The CLI prints a receipt URL after completion. The browser exposes the same receipt as a download from the case result.
 
