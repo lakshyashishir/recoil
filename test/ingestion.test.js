@@ -110,3 +110,23 @@ test('multi-repository ingestion computes real evidence contrast without synthet
     else process.env.RECOIL_CACHE_DIR = previousCache
   }
 })
+
+test('network failures preserve the endpoint and downgrade evidence honestly', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (input) => {
+    const error = new Error('fetch failed', { cause: { code: 'ENOTFOUND' } })
+    throw error
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({
+      query: 'GHSA-test-1234-5678 https://github.com/example/unavailable',
+      scenarioId: 'network-error-test',
+    })
+    assert.equal(ingestion.status, 'partial')
+    assert.match(ingestion.collectors.find((item) => item.collector === 'advisory-resolver').error, /api\.osv\.dev.*ENOTFOUND/)
+    assert.match(ingestion.collectors.find((item) => item.collector === 'repository-extractor').error, /api\.github\.com.*ENOTFOUND/)
+    assert.equal(ingestion.findings[0].verdict, 'UNKNOWN')
+  } finally {
+    globalThis.fetch = previousFetch
+  }
+})

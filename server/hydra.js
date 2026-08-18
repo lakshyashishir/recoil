@@ -30,6 +30,11 @@ function errorMessage(payload, response) {
   return payload?.detail?.message || payload?.detail || payload?.message || response.statusText
 }
 
+function networkError(url, error) {
+  const code = error?.cause?.code || error?.code
+  return new Error(`HydraDB request failed for ${url}${code ? ` (${code})` : ''}: ${error.message}`, { cause: error })
+}
+
 function unwrap(payload) {
   return payload?.data?.inner || payload?.data || payload
 }
@@ -80,12 +85,18 @@ async function ingest(memories, signal) {
       form.append('memories', JSON.stringify(batch))
       form.append('upsert', 'true')
 
-      const response = await fetch(`${apiBase()}/context/ingest`, {
-        method: 'POST',
-        headers: headers(false),
-        body: form,
-        signal,
-      })
+      const url = `${apiBase()}/context/ingest`
+      let response
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: headers(false),
+          body: form,
+          signal,
+        })
+      } catch (error) {
+        throw networkError(url, error)
+      }
       const payload = await response.json().catch(() => ({}))
       if (response.ok) {
         lastResult = unwrap(payload)
@@ -103,12 +114,18 @@ async function ingest(memories, signal) {
 
 async function query(body, signal) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await fetch(`${apiBase()}/query`, {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify(body),
-      signal,
-    })
+    const url = `${apiBase()}/query`
+    let response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify(body),
+        signal,
+      })
+    } catch (error) {
+      throw networkError(url, error)
+    }
     const payload = await response.json().catch(() => ({}))
     if (response.ok) return unwrap(payload)
 

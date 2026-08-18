@@ -15,7 +15,12 @@ const incidentSources = [
 async function readJson(url, options) {
   const cached = readCache(url, options)
   if (cached !== null) return cached
-  const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
+  let response
+  try {
+    response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
+  } catch (error) {
+    throw networkError(url, error)
+  }
   if (!response.ok) throw httpError(response, url)
   const payload = await response.json()
   writeCache(url, options, payload)
@@ -25,7 +30,12 @@ async function readJson(url, options) {
 async function readOptionalJson(url, options) {
   const cached = readCache(url, options)
   if (cached !== null) return cached
-  const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
+  let response
+  try {
+    response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
+  } catch (error) {
+    throw networkError(url, error)
+  }
   if (response.status === 404) return null
   if (!response.ok) throw httpError(response, url)
   const payload = await response.json()
@@ -35,6 +45,11 @@ async function readOptionalJson(url, options) {
 
 function githubHeaders() {
   return process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}
+}
+
+function networkError(url, error) {
+  const code = error?.cause?.code || error?.code
+  return new Error(`Unable to fetch ${url}${code ? ` (${code})` : ''}: ${error.message}`, { cause: error })
 }
 
 function httpError(response, url) {
@@ -112,10 +127,16 @@ async function readGitHubFile(repository, path) {
     if (!error.message.includes('403')) throw error
   }
 
-  const rawResponse = await fetch(`https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+  const rawUrl = `https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`
+  let rawResponse
+  try {
+    rawResponse = await fetch(rawUrl, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+  } catch (error) {
+    throw networkError(rawUrl, error)
+  }
   if (rawResponse.status === 404) return null
-  if (!rawResponse.ok) throw httpError(rawResponse, `raw.githubusercontent.com/${repository.slug}/${path}`)
-  return { path, sourceUrl: `https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`, text: await rawResponse.text() }
+  if (!rawResponse.ok) throw httpError(rawResponse, rawUrl)
+  return { path, sourceUrl: rawUrl, text: await rawResponse.text() }
 }
 
 async function readGitHubDirectory(repository, path) {
@@ -146,7 +167,12 @@ async function readGitHubCommitHistory(repository, path) {
     const url = `${base}&page=${page}`
     const cached = readCache(url)
     if (cached && Array.isArray(cached.commits)) return cached
-    const response = await fetch(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+    let response
+    try {
+      response = await fetch(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+    } catch (error) {
+      throw networkError(url, error)
+    }
     if (response.status === 404) return { commits: [], lastPage: 1 }
     if (!response.ok) throw httpError(response, url)
     const commits = await response.json()
