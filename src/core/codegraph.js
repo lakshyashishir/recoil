@@ -26,6 +26,33 @@ function localRustSpecifiers(text = '') {
   return [...new Set([...modules, ...crateUses])]
 }
 
+function lineNumber(text, offset) {
+  return text.slice(0, offset).split('\n').length
+}
+
+export function parseSourceSymbols(text = '', path = '') {
+  const language = languageFor(path)
+  const patterns = language === 'rust'
+    ? [
+        { kind: 'function', pattern: /(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)/g },
+        { kind: 'struct', pattern: /(?:pub\s+)?struct\s+([A-Za-z_][A-Za-z0-9_]*)/g },
+        { kind: 'enum', pattern: /(?:pub\s+)?enum\s+([A-Za-z_][A-Za-z0-9_]*)/g },
+        { kind: 'trait', pattern: /(?:pub\s+)?trait\s+([A-Za-z_][A-Za-z0-9_]*)/g },
+      ]
+    : [
+        { kind: 'function', pattern: /(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g },
+        { kind: 'class', pattern: /(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)/g },
+        { kind: 'function', pattern: /(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/g },
+      ]
+  const symbols = []
+  for (const { kind, pattern } of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      symbols.push({ name: match[1], kind, language, line: lineNumber(text, match.index || 0) })
+    }
+  }
+  return symbols.sort((left, right) => left.line - right.line || left.name.localeCompare(right.name))
+}
+
 function resolveJavaScript(from, specifier, files) {
   const base = normalizePath(`${from.split('/').slice(0, -1).join('/')}/${specifier}`)
   const candidates = [base, ...SOURCE_EXTENSIONS.map((extension) => `${base}${extension}`), ...SOURCE_EXTENSIONS.map((extension) => `${base}/index${extension}`)]
@@ -58,6 +85,7 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
     x: 45 + ((index % 5) * 11),
     y: 10 + (Math.floor(index / 5) * 17),
   }))
+  const symbols = [...files.values()].flatMap((file) => parseSourceSymbols(file.text, file.path).map((symbol) => ({ ...symbol, path: file.path, sourceUrl: file.sourceUrl || null })))
   const edges = []
   const unresolved = []
   for (const file of files.values()) {
@@ -81,7 +109,9 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
     nodes,
     edges: uniqueEdges,
     unresolved: unresolved.slice(0, 40),
+    symbols: symbols.slice(0, 80),
     fileCount: nodes.length,
     importEdgeCount: uniqueEdges.length,
+    symbolCount: Math.min(symbols.length, 80),
   }
 }

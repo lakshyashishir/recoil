@@ -199,7 +199,7 @@ async function collectRepository(repository, requestedPackage) {
     status: 'completed',
     ecosystem,
     sourceUrl: (packageFile || cargoManifestFile).sourceUrl,
-    entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length + codeGraph.fileCount + codeGraph.importEdgeCount,
+    entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length + codeGraph.fileCount + codeGraph.importEdgeCount + codeGraph.symbolCount,
     repository: repository.slug,
     repositoryUrl: repository.url,
     synthetic: false,

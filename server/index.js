@@ -162,6 +162,7 @@ function buildReport(record) {
       codeGraph: repository?.manifest?.codeGraph ? {
         files: repository.manifest.codeGraph.fileCount,
         imports: repository.manifest.codeGraph.importEdgeCount,
+        symbols: repository.manifest.codeGraph.symbolCount,
         unresolved: repository.manifest.codeGraph.unresolved?.length || 0,
       } : null,
       lockfilePackageCount: repository?.manifest?.lockPackages?.length || 0,

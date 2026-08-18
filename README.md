@@ -12,7 +12,7 @@ The graph separates observed evidence from modeled reachability:
 
 - real npm registry versions, maintainers, and OSV advisories;
 - real public `package.json`, lockfile, GitHub Actions, Docker, and Compose signals when available;
-- a bounded static JavaScript/TypeScript/Rust source graph that resolves local imports and modules without executing code;
+- a bounded static JavaScript/TypeScript/Rust source graph that resolves local imports/modules and indexes symbols without executing code;
 - modeled build, deployment, service, and data fan-out, explicitly marked synthetic when no public runtime evidence exists;
 - computed red/blue rounds where the attacker adapts after every defensive control;
 - temporal attack events, alternate-route reconstruction, and counterfactual defender controls;

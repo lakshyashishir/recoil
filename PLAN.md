@@ -15,8 +15,8 @@ This is a new project for Hack Hydra. The existing ClaimTrace application lives 
 - [x] Adaptive red/blue arena: Red selects a reachable route, Blue responds to that route, and Red searches again after the graph changes.
 - [x] HydraDB persistence for evidence, topology, decisions, and every arena round; prior rounds can influence a route-matched Blue decision.
 - [x] Browser workspace, CLI, and OpenTUI operator console backed by the same arena engine.
-- [x] Thirteen regression tests, a network-free adaptive benchmark, and a production bundle build.
-- [x] Bounded static source graph for public JavaScript/TypeScript/Rust files, including unresolved-import uncertainty.
+- [x] Seventeen regression tests, a network-free adaptive benchmark, and a production bundle build.
+- [x] Bounded static source graph for public JavaScript/TypeScript/Rust files, including imports, symbols, and unresolved-import uncertainty.
 - [ ] Hosted HydraDB live smoke run against the configured hackathon database.
 - [ ] Private GitHub repository setup/push; blocked until the local `gh` token is re-authenticated.
 - [ ] Deeper Track 2B impact analysis: symbols, changed functions, ownership, and code-to-deployment paths.
