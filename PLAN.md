@@ -232,6 +232,8 @@ Manual checks:
 - `2a24a9a` — distinguish HydraDB writes from temporal-read failures across surfaces
 - `852675e` — reject investigations without repository evidence before collection
 - `dc1cfed` — surface HydraDB read status and graph triplets in the TUI
+- `003661d` — attach a per-hop evidence provenance chain to findings and receipts
+- `594ff00` — expose provenance-hop summaries and expansion in the CLI
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
