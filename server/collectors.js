@@ -2,6 +2,8 @@ const DEFAULT_PACKAGE = 'ua-parser-js'
 const DEFAULT_ADVISORY = 'CVE-2021-4229'
 const KNOWN_AFFECTED_VERSIONS = ['0.7.29', '0.8.0', '1.0.0']
 
+import { buildCodeGraph } from '../src/core/codegraph.js'
+
 const incidentSources = [
   { label: 'CERT-EU advisory', url: 'https://cert.europa.eu/publications/security-advisories/2021-057/' },
   { label: 'Mandiant analysis', url: 'https://cloud.google.com/blog/topics/threat-intelligence/supply-chain-node-js/' },
@@ -64,6 +66,35 @@ async function readGitHubDirectory(repository, path) {
   }
   const commonWorkflowNames = ['ci.yml', 'codeql.yml', 'legacy.yml', 'scorecard.yml', 'release.yml', 'deploy.yml', 'test.yml']
   return commonWorkflowNames.map((name) => ({ name, type: 'file' }))
+}
+
+async function readGitHubTree(repository) {
+  const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/git/trees/HEAD?recursive=1`, {
+    headers: { accept: 'application/vnd.github+json' },
+  })
+  return Array.isArray(payload?.tree) ? payload.tree.filter((entry) => entry.type === 'blob').map((entry) => entry.path) : []
+}
+
+async function collectSourceFiles(repository) {
+  let paths = []
+  try {
+    paths = await readGitHubTree(repository)
+  } catch {
+    paths = []
+  }
+  const candidates = paths
+    .filter((path) => /^(?:src|lib|app|packages|crates)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
+    .filter((path) => /\.(?:js|jsx|mjs|cjs|ts|tsx|rs)$/.test(path))
+    .filter((path) => !/(?:node_modules|target|dist|build|vendor)\//.test(path))
+    .slice(0, 24)
+  const files = await Promise.all(candidates.map(async (path) => {
+    try {
+      return await readGitHubFile(repository, path)
+    } catch {
+      return null
+    }
+  }))
+  return files.filter(Boolean)
 }
 
 function packageDependencies(packageJson) {
@@ -151,6 +182,8 @@ async function collectRepository(repository, requestedPackage) {
   const workflowEntries = await readGitHubDirectory(repository, '.github/workflows')
   const workflowFiles = (await Promise.all(workflowEntries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`)))).filter(Boolean)
   const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path)))).filter(Boolean)
+  const sourceFiles = await collectSourceFiles(repository)
+  const codeGraph = buildCodeGraph(sourceFiles)
   const workflowText = workflowFiles.map((file) => file.text).join('\n')
   const ciSignals = {
     workflowFiles: workflowFiles.map((file) => file.path),
@@ -166,7 +199,7 @@ async function collectRepository(repository, requestedPackage) {
     status: 'completed',
     ecosystem,
     sourceUrl: (packageFile || cargoManifestFile).sourceUrl,
-    entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length,
+    entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length + codeGraph.fileCount + codeGraph.importEdgeCount,
     repository: repository.slug,
     repositoryUrl: repository.url,
     synthetic: false,
@@ -180,8 +213,9 @@ async function collectRepository(repository, requestedPackage) {
       lockPackages,
       ciSignals,
       deploymentSignals,
+      codeGraph,
     },
-    sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
+    sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles, ...sourceFiles].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
     observedAt: new Date().toISOString(),
   }
 }

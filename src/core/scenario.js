@@ -80,6 +80,7 @@ const RISK_WEIGHTS = {
   registry: 3,
   person: 2,
   telemetry: 2,
+  code: 0,
   default: 1,
 }
 
@@ -131,7 +132,7 @@ export function getReduction(state) {
 }
 
 function nodeWeight(node) {
-  return node.riskWeight || RISK_WEIGHTS[node.type] || RISK_WEIGHTS.default
+  return node.riskWeight ?? RISK_WEIGHTS[node.type] ?? RISK_WEIGHTS.default
 }
 
 function getProgressNodeIds(state, graphNodes = NODES) {

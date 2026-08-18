@@ -105,6 +105,10 @@ function buildGraph(ingestion) {
       nodes.push({ id: runtimeId, label: `${manifest.deploymentSignals.length} container manifest${manifest.deploymentSignals.length > 1 ? 's' : ''}`, type: 'artifact', meta: 'repository evidence', x: 64, y: 94, activeAt: 6 })
       edges.push(['repo', runtimeId], [runtimeId, 'artifact'])
     }
+    if (manifest.codeGraph?.nodes?.length) {
+      nodes.push(...manifest.codeGraph.nodes)
+      edges.push(['repo', manifest.codeGraph.nodes[0].id], ...manifest.codeGraph.edges)
+    }
   }
   return { nodes, edges, radius }
 }
@@ -155,6 +159,11 @@ function buildReport(record) {
       resolvedVersion: repository?.manifest?.resolved?.[ingestion.package] || null,
       ciSignals: repository?.manifest?.ciSignals || null,
       deploymentSignals: repository?.manifest?.deploymentSignals || [],
+      codeGraph: repository?.manifest?.codeGraph ? {
+        files: repository.manifest.codeGraph.fileCount,
+        imports: repository.manifest.codeGraph.importEdgeCount,
+        unresolved: repository.manifest.codeGraph.unresolved?.length || 0,
+      } : null,
       lockfilePackageCount: repository?.manifest?.lockPackages?.length || 0,
       transitiveDependencyCount: record.graph.radius?.transitiveAvailable || 0,
     },
@@ -188,6 +197,9 @@ function buildReport(record) {
       repository && !repository.manifest?.lockfile ? 'The public repository did not expose a lockfile; dependency resolution is range-based.' : null,
       record.graph.radius?.transitiveAvailable > record.graph.radius?.transitiveIncluded
         ? `The graph includes ${record.graph.radius.transitiveIncluded} of ${record.graph.radius.transitiveAvailable} available transitive lockfile packages to keep the live view bounded.`
+        : null,
+      repository?.manifest?.codeGraph?.unresolved?.length
+        ? `${repository.manifest.codeGraph.unresolved.length} local source imports could not be resolved inside the bounded public-file sample.`
         : null,
       'No package code or exploit payload was executed.',
     ].filter(Boolean),

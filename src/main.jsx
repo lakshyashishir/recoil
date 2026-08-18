@@ -163,6 +163,7 @@ function ReportDossier({ report }) {
           <div><dt>advisory</dt><dd>{observed.advisory || 'not specified'}</dd></div>
           <div><dt>repository</dt><dd>{observed.repository || 'not found'}</dd></div>
           <div><dt>resolved version</dt><dd>{observed.resolvedVersion || 'range only'}</dd></div>
+          <div><dt>source graph</dt><dd>{observed.codeGraph ? `${observed.codeGraph.files} files · ${observed.codeGraph.imports} imports` : 'not collected'}</dd></div>
         </dl>
       </section>
       <section className="dossier-section">
