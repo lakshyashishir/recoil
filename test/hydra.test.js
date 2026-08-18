@@ -34,6 +34,10 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
       declaredRange: '^1.2.0',
       verdict: 'REACHED',
       imports: [{ path: 'src/cli.js', line: 1 }],
+      dependencyPath: [
+        { name: 'parent', version: '2.0.0' },
+        { name: 'minimist', version: '1.2.5' },
+      ],
       pathObservedAt: '2022-01-01T00:00:00Z',
       path: ['GHSA-test', 'minimist@1.2.5', 'example/app'],
       reason: 'imported',
@@ -48,6 +52,8 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
   assert.match(graphMemory.text, /advisory:GHSA-test → repo:example\/app/)
   assert.equal(graphMemory._recoilGraphPayload.entities.node_0.name, 'GHSA-test')
   assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'CONNECTED_TO')
+  const reachabilityMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'temporal_fact' && /Reachability fact/.test(memory.text))
+  assert.match(reachabilityMemory.text, /parent@2\.0\.0 -> minimist@1\.2\.5/)
   const fixMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'fix_proof')
   assert.equal(fixMemory.additional_metadata.valid_from, null)
   assert.equal(memories.every((memory) => memory.metadata.app === 'recoil'), true)
