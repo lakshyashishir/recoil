@@ -76,6 +76,8 @@ function App() {
   const summary = report?.summary || {}
   const quality = report?.evidenceQuality || {}
   const terminal = state.status === 'complete' || state.status === 'failed'
+  const hydraReadFailed = state.hydra?.recall?.status === 'failed'
+  const graphTriplets = state.hydra?.recall?.graphContext?.tripletCount ?? state.hydra?.recall?.graphContext?.triplets?.length ?? 0
   const completeLabel = quality.readyForRecording ? '● CASE COMPLETE' : '● REVIEW REQUIRED'
   const completeColor = quality.readyForRecording ? C.green : C.amber
 
@@ -90,8 +92,8 @@ function App() {
         <text fg={C.text}>{query || 'No query supplied'}</text>
         <text fg={C.muted}>{query ? 'public advisory and repository evidence' : 'run: npm run tui -- "<advisory> <github-url>"'}</text>
         <text fg={C.faint}>HYDRADB</text>
-        <text fg={state.hydra?.status === 'persisted' ? C.green : C.muted}>{state.hydra?.status || 'not started'}</text>
-        <text fg={C.muted}>{state.hydra?.memoryCount || 0} memories · {state.hydra?.recall?.datedChunkCount || 0} dated · {state.hydra?.recall?.relatedCaseCount || 0} related</text>
+        <text fg={hydraReadFailed ? C.red : state.hydra?.status === 'persisted' ? C.green : C.muted}>{hydraReadFailed ? 'read failed' : state.hydra?.status || 'not started'}</text>
+        <text fg={C.muted}>{state.hydra?.memoryCount || 0} memories · read {state.hydra?.recall?.status || 'not-run'} · {state.hydra?.recall?.datedChunkCount || 0} dated · {state.hydra?.recall?.relatedCaseCount || 0} related · {graphTriplets} graph triplets</text>
         <box style={{ flexGrow: 1 }} />
         <text fg={C.faint}>[q] quit</text>
       </Panel>
