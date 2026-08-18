@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { summarizeGraphContext } from './graph-context.js'
 
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -59,27 +60,6 @@ function compactGraph(graph = {}) {
   }
 }
 
-function compactGraphContext(context) {
-  if (!context || typeof context !== 'object') return null
-  const queryPaths = context.query_paths || context.queryPaths || []
-  const chunkRelations = context.chunk_relations || context.chunkRelations || []
-  const rawTriplets = Array.isArray(context.triplets)
-    ? context.triplets
-    : [...queryPaths, ...chunkRelations].flatMap((path) => path?.triplets || [])
-  const triplets = rawTriplets.map((triplet) => ({
-    source: triplet.source?.name || triplet.source || null,
-    predicate: triplet.predicate || triplet.relation?.canonical_predicate || triplet.relation?.canonicalPredicate || triplet.relation?.predicate || null,
-    target: triplet.target?.name || triplet.target || null,
-    origin: triplet.origin || triplet.relation?.origin || null,
-  })).filter((triplet) => triplet.source && triplet.target).slice(0, 12)
-  return {
-    queryPathCount: context.queryPathCount ?? queryPaths.length,
-    chunkRelationCount: context.chunkRelationCount ?? chunkRelations.length,
-    tripletCount: context.tripletCount ?? triplets.length,
-    triplets,
-  }
-}
-
 /**
  * Build a portable, source-cited proof artifact. The receipt deliberately
  * excludes raw Hydra chunks and collector internals: it is safe to download,
@@ -88,7 +68,11 @@ function compactGraphContext(context) {
  */
 export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) {
   if (!report) return null
-  const graphContext = compactGraphContext(report.rewind?.memory?.graphContext || hydra?.recall?.graphContext)
+  const reportGraphContext = summarizeGraphContext(report.rewind?.memory?.graphContext)
+  const hydraGraphContext = summarizeGraphContext(hydra?.recall?.graphContext)
+  const graphContext = reportGraphContext?.tripletCount || reportGraphContext?.queryPathCount || reportGraphContext?.chunkRelationCount
+    ? reportGraphContext
+    : hydraGraphContext || reportGraphContext
   const content = {
     schema: 'recoil.evidence-receipt/v1',
     scenarioId: scenarioId || null,

@@ -1,5 +1,6 @@
 import { compareVersions, versionAffectedByAdvisory } from './evidence.js'
 import { buildEvidenceQuality } from './validation.js'
+import { summarizeGraphContext } from './graph-context.js'
 
 function dateOrNull(value) {
   if (!value) return null
@@ -128,15 +129,7 @@ function challengeFinding(finding, advisory) {
 
 function hydraRewindSummary(recall, asOf) {
   const priorScenarioIds = recall?.priorScenarioIds || recall?.relatedScenarioIds || []
-  const graphContext = recall?.graphContext || {}
-  const queryPaths = graphContext.query_paths || graphContext.queryPaths || []
-  const chunkRelations = graphContext.chunk_relations || graphContext.chunkRelations || []
-  const triplets = [...queryPaths, ...chunkRelations].flatMap((path) => path?.triplets || []).map((triplet) => ({
-    source: triplet.source?.name || null,
-    predicate: triplet.relation?.canonical_predicate || triplet.relation?.canonicalPredicate || triplet.relation?.predicate || null,
-    target: triplet.target?.name || null,
-    origin: triplet.relation?.origin || null,
-  })).filter((triplet) => triplet.source && triplet.target).slice(0, 12)
+  const graphContext = summarizeGraphContext(recall?.graphContext)
   return {
     status: recall?.status || 'skipped',
     asOf: recall?.asOf || asOf || null,
@@ -144,12 +137,7 @@ function hydraRewindSummary(recall, asOf) {
     relatedCaseCount: recall?.relatedCaseCount ?? priorScenarioIds.length,
     priorScenarioIds,
     sourceUrls: [...new Set(recall?.sources || [])].filter(Boolean).slice(0, 12),
-    graphContext: {
-      queryPathCount: queryPaths.length,
-      chunkRelationCount: chunkRelations.length,
-      tripletCount: triplets.length,
-      triplets,
-    },
+    graphContext: graphContext || { queryPathCount: 0, chunkRelationCount: 0, tripletCount: 0, triplets: [] },
     reason: recall?.reason || null,
   }
 }

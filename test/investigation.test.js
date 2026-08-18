@@ -80,6 +80,21 @@ test('HydraDB rewind context is summarized without replacing local verdicts', ()
   assert.equal('chunks' in attached.rewind.memory, false)
 })
 
+test('HydraDB top-level graph triplets survive rewind normalization', () => {
+  const report = buildInvestigationReport(baseEvidence)
+  const attached = attachHydraRewind(report, {
+    status: 'recalled',
+    asOf: '2022-03-17T00:00:00.000Z',
+    graphContext: { triplets: [{ source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: 'byog' }] },
+  })
+  assert.deepEqual(attached.rewind.memory.graphContext, {
+    queryPathCount: 0,
+    chunkRelationCount: 0,
+    tripletCount: 1,
+    triplets: [{ source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: 'byog' }],
+  })
+})
+
 test('rewind refuses to claim a path before its evidence existed', () => {
   const report = buildInvestigationReport(baseEvidence, { asOf: '2020-01-01T00:00:00Z' })
   assert.equal(report.rewind.advisoryPublic, false)

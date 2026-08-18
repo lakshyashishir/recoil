@@ -61,3 +61,15 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
 test('missing report does not produce a misleading receipt', () => {
   assert.equal(buildEvidenceReceipt({ scenarioId: 'empty' }), null)
 })
+
+test('receipt falls back to top-level HydraDB graph triplets when rewind summary is empty', () => {
+  const report = {
+    query: 'GHSA-test https://github.com/example/app',
+    repositories: [],
+    graph: { nodes: [], edges: [] },
+    sources: [],
+    rewind: { memory: { graphContext: { queryPathCount: 0, chunkRelationCount: 0, tripletCount: 0, triplets: [] } } },
+  }
+  const receipt = buildEvidenceReceipt({ report, hydra: { recall: { graphContext: { triplets: [{ source: { name: 'advisory' }, relation: { canonical_predicate: 'AFFECTS' }, target: { name: 'minimist' } }] } } } })
+  assert.deepEqual(receipt.hydra.graphContext.triplets, [{ source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: null }])
+})
