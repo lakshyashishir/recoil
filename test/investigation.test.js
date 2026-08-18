@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 
 const baseEvidence = {
-  status: 'completed',
+    status: 'completed',
   query: 'GHSA-test',
   package: 'minimist',
   target: { advisoryId: 'GHSA-test' },
@@ -27,7 +27,7 @@ const baseEvidence = {
   ],
   graph: { nodes: [], edges: [] },
   sources: ['https://osv.dev/vulnerability/GHSA-test'],
-  temporal: { advisoryPublishedAt: '2022-03-18T00:01:09Z' },
+  temporal: { advisoryPublishedAt: '2022-03-18T00:01:09Z', collectedAt: '2022-04-01T00:00:00Z' },
 }
 
 test('investigation report preserves the three-way repository contrast and fix challenge', () => {
@@ -39,12 +39,15 @@ test('investigation report preserves the three-way repository contrast and fix c
     declaredOnly: 1,
     notAffected: 1,
     unknown: 0,
-    fixSurvives: 2,
+    fixSurvives: 1,
+    alreadySafe: 1,
     residualPaths: 0,
     exposureDays: 441,
   })
   assert.equal(report.challenge.find((item) => item.repository === 'example/reached').status, 'FIX_SURVIVES')
   assert.equal(report.challenge.find((item) => item.repository === 'example/declared').status, 'NO_REACHABLE_PATH')
+  assert.equal(report.challenge.find((item) => item.repository === 'example/fixed').status, 'ALREADY_SAFE')
+  assert.equal(report.rewind.currentAsOf, '2022-04-01T00:00:00.000Z')
 })
 
 test('rewind refuses to claim a path before its evidence existed', () => {

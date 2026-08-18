@@ -21,6 +21,9 @@ function findingAsOf(finding, asOf) {
 }
 
 function challengeFinding(finding, advisory) {
+  if (finding.verdict === 'NOT_AFFECTED') {
+    return { repository: finding.repository, status: 'ALREADY_SAFE', detail: `${finding.packageName}@${finding.resolvedVersion || 'unknown'} is already outside the advisory range.`, proposedVersion: finding.resolvedVersion, residualPath: [] }
+  }
   const proposedVersion = finding.allowedVersion || finding.targetVersion
   if (!proposedVersion) {
     return { repository: finding.repository, status: 'NO_FIXED_VERSION', detail: 'The advisory did not provide a fixed version that Recoil can verify.' }
@@ -48,18 +51,20 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
   const findings = ingestion?.findings || []
   const advisory = ingestion?.advisory || ingestion?.collectors?.find((collector) => collector.collector === 'advisory-resolver')?.targetAdvisory || null
   const advisoryPublishedAt = dateOrNull(ingestion?.temporal?.advisoryPublishedAt || advisory?.published)
+  const currentAsOf = dateOrNull(ingestion?.temporal?.collectedAt || ingestion?.completedAt) || new Date().toISOString()
+  const requestedAsOf = dateOrNull(asOf) || currentAsOf
   const currentFindings = findings.map((finding) => ({
     ...finding,
     pathObservedAt: dateOrNull(finding.pathObservedAt),
     exposureDays: daysBetween(dateOrNull(finding.pathObservedAt), advisoryPublishedAt),
   }))
-  const rewindFindings = currentFindings.map((finding) => findingAsOf(finding, asOf))
+  const rewindFindings = currentFindings.map((finding) => findingAsOf(finding, requestedAsOf))
   const challenge = currentFindings.map((finding) => challengeFinding(finding, advisory))
   const reached = currentFindings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = currentFindings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
   const unaffected = currentFindings.filter((finding) => finding.verdict === 'NOT_AFFECTED')
   const fixSurvives = challenge.filter((item) => item.status === 'FIX_SURVIVES')
-  const residual = challenge.filter((item) => !['FIX_SURVIVES', 'NO_FIXED_VERSION', 'NO_REACHABLE_PATH'].includes(item.status))
+  const residual = challenge.filter((item) => !['FIX_SURVIVES', 'ALREADY_SAFE', 'NO_FIXED_VERSION', 'NO_REACHABLE_PATH'].includes(item.status))
   return {
     status: ingestion?.status || 'partial',
     query: ingestion?.query || '',
@@ -75,8 +80,9 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
     repositories: currentFindings,
     challenge,
     rewind: {
-      asOf,
-      advisoryPublic: advisoryPublishedAt ? new Date(asOf) >= new Date(advisoryPublishedAt) : null,
+      asOf: requestedAsOf,
+      currentAsOf,
+      advisoryPublic: advisoryPublishedAt ? new Date(requestedAsOf) >= new Date(advisoryPublishedAt) : null,
       findings: rewindFindings,
       beforeAdvisory: advisoryPublishedAt ? new Date(new Date(advisoryPublishedAt).getTime() - 86400000).toISOString() : null,
     },
@@ -87,6 +93,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       notAffected: unaffected.length,
       unknown: currentFindings.filter((finding) => !['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'].includes(finding.verdict)).length,
       fixSurvives: fixSurvives.length,
+      alreadySafe: challenge.filter((item) => item.status === 'ALREADY_SAFE').length,
       residualPaths: residual.length,
       exposureDays: reached.map((finding) => finding.exposureDays).filter((value) => value !== null).sort((a, b) => b - a)[0] || null,
     },

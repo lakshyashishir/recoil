@@ -2,6 +2,8 @@ const DEFAULT_PACKAGE = 'ua-parser-js'
 const DEFAULT_ADVISORY = 'CVE-2021-4229'
 const KNOWN_AFFECTED_VERSIONS = ['0.7.29', '0.8.0', '1.0.0']
 
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { buildChangeImpact, buildCodeGraph, enrichImpactCandidates, parseCodeowners } from '../src/core/codegraph.js'
 import { buildObservedGraph, classifyRepository, fixedVersionsFromAdvisory } from '../src/core/evidence.js'
 
@@ -12,16 +14,24 @@ const incidentSources = [
 ]
 
 async function readJson(url, options) {
+  const cached = readCache(url, options)
+  if (cached !== null) return cached
   const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
   if (!response.ok) throw httpError(response, url)
-  return response.json()
+  const payload = await response.json()
+  writeCache(url, options, payload)
+  return payload
 }
 
 async function readOptionalJson(url, options) {
+  const cached = readCache(url, options)
+  if (cached !== null) return cached
   const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
   if (response.status === 404) return null
   if (!response.ok) throw httpError(response, url)
-  return response.json()
+  const payload = await response.json()
+  writeCache(url, options, payload)
+  return payload
 }
 
 function githubHeaders() {
@@ -33,6 +43,37 @@ function httpError(response, url) {
     return new Error(`GitHub API rate limit exhausted while reading ${url}; set GITHUB_TOKEN or retry later`)
   }
   return new Error(`${response.status} ${response.statusText}`)
+}
+
+function cachePath(url, options = {}) {
+  if (!/^https:\/\/api\.github\.com\//.test(url) || (options?.method && options.method !== 'GET')) return null
+  const root = process.env.RECOIL_CACHE_DIR || '.recoil-cache'
+  const key = createHash('sha256').update(url).digest('hex')
+  return `${root}/${key}.json`
+}
+
+function readCache(url, options) {
+  const path = cachePath(url, options)
+  if (!path || !existsSync(path)) return null
+  try {
+    const cached = JSON.parse(readFileSync(path, 'utf8'))
+    const ttl = Number(process.env.RECOIL_CACHE_TTL_MS || 86400000)
+    if (Date.now() - cached.savedAt > ttl) return null
+    return cached.payload
+  } catch {
+    return null
+  }
+}
+
+function writeCache(url, options, payload) {
+  const path = cachePath(url, options)
+  if (!path) return
+  try {
+    mkdirSync(path.slice(0, path.lastIndexOf('/')), { recursive: true })
+    writeFileSync(path, JSON.stringify({ savedAt: Date.now(), payload }))
+  } catch {
+    // Cache failure must never change evidence collection semantics.
+  }
 }
 
 function parseGitHubRepository(query = '') {
@@ -99,6 +140,35 @@ async function readGitHubTree(repository) {
   return Array.isArray(payload?.tree) ? payload.tree.filter((entry) => entry.type === 'blob').map((entry) => entry.path) : []
 }
 
+async function readGitHubCommitHistory(repository, path) {
+  if (!path) return null
+  const base = `https://api.github.com/repos/${repository.owner}/${repository.name}/commits?path=${encodeURIComponent(path)}&per_page=1`
+  const readPage = async (page = 1) => {
+    const url = `${base}&page=${page}`
+    const cached = readCache(url)
+    if (cached && Array.isArray(cached.commits)) return cached
+    const response = await fetch(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+    if (response.status === 404) return { commits: [], lastPage: 1 }
+    if (!response.ok) throw httpError(response, url)
+    const commits = await response.json()
+    const link = response.headers.get('link') || ''
+    const lastPage = Number(link.match(/[?&]page=(\d+)>; rel="last"/)?.[1] || page)
+    const result = { commits, lastPage }
+    writeCache(url, {}, result)
+    return result
+  }
+  const first = await readPage(1)
+  if (!first.commits.length) return null
+  const oldestPage = first.lastPage > 1 ? await readPage(first.lastPage) : first
+  const newest = first.commits[0]
+  const oldest = oldestPage.commits.at(-1) || newest
+  return {
+    firstCommitAt: oldest.commit?.author?.date || oldest.commit?.committer?.date || null,
+    latestCommitAt: newest.commit?.author?.date || newest.commit?.committer?.date || null,
+    sourceUrl: oldest.html_url || newest.html_url || null,
+  }
+}
+
 async function collectSourceFiles(repository) {
   let paths = []
   let status = 'collected'
@@ -115,14 +185,15 @@ async function collectSourceFiles(repository) {
     .filter((path) => /\.(?:js|jsx|mjs|cjs|ts|tsx|rs)$/.test(path))
     .filter((path) => !/(?:node_modules|target|dist|build|vendor)\//.test(path))
     .slice(0, 24)
-  const files = await Promise.all(candidates.map(async (path) => {
+  const responses = await Promise.all(candidates.map(async (path) => {
     try {
-      return await readGitHubFile(repository, path)
-    } catch {
-      return null
+      return { file: await readGitHubFile(repository, path), error: null }
+    } catch (cause) {
+      return { file: null, error: cause.message }
     }
   }))
-  return { files: files.filter(Boolean), status, error }
+  const failures = responses.map((item) => item.error).filter(Boolean)
+  return { files: responses.map((item) => item.file).filter(Boolean), requested: candidates.length, status: failures.length && status === 'collected' ? 'partial' : status, error: error || failures[0] || null }
 }
 
 async function collectLatestChange(repository, codeGraph) {
@@ -226,6 +297,9 @@ export async function collectRepository(repository, requestedPackage) {
     ? await readGitHubFile(repository, 'Cargo.lock')
     : await readGitHubFile(repository, 'package-lock.json') || await readGitHubFile(repository, 'npm-shrinkwrap.json')
   const lockfile = lockFile && ecosystem === 'npm' ? JSON.parse(lockFile.text) : null
+  const temporal = lockFile
+    ? await readGitHubCommitHistory(repository, lockFile.path).catch((error) => ({ error: error.message, sourceUrl: lockFile.sourceUrl }))
+    : null
   const lockPackages = ecosystem === 'cargo'
     ? (lockFile ? parseCargoLock(lockFile.text) : [])
     : Object.entries(lockfile?.packages || {})
@@ -278,7 +352,13 @@ export async function collectRepository(repository, requestedPackage) {
       ciSignals,
       deploymentSignals,
       collection: {
-        sourceFiles: { status: sourceResult.status, error: sourceResult.error, sampled: sourceFiles.length, requested: Math.min(24, sourceFiles.length) },
+        sourceFiles: { status: sourceResult.status, error: sourceResult.error, sampled: sourceFiles.length, requested: sourceResult.requested || 0 },
+      },
+      temporal: {
+        pathObservedAt: temporal?.firstCommitAt || null,
+        latestPathCommitAt: temporal?.latestCommitAt || null,
+        sourceUrl: temporal?.sourceUrl || lockFile?.sourceUrl || null,
+        error: temporal?.error || null,
       },
       codeGraph,
     },
@@ -525,17 +605,22 @@ function advisoryCollector(advisory, advisoryId) {
   }
 }
 
-export async function runMultiRepositoryIngestion({ query = '', scenarioId = '0017' } = {}) {
+export async function runMultiRepositoryIngestion({ query = '', scenarioId = '0017', onProgress = () => {} } = {}) {
   const input = parseInvestigationInput(query)
+  onProgress({ type: 'step', key: 'public-records', status: 'working', title: 'Reading public records', detail: 'Resolving the advisory and package identity from OSV and the public registry.' })
   let advisory = await collectAdvisoryById(input.advisoryId)
   let packageName = input.packageName || advisoryPackageName(advisory)
   const repositories = input.repositories || []
+  onProgress({ type: 'step', key: 'public-records', status: 'complete', title: 'Public records ready', detail: advisory?.id ? `${advisory.id} · ${advisory.published ? `published ${advisory.published.slice(0, 10)}` : 'publication date unavailable'}` : 'No advisory identifier was supplied; repository evidence will be marked accordingly.', sourceUrls: [advisory?.sourceUrl].filter(Boolean) })
   const repositoryResults = await Promise.all(repositories.map(async (repository) => {
+    onProgress({ type: 'repository', key: `repository:${repository.slug}`, status: 'working', title: `Reading ${repository.slug}`, detail: 'Reading manifest, lockfile, and bounded source imports. Nothing is installed.', repository: repository.slug })
     try {
       const result = await collectRepository(repository, packageName)
       if (!packageName && result.inferredPackage) packageName = result.inferredPackage
+      onProgress({ type: 'repository', key: `repository:${repository.slug}`, status: 'complete', title: `${repository.slug} read`, detail: `${result.manifest?.lockfile || 'no lockfile'} · ${result.manifest?.codeGraph?.fileCount || 0} sampled source files`, repository: repository.slug, sourceUrls: [result.sourceUrl].filter(Boolean) })
       return result
     } catch (error) {
+      onProgress({ type: 'repository', key: `repository:${repository.slug}`, status: 'failed', title: `${repository.slug} unavailable`, detail: error.message, repository: repository.slug })
       return {
         collector: 'repository-extractor',
         status: 'failed',
@@ -559,6 +644,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   const registry = packageName
     ? await collectRegistry(packageName, ecosystem, advisory).catch((error) => ({ collector: 'registry-resolver', status: 'failed', package: packageName, ecosystem, error: error.message, fixedVersions: [], affectedVersions: [], maintainers: [] }))
     : { collector: 'registry-resolver', status: 'not_requested', package: null, ecosystem, fixedVersions: [], affectedVersions: [], maintainers: [] }
+  onProgress({ type: 'step', key: 'registry', status: registry.status === 'failed' ? 'failed' : 'complete', title: 'Registry record ready', detail: packageName ? `${packageName} · ${registry.fixedVersions?.length || 0} fixed version${registry.fixedVersions?.length === 1 ? '' : 's'} found` : 'Package identity unavailable.', sourceUrls: [registry.sourceUrl].filter(Boolean) })
   const advisoryRecord = advisoryCollector(advisory, input.advisoryId)
   const findings = repositoryResults.map((repository) => repository.status === 'completed'
     ? classifyRepository({ repository, packageName, advisory, advisoryId: input.advisoryId || advisory?.id })
@@ -589,6 +675,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
     ...(advisory?.references || []).map((reference) => reference.url),
   ].filter(Boolean))]
   const failed = [advisoryRecord, registry, ...repositoryResults].some((collector) => collector.status === 'failed')
+  onProgress({ type: 'step', key: 'classification', status: 'complete', title: 'Reachability classified', detail: findings.map((finding) => `${finding.repository}: ${finding.verdict}`).join(' · ') || 'No repositories were classified.' })
   return {
     status: failed ? 'partial' : packageName && advisory ? 'completed' : 'partial',
     query,

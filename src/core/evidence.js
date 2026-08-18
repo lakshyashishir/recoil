@@ -129,11 +129,13 @@ function repositoryLockEntry(manifest, packageName) {
 export function classifyRepository({ repository, packageName, advisory, advisoryId }) {
   const manifest = repository?.manifest || {}
   const codeGraph = manifest.codeGraph || {}
+  const sourceCollection = manifest.collection?.sourceFiles || {}
   const resolvedVersion = manifest.resolved?.[packageName] || repositoryLockEntry(manifest, packageName)?.version || null
   const declaredRange = manifest.dependencies?.[packageName] || manifest.devDependencies?.[packageName] || null
   const imports = (codeGraph.externalImports || []).filter((item) => item.packageName === packageName)
   const affected = versionAffectedByAdvisory(advisory, packageName, resolvedVersion)
   const fix = chooseFixedVersion(advisory, packageName, declaredRange)
+  const sourceEvidenceIncomplete = ['unavailable', 'partial'].includes(sourceCollection.status)
   let verdict = 'UNKNOWN'
   let reason = 'The available public evidence is insufficient to classify this repository.'
   if (!resolvedVersion) {
@@ -145,6 +147,9 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   } else if (affected === true && imports.length) {
     verdict = 'REACHED'
     reason = `The affected ${packageName}@${resolvedVersion} is imported by ${imports.length} sampled source file${imports.length === 1 ? '' : 's'}.`
+  } else if (affected === true && sourceEvidenceIncomplete) {
+    verdict = 'UNKNOWN'
+    reason = `The affected ${packageName}@${resolvedVersion} is present, but source collection was ${sourceCollection.status}; Recoil will not infer that no import exists.`
   } else if (affected === true) {
     verdict = 'DECLARED_ONLY'
     reason = `The affected ${packageName}@${resolvedVersion} is present in the lockfile, but no sampled source file imports it.`
@@ -172,10 +177,13 @@ export function classifyRepository({ repository, packageName, advisory, advisory
     rangeAllowsFix: fix.rangeAllowsFix,
     allowedVersion: fix.allowedVersion,
     sourceSampleSize: codeGraph.fileCount || 0,
-    sourceBound: codeGraph.fileCount ? `No import found in ${codeGraph.fileCount} sampled source files` : 'No source files sampled',
+    sourceBound: codeGraph.fileCount
+      ? `${codeGraph.fileCount} sampled source files analyzed${imports.length ? ` · ${imports.length} import${imports.length === 1 ? '' : 's'} found` : ' · no import found'}${sourceEvidenceIncomplete ? ` · collection ${sourceCollection.status}` : ''}`
+      : `No source files sampled${sourceEvidenceIncomplete ? ` · collection ${sourceCollection.status}` : ''}`,
     evidenceSources: [...new Set([
       repository?.sourceUrl,
       manifest.lockfile ? (repository?.sources || []).find((source) => source.path === manifest.lockfile)?.url : null,
+      manifest.temporal?.sourceUrl,
       ...imports.map((item) => item.sourceUrl),
     ].filter(Boolean))],
   }

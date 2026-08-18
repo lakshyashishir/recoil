@@ -331,6 +331,7 @@ async function route(req, res) {
     if (req.method === 'POST' && action === 'investigate') {
       return body(req).then((payload) => {
         if (typeof payload.query !== 'string' || !payload.query.trim()) return json(res, 422, { error: 'Provide an advisory, package, or public GitHub repositories' })
+        if (['running', 'finalizing'].includes(record.investigation?.status)) return json(res, 409, { error: 'An investigation is already running for this case' })
         record.mode = 'evidence'
         record.state = createInitialState()
         record.graph = { nodes: [], edges: [] }

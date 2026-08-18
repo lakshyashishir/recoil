@@ -55,17 +55,29 @@ export async function executeInvestigation(record) {
       title: 'Fix plan ready',
       detail: report.challenge.map((item) => `${item.repository}: ${item.status}`).join(' · ') || 'No fix plan could be produced.',
     })
-    state.status = 'complete'
-    state.step = 'complete'
-    state.completedAt = new Date().toISOString()
+    state.status = 'finalizing'
+    state.step = 'hydra'
     const persisted = await persistInvestigation(evidence, report).catch((error) => ({ status: 'failed', error: error.message, memoryCount: 0 }))
-    state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0 }
+    const recall = persisted.status === 'persisted' || persisted.status === 'queued'
+      ? await recallTemporal(record.query, report.rewind.currentAsOf).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
+      : { status: persisted.status, reason: persisted.reason, chunks: [] }
+    state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0, recall: { ...recall, chunkCount: recall.chunks?.length || 0 } }
     pushEvent(state, {
       type: 'step',
       key: 'hydra',
       status: persisted.status === 'failed' ? 'failed' : persisted.status === 'skipped' ? 'skipped' : 'complete',
       title: persisted.status === 'persisted' ? 'Evidence graph stored in HydraDB' : persisted.status === 'queued' ? 'Evidence graph queued in HydraDB' : 'Local evidence record ready',
-      detail: persisted.status === 'failed' ? persisted.error : `${persisted.memoryCount || 0} temporal evidence memories`,
+      detail: persisted.status === 'failed' ? persisted.error : `${persisted.memoryCount || 0} temporal evidence memories · ${recall.chunks?.length || 0} recalled`,
+    })
+    state.status = 'complete'
+    state.step = 'complete'
+    state.completedAt = new Date().toISOString()
+    pushEvent(state, {
+      type: 'step',
+      key: 'complete',
+      status: 'complete',
+      title: 'Case complete',
+      detail: 'The path, timeline, and remediation proof are ready to inspect.',
     })
     return state
   } catch (error) {
@@ -79,7 +91,10 @@ export async function executeInvestigation(record) {
 
 export async function rewindInvestigation(record, asOf) {
   if (!record.investigation?.report) return { error: 'Investigation has not completed' }
-  const report = buildInvestigationReport(record.investigation.evidence, { asOf })
-  const hydra = await recallTemporal(record.query, asOf).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
+  const requested = new Date(asOf)
+  if (Number.isNaN(requested.getTime())) return { error: 'Invalid rewind timestamp' }
+  const normalized = requested.toISOString()
+  const report = buildInvestigationReport(record.investigation.evidence, { asOf: normalized })
+  const hydra = await recallTemporal(record.query, normalized).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
   return { report, hydra }
 }

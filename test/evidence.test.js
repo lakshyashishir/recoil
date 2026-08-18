@@ -57,3 +57,12 @@ test('observed graph contains only advisory, repository, lockfile, and source ev
   assert.equal(graph.nodes.some((node) => node.label === 'customer database'), false)
   assert.ok(graph.edges.some(([from, to]) => from === `lock:example/app:package-lock.json` && to.includes('code:example/app:src/cli.js')))
 })
+
+test('incomplete source collection is unknown instead of falsely declared-only', () => {
+  const partialRepository = repository({ imports: [] })
+  partialRepository.repository = 'example/partial'
+  partialRepository.manifest.collection = { sourceFiles: { status: 'partial', sampled: 3, requested: 5 } }
+  const partial = classifyRepository({ repository: partialRepository, packageName: 'minimist', advisory, advisoryId: advisory.id })
+  assert.equal(partial.verdict, 'UNKNOWN')
+  assert.match(partial.reason, /source collection was partial/)
+})
