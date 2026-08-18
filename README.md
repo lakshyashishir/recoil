@@ -110,6 +110,11 @@ The CLI exits nonzero when collection is partial or a repository is `UNKNOWN`, e
 the partial report and receipt URL. This makes it safe to use in CI and prevents an incomplete public case
 from being recorded as a successful demo.
 
+Every completed report also exposes one `evidenceQuality` object in the browser, CLI JSON, and downloaded
+receipt. It says whether the case is `complete`, needs `review`, or is `partial`, names unclassified
+repositories and failed collectors, and surfaces mixed lockfile-version ambiguity instead of hiding it.
+`readyForRecording` is the single recording gate used by the CLI and report surfaces.
+
 For a repeatable external smoke against the configured `.env` (defaulting to the real bytes advisory and HydraDB repository), run `npm run smoke:real`. Set `RECOIL_SMOKE_QUERY` to use a different advisory/repository set. The command exits nonzero when collection is partial, a finding is `UNKNOWN`, or HydraDB fails, so an incomplete demo cannot look green.
 
 Set `RECOIL_SMOKE_REQUIRE_CONTRAST=1` for the recording gate. In that mode the case must contain one

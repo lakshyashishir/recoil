@@ -49,6 +49,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Optional advisory-symbol scope is validated against indexed source and appended to the cited path/receipt.
 - [x] Browser production build and regression suite.
 - [x] Repeatable real smoke command with strict partial/unknown failure status.
+- [x] Shared evidence-quality contract across report, CLI, browser, and receipt.
 
 ### Still required before calling the hackathon build complete
 

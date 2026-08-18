@@ -16,6 +16,7 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
       evidenceSources: ['https://github.com/example/app/blob/HEAD/package-lock.json'], sourceSampleSize: 3,
     }],
     challenge: [{ repository: 'example/app', status: 'FIX_SURVIVES', proposedVersion: '1.2.6' }],
+    evidenceQuality: { status: 'complete', readyForRecording: true, reason: 'All requested public sources completed.' },
     graph: { nodes: [{ id: 'repo:example/app', label: 'example/app', type: 'repository' }], edges: [] },
     sources: ['https://osv.dev/vulnerability/GHSA-test'],
     limits: ['sampled source only'],
@@ -34,6 +35,7 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.equal(receipt.integrity.algorithm, 'SHA-256')
   assert.match(receipt.integrity.value, /^[a-f0-9]{64}$/)
   assert.equal(receipt.execution.executedRepositoryCode, false)
+  assert.equal(receipt.evidenceQuality.readyForRecording, true)
 })
 
 test('missing report does not produce a misleading receipt', () => {

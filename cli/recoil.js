@@ -102,7 +102,11 @@ async function main() {
   }
 
   const summary = result.report.summary || {}
+  const quality = result.report.evidenceQuality || {}
   line(`result  ${summary.reached || 0} reached · ${summary.declaredOnly || 0} declared only · ${summary.notAffected || 0} not affected · ${summary.unknown || 0} unknown`)
+  line(`evidence ${quality.status || 'unknown'} · ${quality.readyForRecording ? 'recording-ready' : 'review required'} · ${quality.reason || 'quality not available'}`)
+  if (quality.ambiguousVersions?.length) line(`ambiguity ${quality.ambiguousVersions.map((item) => `${item.repository}: ${item.versions.join(', ')}`).join(' · ')}`)
+  if (quality.sourceCoverage?.boundedRepositories) line(`sampling ${quality.sourceCoverage.sampledFiles}/${quality.sourceCoverage.candidateFiles} eligible source files across ${quality.sourceCoverage.boundedRepositories} bounded repos`)
   for (const finding of result.report.repositories || []) {
     line(`repo    ${finding.verdict.padEnd(14)} ${finding.repository || 'unknown'} · ${finding.packageName || 'package'}@${finding.resolvedVersion || 'unresolved'}`)
   }

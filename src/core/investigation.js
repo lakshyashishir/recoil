@@ -1,4 +1,5 @@
 import { compareVersions, versionAffectedByAdvisory } from './evidence.js'
+import { buildEvidenceQuality } from './validation.js'
 
 function dateOrNull(value) {
   if (!value) return null
@@ -68,6 +69,11 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
   const unaffected = currentFindings.filter((finding) => finding.verdict === 'NOT_AFFECTED')
   const fixSurvives = challenge.filter((item) => item.status === 'FIX_SURVIVES')
   const residual = challenge.filter((item) => !['FIX_SURVIVES', 'ALREADY_SAFE', 'NO_FIXED_VERSION', 'NO_REACHABLE_PATH'].includes(item.status))
+  const evidenceQuality = buildEvidenceQuality({
+    status: ingestion?.status || 'partial',
+    collectors: ingestion?.collectors || [],
+    repositories: currentFindings,
+  })
   return {
     status: ingestion?.status || 'partial',
     query: ingestion?.query || '',
@@ -81,6 +87,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       sourceUrl: advisory.sourceUrl || ingestion?.collectors?.find((collector) => collector.collector === 'advisory-resolver')?.sourceUrl || null,
     } : null,
     advisoryScope: ingestion?.advisoryScope || { status: 'not_requested', affectedSymbols: [] },
+    evidenceQuality,
     repositories: currentFindings,
     challenge,
     rewind: {

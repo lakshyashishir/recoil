@@ -74,6 +74,10 @@ The CLI and browser consume the same autonomous API state machine. `--json` is u
 The CLI exits nonzero when public collection is partial or any repository is `UNKNOWN`; keep the printed
 receipt for diagnosis, but do not record that run as the final demo.
 
+Look for `evidence complete · recording-ready` in the terminal and the matching Evidence Status line in
+the browser report. If the case is partial or requires review, the same quality object lists the failed
+collector, unknown repository, or mixed resolved versions that must be fixed before recording.
+
 The CLI prints a receipt URL after completion. The browser exposes the same receipt as a download from the case result.
 
 ## Safety statement

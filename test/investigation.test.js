@@ -48,6 +48,8 @@ test('investigation report preserves the three-way repository contrast and fix c
   assert.equal(report.challenge.find((item) => item.repository === 'example/declared').status, 'NO_REACHABLE_PATH')
   assert.equal(report.challenge.find((item) => item.repository === 'example/fixed').status, 'ALREADY_SAFE')
   assert.equal(report.rewind.currentAsOf, '2022-04-01T00:00:00.000Z')
+  assert.equal(report.evidenceQuality.status, 'complete')
+  assert.equal(report.evidenceQuality.readyForRecording, true)
 })
 
 test('rewind refuses to claim a path before its evidence existed', () => {

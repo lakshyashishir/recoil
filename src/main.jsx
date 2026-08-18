@@ -92,10 +92,21 @@ function EvidencePath({ finding, advisorySource }) {
 }
 
 function RepositoryFinding({ finding, advisorySource }) {
+  const versions = finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'unresolved'
   return <details className={`repository-finding finding-${finding.verdict?.toLowerCase()}`}>
-    <summary><div className="finding-main"><Verdict value={finding.verdict} /><strong>{finding.repository || 'Unknown repository'}</strong></div><div className="finding-version">{finding.packageName}@{finding.resolvedVersion || 'unresolved'} <ChevronDown size={15} /></div></summary>
+    <summary><div className="finding-main"><Verdict value={finding.verdict} /><strong>{finding.repository || 'Unknown repository'}</strong></div><div className="finding-version">{finding.packageName}@{versions} <ChevronDown size={15} /></div></summary>
     <div className="finding-detail"><p className="finding-reason">{finding.reason}</p><EvidencePath finding={finding} advisorySource={advisorySource} />{finding.advisoryScope?.status === 'VALIDATED_SYMBOL' && <p className="scope-proof">Advisory scope matched indexed symbol{finding.advisoryScope.symbols.length === 1 ? '' : 's'}: {finding.advisoryScope.symbols.map((symbol) => `${symbol.name} (${symbol.path}:${symbol.line})`).join(', ')}</p>}{finding.changeEvidence?.importerFilesChanged?.length > 0 && <p className="change-note">Latest public change touched the importing file{finding.changeEvidence.importerFilesChanged.length === 1 ? '' : 's'}: {finding.changeEvidence.importerFilesChanged.map((item) => item.path).join(', ')}{finding.changeEvidence.sourceUrl && <> · <SourceLink href={finding.changeEvidence.sourceUrl}>commit</SourceLink></>}</p>}<dl className="finding-facts"><div><dt>declared range</dt><dd>{finding.declaredRange || 'not found'}</dd></div><div><dt>sampled imports</dt><dd>{finding.imports?.length || 0}</dd></div><div><dt>source boundary</dt><dd>{finding.sourceBound || 'not recorded'}</dd></div><div><dt>fix</dt><dd>{finding.targetVersion ? `${finding.targetVersion}${finding.rangeAllowsFix ? ' · range allows it' : ' · manifest change required'}` : 'not available'}</dd></div>{finding.exposureDays !== null && finding.exposureDays !== undefined && <div><dt>exposure window</dt><dd>{finding.exposureDays} days before publication</dd></div>}</dl></div>
   </details>
+}
+
+function EvidenceQuality({ quality }) {
+  if (!quality) return null
+  const complete = quality.readyForRecording
+  const sourceCoverage = quality.sourceCoverage
+  return <section className={`evidence-quality quality-${quality.status}`} aria-label="Evidence quality">
+    <div className="quality-copy"><p className="eyebrow">EVIDENCE STATUS</p><strong>{complete ? 'Ready to record' : quality.status === 'review' ? 'Review before recording' : 'Evidence collection incomplete'}</strong><p>{quality.reason}</p></div>
+    <div className="quality-facts"><span>{quality.unknownFindings?.length || 0}<small>unclassified</small></span><span>{quality.ambiguousVersions?.length || 0}<small>version ambiguities</small></span>{sourceCoverage && <span>{sourceCoverage.sampledFiles}/{sourceCoverage.candidateFiles}<small>source files sampled</small></span>}</div>
+  </section>
 }
 
 function Rewind({ report, activeReport, onSelect }) {
@@ -128,6 +139,7 @@ function FinalReport({ report, hydra, onRewind }) {
   const scopeLabel = scope.status === 'completed' ? `${scope.affectedSymbols?.length || 0} advisory symbol candidate${scope.affectedSymbols?.length === 1 ? '' : 's'} checked against indexed code` : 'module-level package proof; symbol scope not enabled'
   return <main className="report-page">
     <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{summary.reached || 0} of {summary.totalRepositories || 0} repositories<br /><i>reach vulnerable code.</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p><ReceiptLink /></section>
+    <EvidenceQuality quality={report?.evidenceQuality} />
     <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
     <Rewind report={report} activeReport={report} onSelect={onRewind} />
     <HydraProof hydra={hydra} />
