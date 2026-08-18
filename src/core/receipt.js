@@ -69,6 +69,7 @@ export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) 
     graph: compactGraph(report.graph),
     hydra: {
       status: hydra?.status || 'skipped',
+      error: hydra?.error || null,
       memoryCount: hydra?.memoryCount || 0,
       recall: hydra?.recall ? {
         status: hydra.recall.status || null,

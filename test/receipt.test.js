@@ -25,6 +25,7 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.equal(receipt.repositories[0].verdict, 'REACHED')
   assert.equal(receipt.repositories[0].imports[0].sourceUrl, 'https://github.com/example/app/blob/HEAD/src/cli.js')
   assert.equal(receipt.hydra.memoryCount, 4)
+  assert.equal(receipt.hydra.error, null)
   assert.equal('chunks' in receipt.hydra, false)
   assert.equal(receipt.integrity.algorithm, 'SHA-256')
   assert.match(receipt.integrity.value, /^[a-f0-9]{64}$/)
@@ -34,4 +35,3 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
 test('missing report does not produce a misleading receipt', () => {
   assert.equal(buildEvidenceReceipt({ scenarioId: 'empty' }), null)
 })
-

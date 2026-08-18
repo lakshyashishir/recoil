@@ -59,7 +59,7 @@ function InvestigationHeader({ investigation, hydra }) {
   return <header className="product-header">
     <div className="header-brand"><span className="wordmark-mark" /> RECOIL <span>evidence proof</span></div>
     <div className="header-case"><span>{id}</span><small>{state === 'complete' ? 'case complete' : state === 'failed' ? 'incomplete' : 'investigating'}</small></div>
-    <div className="header-status"><span className={`connection-mark ${hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydra?.status === 'persisted' ? 'HydraDB stored' : hydra?.status === 'queued' ? 'HydraDB indexing' : 'local evidence record'}</div>
+    <div className="header-status"><span className={`connection-mark ${hydra?.status === 'persisted' ? 'is-live' : hydra?.status === 'failed' ? 'is-failed' : ''}`} /> {hydra?.status === 'persisted' ? 'HydraDB stored' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'local evidence record'}</div>
   </header>
 }
 
@@ -106,7 +106,12 @@ function HydraProof({ hydra }) {
   const status = hydra?.status || 'skipped'
   const recall = hydra?.recall
   const label = status === 'persisted' ? 'Stored and queried' : status === 'queued' ? 'Stored; indexing is still queued' : status === 'failed' ? 'HydraDB write failed' : 'Local replay only'
-  return <section className="hydra-proof"><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{status === 'skipped' ? hydra?.reason || 'Configure HydraDB to persist this case.' : `Recoil wrote ${hydra?.memoryCount || 0} evidence memories with dated validity and retrieved ${recall?.datedChunkCount || 0} dated facts from ${recall?.relatedCaseCount || 0} prior case${recall?.relatedCaseCount === 1 ? '' : 's'}.`}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div></section>
+  const description = status === 'skipped'
+    ? hydra?.reason || 'Configure HydraDB to persist this case.'
+    : status === 'failed'
+      ? hydra?.error || 'The local evidence report is complete, but HydraDB did not accept the write.'
+      : `Recoil wrote ${hydra?.memoryCount || 0} evidence memories with dated validity and retrieved ${recall?.datedChunkCount || 0} dated facts from ${recall?.relatedCaseCount || 0} prior case${recall?.relatedCaseCount === 1 ? '' : 's'}.`
+  return <section className={`hydra-proof hydra-${status}`}><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{description}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div></section>
 }
 
 function ReceiptLink() {
