@@ -97,6 +97,16 @@ test('an affected dependency with no analyzable source sample is unknown', () =>
   assert.match(finding.reason, /no analyzable source files were sampled/)
 })
 
+test('mixed affected and safe lockfile versions remain unknown instead of collapsing to one version', () => {
+  const repositoryWithDuplicateVersions = repository()
+  repositoryWithDuplicateVersions.manifest.resolvedVersions = { minimist: ['1.2.5', '1.2.6'] }
+  const finding = classifyRepository({ repository: repositoryWithDuplicateVersions, packageName: 'minimist', advisory, advisoryId: advisory.id })
+
+  assert.equal(finding.verdict, 'UNKNOWN')
+  assert.match(finding.reason, /multiple lockfile versions/)
+  assert.deepEqual(finding.resolvedVersions, ['1.2.5', '1.2.6'])
+})
+
 test('advisory symbol suggestions are attached only after exact source validation', () => {
   const finding = classifyRepository({ repository: repository(), packageName: 'minimist', advisory, advisoryId: advisory.id })
   const ingestion = {

@@ -332,8 +332,8 @@ function parseCargoLock(text) {
   }).filter(Boolean).slice(0, 160)
 }
 
-function resolveFromLockfile(lockfile, packageName) {
-  if (!lockfile || !packageName) return null
+function resolveLockfileEntries(lockfile, packageName) {
+  if (!lockfile || !packageName) return []
   const packageEntries = Object.entries(lockfile.packages || {})
     .filter(([path, entry]) => entry?.version && packageNameFromNodeModulesPath(path) === packageName)
     .sort(([left], [right]) => {
@@ -341,9 +341,13 @@ function resolveFromLockfile(lockfile, packageName) {
       const rightDepth = right.split('/node_modules/').length
       return leftDepth - rightDepth || left.localeCompare(right)
     })
-  if (packageEntries[0]?.[1]?.version) return packageEntries[0][1].version
+  if (packageEntries.length) return packageEntries.map(([path, entry]) => ({ path, version: entry.version }))
   const legacyEntry = lockfile.dependencies?.[packageName]
-  return legacyEntry?.version || null
+  return legacyEntry?.version ? [{ path: `dependencies.${packageName}`, version: legacyEntry.version }] : []
+}
+
+function resolveFromLockfile(lockfile, packageName) {
+  return resolveLockfileEntries(lockfile, packageName)[0]?.version || null
 }
 
 function packageNameFromNodeModulesPath(path = '') {
@@ -417,6 +421,9 @@ export async function collectRepository(repository, requestedPackage) {
   const resolvedVersion = ecosystem === 'cargo'
     ? lockPackages.find((item) => item.name === inferredPackage)?.version || null
     : resolveFromLockfile(lockfile, inferredPackage)
+  const resolvedVersions = ecosystem === 'cargo'
+    ? [...new Set(lockPackages.filter((item) => item.name === inferredPackage).map((item) => item.version))]
+    : [...new Set(resolveLockfileEntries(lockfile, inferredPackage).map((item) => item.version))]
   return {
     collector: 'repository-extractor',
     status: 'completed',
@@ -432,6 +439,7 @@ export async function collectRepository(repository, requestedPackage) {
       version: packageJson?.version || cargoManifest?.version || null,
       dependencies: normalizedDependencies,
       resolved: inferredPackage ? { [inferredPackage]: resolvedVersion || 'range-only' } : {},
+      resolvedVersions: inferredPackage ? { [inferredPackage]: resolvedVersions } : {},
       lockfile: lockFile?.path || null,
       lockPackages,
       ciSignals,

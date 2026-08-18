@@ -9,6 +9,7 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
     advisory: { id: 'GHSA-test', published: '2026-01-01T00:00:00.000Z', sourceUrl: 'https://osv.dev/vulnerability/GHSA-test' },
     repositories: [{
       repository: 'example/app', repositoryUrl: 'https://github.com/example/app', packageName: 'minimist', resolvedVersion: '1.2.5',
+      resolvedVersions: ['1.2.5'],
       verdict: 'REACHED', path: ['GHSA-test', 'minimist@1.2.5', 'example/app', 'src/cli.js'],
       imports: [{ path: 'src/cli.js', line: 1, specifier: 'minimist', packageName: 'minimist', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' }],
       advisoryScope: { status: 'VALIDATED_SYMBOL', symbols: [{ name: 'parseArgs', path: 'src/cli.js', line: 4 }] },

@@ -133,6 +133,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   const sourceCandidateCount = sourceCollection.available || sourceCollection.requested || codeGraph.fileCount || 0
   const sourceSampleLimit = sourceCollection.limit || null
   const resolvedVersion = manifest.resolved?.[packageName] || repositoryLockEntry(manifest, packageName)?.version || null
+  const resolvedVersions = [...new Set(manifest.resolvedVersions?.[packageName] || [resolvedVersion].filter(Boolean))]
   const declaredRange = manifest.dependencies?.[packageName] || manifest.devDependencies?.[packageName] || null
   const imports = (codeGraph.externalImports || []).filter((item) => item.packageName === packageName)
   const recentChange = codeGraph.recentChange || null
@@ -157,6 +158,8 @@ export function classifyRepository({ repository, packageName, advisory, advisory
     })),
   } : null
   const affected = versionAffectedByAdvisory(advisory, packageName, resolvedVersion)
+  const resolutionStates = resolvedVersions.map((version) => versionAffectedByAdvisory(advisory, packageName, version))
+  const ambiguousResolution = resolvedVersions.length > 1 && (resolutionStates.includes(null) || new Set(resolutionStates).size > 1)
   const fix = chooseFixedVersion(advisory, packageName, declaredRange)
   const sourceEvidenceIncomplete = ['unavailable', 'partial'].includes(sourceCollection.status)
   let verdict = 'UNKNOWN'
@@ -164,6 +167,9 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   if (!resolvedVersion) {
     verdict = 'UNKNOWN'
     reason = manifest.lockfile ? `The lockfile did not resolve ${packageName} in the sampled record.` : 'No lockfile resolution was found; reachability cannot be proven.'
+  } else if (ambiguousResolution) {
+    verdict = 'UNKNOWN'
+    reason = `${packageName} resolves to multiple lockfile versions (${resolvedVersions.join(', ')}), with different advisory states; the collected graph cannot prove which version the importer receives.`
   } else if (affected === false) {
     verdict = 'NOT_AFFECTED'
     reason = `${packageName}@${resolvedVersion} is outside the advisory’s affected ranges.`
@@ -181,8 +187,9 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   }
   const advisoryLabel = advisoryId || advisory?.id || 'advisory'
   const lockfilePath = manifest.lockfile || 'lockfile not collected'
+  const versionLabel = resolvedVersions.length > 1 ? `${packageName}@${resolvedVersions.join(', ')}` : `${packageName}@${resolvedVersion || 'unresolved'}`
   const path = resolvedVersion
-    ? [advisoryLabel, `${packageName}@${resolvedVersion}`, repository?.repository || 'repository', lockfilePath, ...imports.slice(0, 4).map((item) => item.path)]
+    ? [advisoryLabel, versionLabel, repository?.repository || 'repository', lockfilePath, ...imports.slice(0, 4).map((item) => item.path)]
     : [advisoryLabel, repository?.repository || 'repository']
   return {
     repository: repository?.repository || null,
@@ -192,6 +199,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
     verdict,
     reason,
     resolvedVersion,
+    resolvedVersions,
     declaredRange,
     pathObservedAt: manifest.temporal?.pathObservedAt || null,
     pathObservationSource: manifest.temporal?.sourceUrl || null,

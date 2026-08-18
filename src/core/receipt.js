@@ -24,6 +24,7 @@ function compactFinding(finding) {
     repositoryUrl: finding.repositoryUrl || null,
     packageName: finding.packageName || null,
     resolvedVersion: finding.resolvedVersion || null,
+    resolvedVersions: finding.resolvedVersions || (finding.resolvedVersion ? [finding.resolvedVersion] : []),
     declaredRange: finding.declaredRange || null,
     verdict: finding.verdict || 'UNKNOWN',
     reason: finding.reason || null,
