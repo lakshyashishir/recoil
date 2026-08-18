@@ -2,11 +2,38 @@
 
 ## Working title
 
-**Recoil — an attack-and-defense simulator for the open-source software supply chain.**
+**Recoil — a memory-backed red/blue cyber range for the open-source software supply chain.**
 
-> When a package, maintainer, or shared build system is compromised, Recoil simulates how the attack can propagate and finds the smallest set of defensive actions that stops it.
+> When a package, maintainer, or shared build system is compromised, Recoil runs an adaptive attacker and defender over the dependency graph, remembers every attempted route, and finds the smallest set of controls that stops the next one.
 
 This is a new project for Hack Hydra. The existing ClaimTrace application remains in the repository root and is intentionally not moved or modified as part of this plan. Its current worktree contains uncommitted changes, so isolating Recoil avoids accidentally breaking the side project.
+
+## 0. Current product contract: the adaptive arena
+
+The one-shot deterministic timeline is not the product. It remains as a compatibility path for the early API and TUI, but the primary experience is now an adaptive episode:
+
+```text
+public evidence → typed/bounded graph → red move → blue control
+       ↑                                               ↓
+       └──────── HydraDB round memory ← residual route ─┘
+```
+
+The red policy chooses a valid path from the current graph. The blue policy chooses a control based on the observed route, remaining response budget, and recalled prior rounds. After the control changes the graph, red searches again. The episode ends only when all modeled high-value targets are disconnected, the defender exhausts its budget, or the round cap is reached.
+
+This is a bounded defensive simulation. It never executes package code, sends exploit payloads, probes a target, or mutates a real deployment.
+
+### Acceptance criteria for the new core
+
+- The first red path and every alternate path are reconstructed from the current graph, not hardcoded event text.
+- Blocking one route causes the next red move to select a different reachable route when one exists.
+- Blue controls are evaluated against the current state and can be justified by the path they cut.
+- Each round records before/after exposure, red route, blue action, rationale, and residual route.
+- HydraDB recall can influence a blue decision, and the episode remains useful without HydraDB in local replay mode.
+- The CLI and browser show the same episode state from the API rather than implementing separate simulations.
+
+### Future Track 2 coverage
+
+After the arena is stable, Recoil can add a code-graph evidence layer: function/import ownership, changed-file impact, and source-level dependency edges. That would connect Track 2A supply-chain propagation to Track 2B code impact without diluting the core product. It is explicitly a second layer, not a reason to postpone the adaptive arena.
 
 ## 1. Product framing
 

@@ -328,9 +328,9 @@ export async function persistEvaluation({ scenarioId, queryText, recommended, al
   return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', memoryCount: 1, result }
 }
 
-export async function recall(queryText, signal, scenarioId = '0017') {
+export async function recall(queryText, signal, scenarioId = '0017', { allEpisodes = false } = {}) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', chunks: [], graphContext: null }
-  const result = await query({
+  const request = {
     database: databaseId(),
     collection: collectionId(),
     type: 'all',
@@ -341,14 +341,46 @@ export async function recall(queryText, signal, scenarioId = '0017') {
     numRelatedChunks: 3,
     graphContext: true,
     recencyBias: 0.2,
-    metadataFilters: { additionalMetadata: { recoil_scenario_id: scenarioId } },
     additionalContext: 'This is a software supply-chain attack-defense investigation. Prioritize packages, advisories, repositories, maintainers, source provenance, dates, propagation edges, and contradictions.',
-  }, signal)
+  }
+  if (!allEpisodes) request.metadataFilters = { additionalMetadata: { recoil_scenario_id: scenarioId } }
+  const result = await query(request, signal)
   return {
     status: 'recalled',
     chunks: result?.chunks || result?.results || [],
     sources: result?.sources || result?.documents || [],
     graphContext: result?.graph_context || result?.graphContext || null,
     raw: result,
+  }
+}
+
+export async function persistArenaRound({ scenarioId, queryText, packageName, round, red, blue, before, after, status }, signal) {
+  if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
+  const key = `${scenarioId}:${queryText}:arena:${round}`
+  const episode = memory({
+    id: `recoil:arena:${stableId(key)}`,
+    title: `Recoil arena round ${round} · ${packageName}`,
+    text: `# Recoil adaptive arena · round ${round}\n\n- Scenario: ${scenarioId}\n- Query: ${queryText}\n- Package: ${packageName}\n- Red move: ${red.label}\n- Red intent: ${red.intent}\n- Red route: ${red.pathLabel || 'no reachable route'}\n- Blue control: ${blue.title || 'none'}\n- Blue rationale: ${blue.rationale}\n- Memory used: ${blue.memoryUsed ? 'yes' : 'no'}\n- Exposure before control: ${before.exposure}%\n- Exposure after control: ${after.exposure}%\n- Reachable high-value targets after control: ${after.reachableTargets.join(', ') || 'none'}\n- Episode status: ${status}\n\nThis is a bounded defensive simulation. No package code or exploit payload was executed.`,
+    additionalMetadata: {
+      recoil_kind: 'arena_round',
+      recoil_scenario_id: scenarioId,
+      recoil_package: packageName,
+      recoil_round: round,
+      recoil_red_move: red.label,
+      recoil_blue_action: blue.action || 'none',
+      recoil_before_exposure: before.exposure,
+      recoil_after_exposure: after.exposure,
+      recoil_status: status,
+      recoil_attack_path: red.path.join('>'),
+      recoil_residual_path: after.primaryPath.join('>'),
+    },
+  })
+  const result = await ingest([episode], signal)
+  return {
+    status: result.indexingStatus === 'completed' ? 'persisted' : 'queued',
+    memoryCount: 1,
+    round,
+    action: blue.action || null,
+    result,
   }
 }

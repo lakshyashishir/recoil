@@ -16,7 +16,8 @@ import {
   toggleAction,
 } from '../src/core/scenario.js'
 import { runIngestion } from './collectors.js'
-import { hydraStatus, persistDecision, persistEvaluation, persistIngestion, pollIngestion, recall } from './hydra.js'
+import { createArenaState, stepArena } from '../src/core/arena.js'
+import { hydraStatus, persistArenaRound, persistDecision, persistEvaluation, persistIngestion, pollIngestion, recall } from './hydra.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
@@ -121,14 +122,22 @@ function buildReport(record) {
   const recommended = plans[0]
   const peakState = { ...record.state, eventIndex: record.events.length }
   const reachability = getReachability(peakState, record.graph.nodes, record.graph.edges)
+  const arenaReachability = record.arena
+    ? getReachability({ ...peakState, selectedActions: record.arena.selectedActions }, record.graph.nodes, record.graph.edges)
+    : reachability
+  const simulationComplete = record.arena
+    ? ['contained', 'breached', 'exhausted'].includes(record.arena.status)
+    : record.state.eventIndex >= record.events.length
   const baselineReachability = getReachability({ ...peakState, selectedActions: [] }, record.graph.nodes, record.graph.edges)
-  const activeNodeIds = reachability.activeNodeIds
+  const activeNodeIds = arenaReachability.activeNodeIds
   const sources = (ingestion.collectors || []).flatMap((collector) => [collector.sourceUrl, ...(collector.sources || []).map((source) => source.url)]).filter(Boolean)
   return {
     scenarioId: record.id,
     query: record.query,
     conclusion: ingestion.status === 'completed'
-      ? `${ingestion.package || 'Target'} was traced from public ecosystem evidence into a bounded deployment model. ${reachability.reachableTargetIds.length ? 'A residual high-value route remains after the selected controls.' : 'The selected controls sever the modeled high-value paths.'} This is a modeled result, not proof of compromise.`
+      ? record.arena?.status === 'contained'
+        ? `${ingestion.package || 'Target'} was traced from public ecosystem evidence into a bounded deployment model. The adaptive red/blue episode contained the modeled high-value paths in ${record.arena.round} rounds. This is a modeled result, not proof of compromise.`
+        : `${ingestion.package || 'Target'} was traced from public ecosystem evidence into a bounded deployment model. ${arenaReachability.reachableTargetIds.length ? 'A residual high-value route remains after the selected controls.' : 'The selected controls sever the modeled high-value paths.'} This is a modeled result, not proof of compromise.`
       : 'The investigation is incomplete; the available evidence does not support a complete conclusion.',
     observed: {
       package: ingestion.package || null,
@@ -149,23 +158,24 @@ function buildReport(record) {
       graphNodes: record.graph.nodes.length,
       graphEdges: record.graph.edges.length,
       activeNodes: activeNodeIds.length,
-      reachableExposure: reachability.exposure,
+      reachableExposure: arenaReachability.exposure,
       eventCount: record.events.length,
       defenseRounds: record.round || 0,
-      simulationComplete: record.state.eventIndex >= record.events.length,
+      simulationComplete,
       evidenceComplete: ingestion.status === 'completed',
-      completed: record.state.eventIndex >= record.events.length && ingestion.status === 'completed',
+      completed: simulationComplete && ingestion.status === 'completed',
       mode: ingestion.status === 'completed' ? 'evidence-backed-model' : 'modeled-only',
-      reachableTargets: reachability.reachableTargetIds,
-      primaryPath: reachability.primaryPath,
-      alternatePaths: reachability.alternatePaths,
+      reachableTargets: arenaReachability.reachableTargetIds,
+      primaryPath: arenaReachability.primaryPath,
+      alternatePaths: arenaReachability.alternatePaths,
       baselineExposure: baselineReachability.exposure,
       baselinePath: baselineReachability.primaryPath,
       baselineAlternatePaths: baselineReachability.alternatePaths,
       baselineTargets: baselineReachability.reachableTargetIds,
-      blockedNodes: reachability.blockedNodeIds,
+      blockedNodes: arenaReachability.blockedNodeIds,
       graphRadius: record.graph.radius || null,
     },
+    arena: record.arena,
     recommendation: recommended,
     uncertainty: [
       repository?.synthetic ? 'Deployment and service fan-out are synthetic demo records.' : 'Service and data fan-out is modeled; repository evidence is not a runtime inventory.',
@@ -214,6 +224,7 @@ function snapshot(record) {
     metrics: { exposure, contained: 100 - exposure, eventIndex: state.eventIndex, complete: state.eventIndex >= (record.events?.length || EVENTS.length) },
     ingestion: record.ingestion,
     hydra: record.hydra,
+    arena: record.arena,
     sources: [
       { id: 'osv', label: 'OSV advisory', type: 'advisory', status: sourceStatus('advisory-resolver') },
       { id: 'npm', label: 'npm registry', type: 'registry', status: sourceStatus('registry-resolver') },
@@ -236,6 +247,7 @@ function getOrCreate(id = '0017', body = {}) {
       round: 0,
       ingestion: { status: 'not_started', collectors: [] },
       hydra: { status: 'not_started', memoryCount: 0, recall: null },
+      arena: null,
     })
   }
   return scenarios.get(id)
@@ -262,9 +274,10 @@ function route(req, res) {
     }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
   }
 
-  const scenarioMatch = url.pathname.match(/^\/api\/scenarios\/([^/]+)(?:\/([^/]+))?$/)
+  const scenarioMatch = url.pathname.match(/^\/api\/scenarios\/([^/]+)(?:\/([^/]+)(?:\/([^/]+))?)?$/)
   if (scenarioMatch) {
-    const [, id, action] = scenarioMatch
+    const [, id, action, subaction] = scenarioMatch
+    const operation = subaction ? `${action}/${subaction}` : action
     const record = getOrCreate(id)
     if (req.method === 'GET' && !action) return json(res, 200, snapshot(record))
     if (req.method === 'GET' && action === 'events') return json(res, 200, { scenarioId: record.id, events: record.events, state: record.state })
@@ -277,6 +290,7 @@ function route(req, res) {
       record.round = 0
       record.ingestion = { status: 'not_started', collectors: [] }
       record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
+      record.arena = null
       return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'ingest') {
@@ -288,6 +302,13 @@ function route(req, res) {
         record.ingestion = result
         record.graph = buildGraph(result)
         record.events = buildEvents(result)
+        record.arena = createArenaState({
+          scenarioId: record.id,
+          query: record.query,
+          packageName: result.package,
+          graphNodes: record.graph.nodes,
+          graphEdges: record.graph.edges,
+        })
         return persistIngestion({ ...result, graph: record.graph, events: record.events }).then((persisted) => {
           record.hydra = { ...record.hydra, ...persisted, persistedAt: persisted.status === 'persisted' ? new Date().toISOString() : null }
           return json(res, 200, snapshot(record))
@@ -296,6 +317,61 @@ function route(req, res) {
           return json(res, 200, snapshot(record))
         })
       })
+    }
+    if (req.method === 'GET' && operation === 'arena') return json(res, 200, { scenarioId: record.id, arena: record.arena, graph: snapshot(record).graph, hydra: record.hydra })
+    if (req.method === 'POST' && operation === 'arena/start') {
+      if (!record.ingestion || record.ingestion.status === 'not_started') return json(res, 409, { error: 'Collect evidence before starting the arena' })
+      return recall(record.query, undefined, record.id, { allEpisodes: true }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] })).then((arenaRecall) => {
+        record.hydra = { ...record.hydra, arenaRecall }
+        record.arena = createArenaState({
+          scenarioId: record.id,
+          query: record.query,
+          packageName: record.ingestion.package,
+          graphNodes: record.graph.nodes,
+          graphEdges: record.graph.edges,
+          memory: arenaRecall,
+        })
+        record.arena = { ...record.arena, status: 'running', phase: 'red' }
+        return json(res, 200, snapshot(record))
+      })
+    }
+    if (req.method === 'POST' && operation === 'arena/step') {
+      if (!record.arena) return json(res, 409, { error: 'Start the arena after collecting evidence' })
+      if (['contained', 'breached', 'exhausted'].includes(record.arena.status)) return json(res, 200, snapshot(record))
+      const previous = record.arena
+      const next = stepArena(previous, record.graph.nodes, record.graph.edges, { memory: record.hydra?.arenaRecall })
+      record.arena = next
+      const round = next.lastRound
+      return persistArenaRound({
+        scenarioId: record.id,
+        queryText: record.query,
+        packageName: record.ingestion?.package || 'target',
+        round: round.round,
+        red: round.red,
+        blue: round.blue,
+        before: round.before,
+        after: round.after,
+        status: round.status,
+      }).then((persisted) => {
+        record.hydra = {
+          ...record.hydra,
+          arenaLastRound: persisted,
+          arenaMemoryCount: (record.hydra.arenaMemoryCount || 0) + (persisted.memoryCount || 0),
+        }
+        return json(res, 200, snapshot(record))
+      }).catch((error) => json(res, 200, { ...snapshot(record), arenaError: error.message }))
+    }
+    if (req.method === 'POST' && operation === 'arena/reset') {
+      if (!record.ingestion || record.ingestion.status === 'not_started') return json(res, 409, { error: 'Collect evidence before resetting the arena' })
+      record.arena = createArenaState({
+        scenarioId: record.id,
+        query: record.query,
+        packageName: record.ingestion.package,
+        graphNodes: record.graph.nodes,
+        graphEdges: record.graph.edges,
+        memory: record.hydra?.arenaRecall,
+      })
+      return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'persist') {
       if (!record.ingestion || record.ingestion.status === 'not_started') return json(res, 409, { error: 'Run ingestion before persisting' })
@@ -361,6 +437,7 @@ function route(req, res) {
         record.round = 0
         record.ingestion = { status: 'not_started', collectors: [] }
         record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
+        record.arena = null
         return json(res, 202, snapshot(record))
       }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
     }
