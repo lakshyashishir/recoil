@@ -88,7 +88,7 @@ cp .env.example .env
 npm run start
 ```
 
-The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` and point `RECOIL_API_URL` at the reachable API address when serving the app from a container or hosted environment. Verify that the API reports `product: evidence-proof` before recording.
+The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` and point `RECOIL_API_URL` at the reachable API address when serving the app from a container or hosted environment. Verify that the API reports `product: evidence-proof` before recording. `GET /api/health` also exposes the recording contract: the required three verdicts, HydraDB persistence and temporal-recall requirements, and whether partial HydraDB writes have been explicitly enabled.
 
 For separate processes:
 

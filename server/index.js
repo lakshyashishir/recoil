@@ -106,6 +106,12 @@ async function route(req, res) {
       mode: 'autonomous',
       hydra: hydraStatus(),
       advisoryScopeAgent: advisoryAgentStatus(),
+      recordingContract: {
+        requiredVerdicts: ['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'],
+        requiresHydraPersistence: true,
+        requiresHydraTemporalRecall: true,
+        incompleteHydraWrites: process.env.RECOIL_HYDRA_PERSIST_PARTIAL === '1',
+      },
       capabilities: [
         'npm',
         'cargo',
@@ -116,6 +122,8 @@ async function route(req, res) {
         'fix-proof',
         'hydradb-temporal-memory',
         'evidence-receipt',
+        'per-hop-provenance',
+        'strict-recording-gate',
       ],
       time: new Date().toISOString(),
     })
