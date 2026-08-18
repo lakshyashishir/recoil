@@ -27,6 +27,10 @@ function buildProofChain(finding, advisory) {
   const lockfileSource = (finding.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source))
     || finding.evidenceSources?.[0]
     || null
+  const dependencyPath = finding.dependencyPath || []
+  const resolvedLabel = dependencyPath.length > 1
+    ? dependencyPath.map((item) => `${item.name}@${item.version}`).join(' → ')
+    : finding.packageName ? `${finding.packageName}@${finding.resolvedVersion || 'unresolved'}` : 'package unresolved'
   const steps = [
     proofStep({
       kind: 'advisory',
@@ -37,10 +41,12 @@ function buildProofChain(finding, advisory) {
     }),
     proofStep({
       kind: 'resolution',
-      label: finding.packageName ? `${finding.packageName}@${finding.resolvedVersion || 'unresolved'}` : 'package unresolved',
+      label: resolvedLabel,
       source: lockfileSource,
       status: finding.resolvedVersion && lockfileSource ? 'observed' : 'missing',
-      detail: finding.declaredRange ? `Declared ${finding.declaredRange}` : 'No declared range collected',
+      detail: dependencyPath.length > 1
+        ? `Lockfile resolves ${finding.packageName} through an observed transitive dependency path`
+        : finding.declaredRange ? `Declared ${finding.declaredRange}` : 'No declared range collected',
     }),
     proofStep({
       kind: 'repository',
@@ -50,6 +56,19 @@ function buildProofChain(finding, advisory) {
       detail: finding.pathObservationSource ? 'Repository history was collected' : 'Repository history unavailable',
     }),
   ]
+
+  if (dependencyPath.length > 1) {
+    steps.push(...dependencyPath.slice(1).map((item, index) => {
+      const from = dependencyPath[index]
+      return proofStep({
+        kind: 'dependency',
+        label: `${from.name}@${from.version} → ${item.name}@${item.version}`,
+        source: item.sourceUrl || from.sourceUrl || lockfileSource,
+        status: item.sourceUrl || from.sourceUrl || lockfileSource ? 'observed' : 'missing',
+        detail: 'Observed package-to-package edge in the public lockfile',
+      })
+    }))
+  }
 
   const imports = (finding.imports || []).slice(0, 4)
   if (imports.length) {

@@ -55,6 +55,26 @@ test('investigation report preserves the three-way repository contrast and fix c
   assert.equal(report.repositories[1].proof.find((step) => step.kind === 'import').status, 'not-observed')
 })
 
+test('investigation report makes a transitive lockfile hop a cited proof step', () => {
+  const evidence = {
+    ...baseEvidence,
+    findings: [
+      {
+        ...baseEvidence.findings[0],
+        dependencyPath: [
+          { name: 'parent', version: '2.0.0', sourceUrl: 'https://github.com/example/reached/blob/HEAD/package-lock.json' },
+          { name: 'minimist', version: '1.2.5', sourceUrl: 'https://github.com/example/reached/blob/HEAD/package-lock.json' },
+        ],
+      },
+    ],
+  }
+  const report = buildInvestigationReport(evidence)
+  const dependency = report.repositories[0].proof.find((step) => step.kind === 'dependency')
+  assert.equal(dependency.label, 'parent@2.0.0 → minimist@1.2.5')
+  assert.equal(dependency.status, 'observed')
+  assert.equal(dependency.source, 'https://github.com/example/reached/blob/HEAD/package-lock.json')
+})
+
 test('HydraDB rewind context is summarized without replacing local verdicts', () => {
   const report = buildInvestigationReport(baseEvidence)
   const attached = attachHydraRewind(report, {

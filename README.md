@@ -223,6 +223,8 @@ multi-repository ingestion. The benchmark generates four deterministic evidence 
 Synthetic inputs in the benchmark are clearly test data. Outputs are computed by the same classifier and report builder used by the application. The regression suite additionally covers Rust external-crate import evidence, Cargo registry fixed-version resolution, and validated advisory-symbol path attachment.
 
 The completed browser and CLI case can also be exported as a portable JSON evidence receipt. The receipt contains the advisory, repository verdicts, cited imports, temporal rewind, fix proof, observed graph, HydraDB write/recall summary, limitations, and a SHA-256 integrity value. Raw HydraDB chunks and credentials are intentionally excluded.
+For transitive dependencies, the receipt also retains the lockfile-resolved package chain and cites each
+package-to-package hop, so a reviewer can distinguish a direct import from a dependency-mediated path.
 
 ## Evidence boundary
 
