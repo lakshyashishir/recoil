@@ -121,7 +121,7 @@ npm run cli -- "CVE-2021-4229 https://github.com/owner/repository-a https://gith
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --json
 ```
 
-The CLI exits nonzero when collection is partial or a repository is `UNKNOWN`, even though it still prints
+The CLI exits nonzero when collection is partial or a repository is `UNKNOWN`, including with `--json`, even though it still prints
 the partial report and receipt URL. This makes it safe to use in CI and prevents an incomplete public case
 from being recorded as a successful demo.
 
