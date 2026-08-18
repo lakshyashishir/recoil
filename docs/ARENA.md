@@ -11,7 +11,7 @@ Recoil's primary product is a bounded red/blue episode over a software supply-ch
 5. The graph is recomputed.
 6. The new residual route becomes the next red observation.
 
-The current policy is deliberately explainable. It uses graph reachability, alternate-path reconstruction, route-aware control selection, and bounded response cost. An LLM can later narrate or propose candidate actions, but it is not trusted to invent graph state or declare an exploit successful.
+The current policy is deliberately explainable. It uses graph reachability, alternate-path reconstruction, route-aware control selection, and bounded response cost. No LLM key is required: a model can later narrate the finished report, but it is not trusted to invent graph state, choose an unvalidated control, or declare an exploit successful.
 
 ## What HydraDB stores
 

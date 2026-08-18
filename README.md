@@ -31,6 +31,8 @@ For separate terminals, use `npm run server` and `npm run dev`.
 
 For HydraDB persistence, copy `.env.example` to `.env` and provide `HYDRA_DB_API_KEY` and `HYDRADB_DATABASE_ID`. `HYDRADB_COLLECTION_ID` defaults to `recoil`. Without credentials, the local graph and simulator still run in replay mode.
 
+Recoil does not require an LLM key. The attack route, exposure score, intervention choice, and containment result are computed from the graph so the security decision is reproducible and auditable. HydraDB's `infer` ingestion and graph-enriched recall provide the memory layer. An LLM may be added later as an optional report narrator, but it will not be trusted to invent graph state or declare an attack successful.
+
 The operator TUI is available with:
 
 ```bash

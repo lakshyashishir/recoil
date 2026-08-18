@@ -15,10 +15,14 @@ This is a new project for Hack Hydra. The existing ClaimTrace application lives 
 - [x] Adaptive red/blue arena: Red selects a reachable route, Blue responds to that route, and Red searches again after the graph changes.
 - [x] HydraDB persistence for evidence, topology, decisions, and every arena round; prior rounds can influence a route-matched Blue decision.
 - [x] Browser workspace, CLI, and OpenTUI operator console backed by the same arena engine.
-- [x] Nine regression tests, a network-free adaptive benchmark, and a production bundle build.
+- [x] Thirteen regression tests, a network-free adaptive benchmark, and a production bundle build.
 - [ ] Hosted HydraDB live smoke run against the configured hackathon database.
 - [ ] Private GitHub repository setup/push; blocked until the local `gh` token is re-authenticated.
 - [ ] Optional Track 2B code-graph layer after the supply-chain arena is demo-stable.
+
+### LLM boundary
+
+There is intentionally no `OPENAI_API_KEY` in the current required environment. Recoil's core policies are deterministic and testable; adding an LLM now would make the security result less reproducible without improving the graph computation. If narration is added, it will consume the final observed/modelled report as read-only context and return prose only.
 
 ## 0. Current product contract: the adaptive arena
 
