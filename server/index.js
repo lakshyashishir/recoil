@@ -384,6 +384,9 @@ async function route(req, res) {
     if (record.mode === 'evidence' && action && !['investigation', 'investigate', 'rewind', 'code-graph', 'graph', 'report'].includes(action)) {
       return json(res, 410, { error: 'Legacy arena endpoint retired; use /investigate and /rewind for the evidence product.' })
     }
+    if (record.mode === 'evidence' && req.method === 'GET' && action === 'report') {
+      return json(res, record.investigation?.report ? 200 : 202, { scenarioId: record.id, report: record.investigation?.report || null })
+    }
     if (req.method === 'GET' && action === 'events') return json(res, 200, { scenarioId: record.id, events: record.events, state: record.state })
     if (req.method === 'GET' && action === 'graph') return json(res, 200, { scenarioId: record.id, graph: snapshot(record).graph })
     if (req.method === 'GET' && action === 'code-graph') {
