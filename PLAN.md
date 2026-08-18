@@ -206,6 +206,10 @@ Manual checks:
 - `be9455d` — autonomous evidence investigation flow
 - `97f19ad` — autonomous evidence investigation and CLI
 - `f3b377f` — source reachability and fix-proof benchmark
+- `b4f99b6` — shared evidence quality in report, CLI, browser, and receipt
+- `b941677` — incomplete reports use non-definitive language
+- `d5d82bc` — progress stream labels evidence gaps
+- `618b37a` — inconsistent snapshots cannot bypass the recording gate
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
