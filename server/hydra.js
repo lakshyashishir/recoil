@@ -49,6 +49,11 @@ function chunkMetadata(chunk) {
   return chunk?.additional_metadata || chunk?.additionalMetadata || chunk?.metadata?.additional_metadata || chunk?.metadata?.additionalMetadata || {}
 }
 
+export function priorScenarioIds(chunks = [], excludeScenarioId = null) {
+  return [...new Set(chunks.map((chunk) => chunkMetadata(chunk).recoil_scenario_id).filter(Boolean))]
+    .filter((scenarioId) => scenarioId !== excludeScenarioId)
+}
+
 function temporalChunks(chunks, asOf) {
   const cutoff = new Date(asOf).getTime()
   if (Number.isNaN(cutoff)) return chunks
@@ -452,7 +457,7 @@ export async function recall(queryText, signal, scenarioId = '0017', { allEpisod
   }
 }
 
-export async function recallTemporal(queryText, asOf, signal) {
+export async function recallTemporal(queryText, asOf, signal, { excludeScenarioId = null } = {}) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', chunks: [], graphContext: null, asOf }
   const result = await query({
     database: databaseId(),
@@ -474,7 +479,8 @@ export async function recallTemporal(queryText, asOf, signal) {
     return Boolean(metadata.valid_from || metadata.valid_until)
   }).length
   const relatedScenarioIds = [...new Set(chunks.map((chunk) => chunkMetadata(chunk).recoil_scenario_id).filter(Boolean))]
-  return { status: 'recalled', asOf, chunks, rawChunkCount: rawChunks.length, datedChunkCount, relatedScenarioIds, sources: result?.sources || result?.documents || [], graphContext: result?.graph_context || result?.graphContext || null, raw: result }
+  const priorCases = priorScenarioIds(chunks, excludeScenarioId)
+  return { status: 'recalled', asOf, chunks, rawChunkCount: rawChunks.length, datedChunkCount, relatedScenarioIds, priorScenarioIds: priorCases, sources: result?.sources || result?.documents || [], graphContext: result?.graph_context || result?.graphContext || null, raw: result }
 }
 
 export async function persistArenaRound({ scenarioId, queryText, packageName, round, red, blue, before, after, status }, signal) {

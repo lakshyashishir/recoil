@@ -1,6 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildInvestigationMemories } from '../server/hydra.js'
+import { buildInvestigationMemories, priorScenarioIds } from '../server/hydra.js'
+
+test('HydraDB recall distinguishes prior cases from the current case', () => {
+  const chunks = [
+    { additional_metadata: { recoil_scenario_id: 'current' } },
+    { additional_metadata: { recoil_scenario_id: 'prior-a' } },
+    { metadata: { additionalMetadata: { recoil_scenario_id: 'prior-b' } } },
+    { additional_metadata: { recoil_scenario_id: 'prior-a' } },
+  ]
+  assert.deepEqual(priorScenarioIds(chunks, 'current'), ['prior-a', 'prior-b'])
+})
 
 test('HydraDB investigation memories preserve graph topology and temporal evidence', () => {
   const ingestion = {

@@ -84,9 +84,9 @@ export async function executeInvestigation(record) {
     const persisted = await persistInvestigation(evidence, report).catch((error) => ({ status: 'failed', error: error.message, memoryCount: 0 }))
     const recallQuery = [record.query, report.package, report.advisory?.id].filter(Boolean).join(' ')
     const recall = persisted.status === 'persisted' || persisted.status === 'queued'
-      ? await recallTemporal(recallQuery, report.rewind.currentAsOf).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
+      ? await recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
       : { status: persisted.status, reason: persisted.reason, chunks: [] }
-    state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0, recall: { ...recall, chunkCount: recall.chunks?.length || 0, datedChunkCount: recall.datedChunkCount || 0, relatedCaseCount: recall.relatedScenarioIds?.length || 0 } }
+    state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0, recall: { ...recall, chunkCount: recall.chunks?.length || 0, datedChunkCount: recall.datedChunkCount || 0, relatedCaseCount: recall.priorScenarioIds?.length || 0, priorScenarioIds: recall.priorScenarioIds || [] } }
     record.hydra = state.hydra
     pushEvent(state, {
       type: 'step',
@@ -122,6 +122,6 @@ export async function rewindInvestigation(record, asOf) {
   const normalized = requested.toISOString()
   const report = buildInvestigationReport(record.investigation.evidence, { asOf: normalized })
   const reportQuery = [record.query, report.package, report.advisory?.id].filter(Boolean).join(' ')
-  const hydra = await recallTemporal(reportQuery, normalized).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
+  const hydra = await recallTemporal(reportQuery, normalized, undefined, { excludeScenarioId: record.investigation.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
   return { report, hydra }
 }
