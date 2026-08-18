@@ -202,7 +202,10 @@ function json(res, status, payload) {
 
 function snapshot(record) {
   const state = record.state
-  const reachability = getReachability(state, record.graph.nodes, record.graph.edges)
+  const arenaState = record.arena
+    ? { ...state, eventIndex: Math.max(10, ...record.graph.nodes.map((node) => node.activeAt || 0)), selectedActions: record.arena.selectedActions }
+    : state
+  const reachability = getReachability(arenaState, record.graph.nodes, record.graph.edges)
   const exposure = reachability.exposure
   const collectors = new Map((record.ingestion?.collectors || []).map((collector) => [collector.collector, collector]))
   const sourceStatus = (collectorName) => collectors.get(collectorName)?.status || (record.ingestion?.status === 'running' ? 'working' : 'ready')
