@@ -238,6 +238,7 @@ Manual checks:
 - `7a00cd3` — record the graph receipt checkpoint
 - `98f520f` — cover strict recording preflight with a no-network regression test
 - `c8e311a` — expose sanitized HydraDB graph context in the CLI and portable receipt
+- `131c1ce` — normalize HydraDB memory acknowledgements across response shapes
 - `4bd53fb` — make JSON CLI runs fail on incomplete evidence
 - `9c476aa` — require completed HydraDB indexing and temporal recall in recording smoke
 - `32868b1` — load project `.env` from the CLI entrypoint
