@@ -390,7 +390,10 @@ export function buildInvestigationMemories(ingestion, report) {
       kind: 'fix_proof',
       scenarioId,
       repository: finding.repository,
-      validFrom: new Date().toISOString(),
+      // A counterfactual fix is computed at investigation time, not observed
+      // historical evidence. Do not give it a temporal validity date or let it
+      // satisfy the strict temporal-recording gate by itself.
+      validFrom: null,
       sourceUrls: finding.evidenceSources,
       text: `# Fix proof\n\n- Repository: ${finding.repository}\n- Proposed version: ${challenge.proposedVersion || 'none'}\n- Status: ${challenge.status}\n- Detail: ${challenge.detail}\n- Residual path: ${(challenge.residualPath || []).join(' -> ') || 'none found by the bounded verifier.'}`,
     }))

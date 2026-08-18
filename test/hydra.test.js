@@ -48,6 +48,8 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
   assert.match(graphMemory.text, /advisory:GHSA-test → repo:example\/app/)
   assert.equal(graphMemory._recoilGraphPayload.entities.node_0.name, 'GHSA-test')
   assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'CONNECTED_TO')
+  const fixMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'fix_proof')
+  assert.equal(fixMemory.additional_metadata.valid_from, null)
   assert.equal(memories.every((memory) => memory.metadata.app === 'recoil'), true)
   assert.equal(memories.every((memory) => memory.additional_metadata.app === 'recoil'), true)
 })
