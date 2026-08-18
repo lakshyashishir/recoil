@@ -52,6 +52,35 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
   assert.equal(memories.every((memory) => memory.additional_metadata.app === 'recoil'), true)
 })
 
+test('HydraDB persistence skips incomplete reports unless explicitly enabled', async () => {
+  const previousFetch = globalThis.fetch
+  const previousKey = process.env.HYDRA_DB_API_KEY
+  const previousDatabase = process.env.HYDRADB_DATABASE_ID
+  const previousPartial = process.env.RECOIL_HYDRA_PERSIST_PARTIAL
+  process.env.HYDRA_DB_API_KEY = 'test-key'
+  process.env.HYDRADB_DATABASE_ID = 'test-database'
+  delete process.env.RECOIL_HYDRA_PERSIST_PARTIAL
+  globalThis.fetch = async () => { throw new Error('HydraDB must not be contacted for incomplete evidence') }
+  try {
+    const result = await persistInvestigation({ scenarioId: 'partial-case', package: 'minimist', graph: { nodes: [], edges: [] } }, {
+      evidenceQuality: { readyForRecording: false, reason: 'one repository is unknown' },
+      advisory: { id: 'GHSA-test' },
+      repositories: [],
+      challenge: [],
+    })
+    assert.equal(result.status, 'skipped')
+    assert.match(result.reason, /deferred/)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
+    else process.env.HYDRA_DB_API_KEY = previousKey
+    if (previousDatabase === undefined) delete process.env.HYDRADB_DATABASE_ID
+    else process.env.HYDRADB_DATABASE_ID = previousDatabase
+    if (previousPartial === undefined) delete process.env.RECOIL_HYDRA_PERSIST_PARTIAL
+    else process.env.RECOIL_HYDRA_PERSIST_PARTIAL = previousPartial
+  }
+})
+
 test('HydraDB adapter persists memories and filters temporal recall locally', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.HYDRA_DB_API_KEY

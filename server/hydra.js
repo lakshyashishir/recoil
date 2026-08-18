@@ -400,6 +400,9 @@ export function buildInvestigationMemories(ingestion, report) {
 
 export async function persistInvestigation(ingestion, report, signal) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
+  if (report?.evidenceQuality && !report.evidenceQuality.readyForRecording && process.env.RECOIL_HYDRA_PERSIST_PARTIAL !== '1') {
+    return { status: 'skipped', reason: 'Evidence is incomplete; HydraDB persistence is deferred to avoid storing an unverified case', memoryCount: 0 }
+  }
   const memories = buildInvestigationMemories(ingestion, report)
   const queued = await ingest(memories, signal)
   let result

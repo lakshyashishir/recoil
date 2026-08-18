@@ -99,6 +99,10 @@ npm run dev
 
 Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `HYDRADB_INDEX_WAIT_MS`, `HYDRADB_INDEX_POLL_MS`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, `RECOIL_NETWORK_RETRIES`, and `RECOIL_SOURCE_FILE_LIMIT`. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source. Raise `RECOIL_SOURCE_FILE_LIMIT` for a large, trusted demo repository only when you are comfortable with the extra public reads; the chosen bound is preserved in each finding.
 
+HydraDB writes are skipped by default when evidence quality is incomplete. This avoids spending memory/indexing
+calls on an unverified case and prevents partial findings from becoming durable precedent. Set
+`RECOIL_HYDRA_PERSIST_PARTIAL=1` only when deliberately diagnosing a partial run.
+
 Run the configuration doctor before a demo. It does not make network calls unless asked:
 
 ```bash
