@@ -1,6 +1,6 @@
 import { Component, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowUpRight, Check, ChevronDown, CircleAlert, CircleCheck, Clock3, ExternalLink, LoaderCircle, RotateCcw, Search, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronDown, CircleAlert, CircleCheck, Clock3, Download, ExternalLink, LoaderCircle, RotateCcw, Search, ShieldCheck } from 'lucide-react'
 import './style.css'
 
 const SCENARIO_ID = '0017'
@@ -109,12 +109,16 @@ function HydraProof({ hydra }) {
   return <section className="hydra-proof"><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{status === 'skipped' ? hydra?.reason || 'Configure HydraDB to persist this case.' : `Recoil wrote ${hydra?.memoryCount || 0} evidence memories with dated validity and retrieved ${recall?.datedChunkCount || 0} dated facts from ${recall?.relatedCaseCount || 0} related case${recall?.relatedCaseCount === 1 ? '' : 's'}.`}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div></section>
 }
 
+function ReceiptLink() {
+  return <a className="receipt-link" href={`/api/scenarios/${SCENARIO_ID}/receipt`} download="recoil-evidence-receipt.json"><Download size={14} /> Download evidence receipt</a>
+}
+
 function FinalReport({ report, hydra, onRewind }) {
   const summary = report?.summary || {}
   const scope = report?.advisoryScope || {}
   const scopeLabel = scope.status === 'completed' ? `${scope.affectedSymbols?.length || 0} advisory symbol candidate${scope.affectedSymbols?.length === 1 ? '' : 's'} checked against indexed code` : 'module-level package proof; symbol scope not enabled'
   return <main className="report-page">
-    <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{summary.reached || 0} of {summary.totalRepositories || 0} repositories<br /><i>reach vulnerable code.</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p></section>
+    <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{summary.reached || 0} of {summary.totalRepositories || 0} repositories<br /><i>reach vulnerable code.</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p><ReceiptLink /></section>
     <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
     <Rewind report={report} activeReport={report} onSelect={onRewind} />
     <HydraProof hydra={hydra} />

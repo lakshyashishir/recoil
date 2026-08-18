@@ -93,6 +93,7 @@ POST /api/scenarios/:id/investigate  start one autonomous investigation
 GET  /api/scenarios/:id              poll progress and retrieve the report
 GET  /api/scenarios/:id/investigation retrieve investigation state directly
 POST /api/scenarios/:id/rewind       rebuild the report at a supplied timestamp
+GET  /api/scenarios/:id/receipt      download a hashed, source-cited evidence receipt
 GET  /api/scenarios/:id/code-graph   inspect the bounded source graph
 GET  /api/health                     inspect service and HydraDB capability status
 ```
@@ -119,6 +120,8 @@ The tests cover semver and OSV range evaluation, JavaScript/Rust source graphs, 
 - no package code execution.
 
 Synthetic inputs in the benchmark are clearly test data. Outputs are computed by the same classifier and report builder used by the application.
+
+The completed browser and CLI case can also be exported as a portable JSON evidence receipt. The receipt contains the advisory, repository verdicts, cited imports, temporal rewind, fix proof, observed graph, HydraDB write/recall summary, limitations, and a SHA-256 integrity value. Raw HydraDB chunks and credentials are intentionally excluded.
 
 ## Evidence boundary
 

@@ -43,6 +43,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Autonomous CLI flow using the same API state machine.
 - [x] Network-free integration test with mocked public records.
 - [x] Product benchmark covering `REACHED`, `DECLARED_ONLY`, `NOT_AFFECTED`, `UNKNOWN`, fix proof, and rewind.
+- [x] Portable source-cited evidence receipt with integrity hash and explicit non-execution boundary.
 - [x] Browser production build and regression suite.
 
 ### Still required before calling the hackathon build complete

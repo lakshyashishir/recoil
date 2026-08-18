@@ -59,6 +59,7 @@ function finalResult(id, queryText, snapshot) {
     report,
     hydra: investigation.hydra,
     events: investigation.events || [],
+    receiptPath: `/api/scenarios/${id}/receipt`,
   }
 }
 
@@ -110,6 +111,7 @@ async function main() {
   line(`rewind  ${result.report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${result.report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
   line(`hydra   ${result.hydra?.status || 'skipped'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases`)
   line(`sources ${result.report.sources?.length || 0} public sources`)
+  line(`receipt ${apiBase}${result.receiptPath}`)
 }
 
 main().catch((error) => {

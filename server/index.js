@@ -22,6 +22,7 @@ import { getAgentStatus, runAgentRound } from './agents.js'
 import { applySandboxControl, createSandboxState, runRegressionSuite, sandboxSummary } from '../sandbox/fixture.js'
 import { rewindInvestigation, startInvestigation } from './investigation.js'
 import { advisoryAgentStatus } from './advisory-agent.js'
+import { buildEvidenceReceipt } from '../src/core/receipt.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
@@ -229,6 +230,16 @@ function json(res, status, payload) {
   res.end(JSON.stringify(payload))
 }
 
+function downloadJson(res, status, filename, payload) {
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-disposition': `attachment; filename="${filename}"`,
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': 'content-type',
+  })
+  res.end(JSON.stringify(payload, null, 2))
+}
+
 function snapshot(record) {
   if (record.mode === 'evidence') return investigationSnapshot(record)
   const state = record.state
@@ -381,11 +392,21 @@ async function route(req, res) {
         return rewindInvestigation(record, asOf).then((result) => json(res, result.error ? 409 : 200, { scenarioId: record.id, ...result }))
       }).catch((error) => json(res, 400, { error: error.message }))
     }
-    if (record.mode === 'evidence' && action && !['investigation', 'investigate', 'rewind', 'code-graph', 'graph', 'report'].includes(action)) {
+    if (record.mode === 'evidence' && action && !['investigation', 'investigate', 'rewind', 'code-graph', 'graph', 'report', 'receipt'].includes(action)) {
       return json(res, 410, { error: 'Legacy arena endpoint retired; use /investigate and /rewind for the evidence product.' })
     }
     if (record.mode === 'evidence' && req.method === 'GET' && action === 'report') {
       return json(res, record.investigation?.report ? 200 : 202, { scenarioId: record.id, report: record.investigation?.report || null })
+    }
+    if (record.mode === 'evidence' && req.method === 'GET' && action === 'receipt') {
+      const receipt = buildEvidenceReceipt({
+        scenarioId: record.investigation?.caseId || record.id,
+        query: record.query,
+        report: record.investigation?.report,
+        hydra: record.investigation?.hydra || record.hydra,
+      })
+      if (!receipt) return json(res, 202, { scenarioId: record.id, receipt: null, error: 'Investigation report is not ready' })
+      return downloadJson(res, 200, `recoil-${record.investigation?.caseId || record.id}-evidence-receipt.json`, receipt)
     }
     if (req.method === 'GET' && action === 'events') return json(res, 200, { scenarioId: record.id, events: record.events, state: record.state })
     if (req.method === 'GET' && action === 'graph') return json(res, 200, { scenarioId: record.id, graph: snapshot(record).graph })

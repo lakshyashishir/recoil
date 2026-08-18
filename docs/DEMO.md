@@ -54,6 +54,7 @@ The final report shows the exact source-backed path, repository verdict, exposur
 6. “Blue proposes the fixed version. Recoil checks the declared semver range instead of assuming an upgrade is safe.”
 7. “Red verifies the residual graph. The fix is either proven, requires a manifest change, or remains unknown.”
 8. “HydraDB stores the dated evidence and retrieves related facts; it is the investigation memory, not a green connection badge.”
+9. Download the evidence receipt and show that the result is a portable, source-cited artifact with an integrity hash.
 
 ## Terminal proof
 
@@ -63,6 +64,8 @@ npm run cli -- "<verified advisory> https://github.com/<owner>/<repository>" --j
 ```
 
 The CLI and browser consume the same autonomous API state machine. `--json` is useful for showing that the report is structured evidence rather than terminal animation.
+
+The CLI prints a receipt URL after completion. The browser exposes the same receipt as a download from the case result.
 
 ## Safety statement
 
