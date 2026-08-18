@@ -20,6 +20,18 @@ test('investigation input accepts one advisory and multiple repositories', () =>
   assert.deepEqual(input.repositories.map((repository) => repository.slug), ['acme/one', 'acme/two'])
 })
 
+test('investigation input preserves an explicit GitHub historical ref', () => {
+  const input = parseInvestigationInput('GHSA-xvch-5gv4-984h https://github.com/apache/arrow-rs/tree/caf1c6022c71af00ef712e9e865acfee74169f0d')
+  assert.equal(input.packageName, null)
+  assert.deepEqual(input.repositories, [{
+    owner: 'apache',
+    name: 'arrow-rs',
+    ref: 'caf1c6022c71af00ef712e9e865acfee74169f0d',
+    slug: 'apache/arrow-rs',
+    url: 'https://github.com/apache/arrow-rs/tree/caf1c6022c71af00ef712e9e865acfee74169f0d',
+  }])
+})
+
 test('Cargo evidence parser preserves workspace dependencies and lockfile edges', () => {
   const manifest = parseCargoManifest(`
 [package]

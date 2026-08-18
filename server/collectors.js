@@ -104,35 +104,46 @@ function writeCache(url, options, payload) {
   }
 }
 
-function parseGitHubRepository(query = '') {
-  const match = String(query).match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/#?\s]+)/i)
-  if (!match) return null
-  const owner = match[1]
-  const name = match[2].replace(/\.git$/, '')
-  return { owner, name, slug: `${owner}/${name}`, url: `https://github.com/${owner}/${name}` }
-}
-
 export function parseGitHubRepositories(query = '') {
   const repositories = []
-  const pattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/#?\s]+)/gi
+  const pattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/#?\s]+)(?:\/(?:tree|commit)\/([^#?\s]+))?/gi
   for (const match of String(query).matchAll(pattern)) {
     const owner = match[1]
     const name = match[2].replace(/\.git$/, '')
-    const repository = { owner, name, slug: `${owner}/${name}`, url: `https://github.com/${owner}/${name}` }
+    const ref = match[3]?.replace(/[),.;]+$/, '') || null
+    const repository = { owner, name, slug: `${owner}/${name}`, url: `https://github.com/${owner}/${name}${ref ? `/tree/${ref}` : ''}` }
+    if (ref) repository.ref = ref
     if (!repositories.some((item) => item.slug.toLowerCase() === repository.slug.toLowerCase())) repositories.push(repository)
   }
   return repositories.slice(0, 4)
 }
 
+function parseGitHubRepository(query = '') {
+  return parseGitHubRepositories(query)[0] || null
+}
+
+function repositoryRef(repository) {
+  return repository?.ref || 'HEAD'
+}
+
+function githubContentsUrl(repository, path) {
+  const base = `https://api.github.com/repos/${repository.owner}/${repository.name}/contents/${path}`
+  return repository.ref ? `${base}?ref=${encodeURIComponent(repository.ref)}` : base
+}
+
+function githubSourceUrl(repository, path) {
+  return `https://github.com/${repository.slug}/blob/${repositoryRef(repository)}/${path}`
+}
+
 async function readGitHubFile(repository, path) {
   try {
-    const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/contents/${path}`, {
+    const payload = await readOptionalJson(githubContentsUrl(repository, path), {
       headers: { accept: 'application/vnd.github+json' },
     })
     if (payload?.type === 'file' && payload.content) {
       return {
         path,
-        sourceUrl: `https://github.com/${repository.slug}/blob/HEAD/${path}`,
+        sourceUrl: githubSourceUrl(repository, path),
         text: Buffer.from(payload.content.replace(/\s/g, ''), 'base64').toString('utf8'),
       }
     }
@@ -141,7 +152,7 @@ async function readGitHubFile(repository, path) {
     if (!error.message.includes('403')) throw error
   }
 
-  const rawUrl = `https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`
+  const rawUrl = `https://raw.githubusercontent.com/${repository.slug}/${repositoryRef(repository)}/${path}`
   let rawResponse
   try {
     rawResponse = await fetchWithNetworkRetry(rawUrl, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
@@ -155,7 +166,7 @@ async function readGitHubFile(repository, path) {
 
 async function readGitHubDirectory(repository, path) {
   try {
-    const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/contents/${path}`, {
+    const payload = await readOptionalJson(githubContentsUrl(repository, path), {
       headers: { accept: 'application/vnd.github+json' },
     })
     if (Array.isArray(payload)) return { entries: payload.filter((entry) => entry.type === 'file').slice(0, 12), status: 'collected' }
@@ -168,7 +179,7 @@ async function readGitHubDirectory(repository, path) {
 }
 
 async function readGitHubTree(repository) {
-  const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/git/trees/HEAD?recursive=1`, {
+  const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/git/trees/${encodeURIComponent(repositoryRef(repository))}?recursive=1`, {
     headers: { accept: 'application/vnd.github+json' },
   })
   return Array.isArray(payload?.tree) ? payload.tree.filter((entry) => entry.type === 'blob').map((entry) => entry.path) : []
@@ -176,7 +187,8 @@ async function readGitHubTree(repository) {
 
 async function readGitHubCommitHistory(repository, path) {
   if (!path) return null
-  const base = `https://api.github.com/repos/${repository.owner}/${repository.name}/commits?path=${encodeURIComponent(path)}&per_page=1`
+  const refQuery = repository.ref ? `&sha=${encodeURIComponent(repository.ref)}` : ''
+  const base = `https://api.github.com/repos/${repository.owner}/${repository.name}/commits?path=${encodeURIComponent(path)}&per_page=1${refQuery}`
   const readPage = async (page = 1) => {
     const url = `${base}&page=${page}`
     const cached = readCache(url)
@@ -238,7 +250,8 @@ async function collectSourceFiles(repository) {
 async function collectLatestChange(repository, codeGraph) {
   if (!codeGraph?.files?.length) return null
   try {
-    const commits = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/commits?per_page=1`, {
+    const refQuery = repository.ref ? `&sha=${encodeURIComponent(repository.ref)}` : ''
+    const commits = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/commits?per_page=1${refQuery}`, {
       headers: { accept: 'application/vnd.github+json' },
     })
     const sha = Array.isArray(commits) ? commits[0]?.sha : null
@@ -411,7 +424,7 @@ function inferTarget(query = '') {
   const repositories = parseGitHubRepositories(text)
   const repository = repositories[0] || parseGitHubRepository(text)
   const advisoryId = text.match(/\b(?:CVE-\d{4}-\d+|GHSA-[a-z0-9-]+)\b/i)?.[0]?.toUpperCase() || null
-  const packageCandidates = [...text.replace(/(?:https?:\/\/)?(?:www\.)?github\.com\/[^/\s]+\/[^/#?\s]+/gi, '').matchAll(/(?:npm:)?(@[a-z0-9._-]+\/[a-z0-9._-]+|[a-z0-9][a-z0-9._-]+)(?:@(\d+\.\d+\.\d+))?/gi)]
+  const packageCandidates = [...text.replace(/(?:https?:\/\/)?(?:www\.)?github\.com\/[^/\s]+\/[^/#?\s]+(?:\/(?:tree|commit)\/[^#?\s]+)?/gi, '').matchAll(/(?:npm:)?(@[a-z0-9._-]+\/[a-z0-9._-]+|[a-z0-9][a-z0-9._-]+)(?:@(\d+\.\d+\.\d+))?/gi)]
   const packageMatch = packageCandidates.find((match) => {
     const value = match[1].toLowerCase()
     return !value.startsWith('cve-') && !value.startsWith('ghsa-') && !['fixture', 'storefront-api', 'package', 'npm'].includes(value)

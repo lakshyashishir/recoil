@@ -58,9 +58,11 @@ test('multi-repository ingestion computes real evidence contrast without synthet
     'example/fixed': { version: '1.2.6', sourcePath: 'src/main.js', source: 'export function main() { return true }', firstCommit: '2022-04-01T00:00:00Z' },
   }
   const events = []
+  const requests = []
 
   globalThis.fetch = async (input) => {
     const url = new URL(input)
+    requests.push(url)
     if (url.hostname === 'api.osv.dev') return response(advisory)
     if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', 'dist-tags': { latest: '1.2.8' }, versions: { '1.2.5': {}, '1.2.6': {}, '1.2.8': {} }, maintainers: [{ name: 'fixture-maintainer' }] })
     if (url.hostname !== 'api.github.com') return response({}, 404)
@@ -87,7 +89,7 @@ test('multi-repository ingestion computes real evidence contrast without synthet
 
   try {
     const ingestion = await runMultiRepositoryIngestion({
-      query: 'GHSA-test-1234-5678 https://github.com/example/reached https://github.com/example/declared https://github.com/example/fixed',
+      query: 'GHSA-test-1234-5678 https://github.com/example/reached/tree/fixture-ref https://github.com/example/declared https://github.com/example/fixed',
       scenarioId: 'integration-test',
       onProgress: (event) => events.push(event),
     })
@@ -99,6 +101,10 @@ test('multi-repository ingestion computes real evidence contrast without synthet
     assert.equal(report.summary.notAffected, 1)
     assert.equal(report.summary.fixSurvives, 1)
     assert.equal(report.summary.alreadySafe, 1)
+    assert.equal(report.repositories[0].repositoryUrl, 'https://github.com/example/reached/tree/fixture-ref')
+    assert.ok(requests.some((url) => url.pathname.endsWith('/contents/package.json') && url.searchParams.get('ref') === 'fixture-ref'))
+    assert.ok(requests.some((url) => url.pathname.endsWith('/git/trees/fixture-ref')))
+    assert.ok(report.repositories[0].imports[0].sourceUrl.includes('/blob/fixture-ref/'))
     assert.ok(report.repositories[0].evidenceSources.some((source) => source.includes('src/cli.js')))
     assert.equal(report.repositories[0].pathObservedAt, '2021-01-01T00:00:00.000Z')
     assert.equal(report.graph.nodes.some((node) => node.label === 'customer database'), false)

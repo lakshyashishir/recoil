@@ -26,6 +26,8 @@ https://github.com/<owner>/<repository-b>
 https://github.com/<owner>/<repository-c>
 ```
 
+For a historical comparison, pin a repository URL to a public tag or commit, for example `https://github.com/<owner>/<repository>/tree/<tag-or-sha>`. Recoil records that ref in every source URL and uses it for manifest, lockfile, source, tree, and commit-history reads.
+
 The strongest case contains three different outcomes: one repository that imports the affected package, one that only declares it, and one already outside the affected range. Validate the advisory and repository lockfiles before recording; Recoil must not be presented with invented evidence.
 
 ## What the judge sees
