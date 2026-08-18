@@ -65,6 +65,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Prefer raw GitHub source reads after tree discovery to protect the strict recording workflow from API-rate exhaustion.
 - [x] Remove heuristic source-to-deployment surface inference so every displayed path remains tied to observed repository evidence.
 - [x] Keep counterfactual fix proofs undated so generated remediation output cannot masquerade as historical evidence.
+- [x] Require strict recording to account for every HydraDB memory acknowledgement, not just HTTP success.
 
 ### Still required before calling the hackathon build complete
 
