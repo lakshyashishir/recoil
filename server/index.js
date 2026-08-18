@@ -181,7 +181,11 @@ async function route(req, res) {
   }
 
   if (req.method === 'GET' && action === 'events') {
-    return json(res, 200, { scenarioId: record.id, events: record.investigation?.events || [], state: record.investigation?.status || 'idle' })
+    return json(res, 200, {
+      scenarioId: record.id,
+      events: record.investigation?.events || [],
+      state: { status: record.investigation?.status || 'idle', step: record.investigation?.step || 'idle' },
+    })
   }
 
   if (req.method === 'GET' && action === 'graph') {
