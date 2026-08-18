@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildCodeGraph, parseSourceSymbols } from '../src/core/codegraph.js'
+import { buildChangeImpact, buildCodeGraph, parseSourceSymbols } from '../src/core/codegraph.js'
 
 test('JavaScript code graph resolves relative imports without executing source', () => {
   const graph = buildCodeGraph([
@@ -57,4 +57,25 @@ test('symbol index keeps kind and source line for later impact analysis', () => 
     { name: 'Router', kind: 'class', language: 'javascript', line: 1 },
     { name: 'trace', kind: 'function', language: 'javascript', line: 3 },
   ])
+})
+
+test('latest public commit maps changed hunks to indexed symbols', () => {
+  const graph = buildCodeGraph([
+    { path: 'src/payments.ts', text: 'export function charge() {}\nexport function refund() {}' },
+    { path: 'src/untouched.ts', text: 'export function keep() {}' },
+  ])
+  const impact = buildChangeImpact(graph, {
+    sha: 'abc123456789',
+    html_url: 'https://github.com/example/repo/commit/abc1234',
+    commit: { message: 'Harden payments', author: { date: '2026-08-18T10:00:00Z' } },
+    files: [
+      { filename: 'src/payments.ts', status: 'modified', additions: 2, deletions: 1, patch: '@@ -1,2 +1,2 @@\n export function charge() {}\n-export function refund() {}\n+export function refund() { return true }' },
+      { filename: 'README.md', status: 'modified', additions: 1, deletions: 0 },
+    ],
+  })
+
+  assert.equal(impact.sampledFilesChanged, 1)
+  assert.equal(impact.totalFilesChanged, 2)
+  assert.deepEqual(impact.files[0].symbols, ['refund'])
+  assert.equal(impact.files[0].symbolMatch, 'hunk-line')
 })

@@ -2,7 +2,7 @@ const DEFAULT_PACKAGE = 'ua-parser-js'
 const DEFAULT_ADVISORY = 'CVE-2021-4229'
 const KNOWN_AFFECTED_VERSIONS = ['0.7.29', '0.8.0', '1.0.0']
 
-import { buildCodeGraph } from '../src/core/codegraph.js'
+import { buildChangeImpact, buildCodeGraph } from '../src/core/codegraph.js'
 
 const incidentSources = [
   { label: 'CERT-EU advisory', url: 'https://cert.europa.eu/publications/security-advisories/2021-057/' },
@@ -97,6 +97,23 @@ async function collectSourceFiles(repository) {
   return files.filter(Boolean)
 }
 
+async function collectLatestChange(repository, codeGraph) {
+  if (!codeGraph?.files?.length) return null
+  try {
+    const commits = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/commits?per_page=1`, {
+      headers: { accept: 'application/vnd.github+json' },
+    })
+    const sha = Array.isArray(commits) ? commits[0]?.sha : null
+    if (!sha) return null
+    const commit = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/commits/${encodeURIComponent(sha)}`, {
+      headers: { accept: 'application/vnd.github+json' },
+    })
+    return buildChangeImpact(codeGraph, commit)
+  } catch {
+    return null
+  }
+}
+
 function packageDependencies(packageJson) {
   return {
     ...(packageJson.dependencies || {}),
@@ -184,6 +201,7 @@ async function collectRepository(repository, requestedPackage) {
   const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path)))).filter(Boolean)
   const sourceFiles = await collectSourceFiles(repository)
   const codeGraph = buildCodeGraph(sourceFiles)
+  codeGraph.recentChange = await collectLatestChange(repository, codeGraph)
   const workflowText = workflowFiles.map((file) => file.text).join('\n')
   const ciSignals = {
     workflowFiles: workflowFiles.map((file) => file.path),
@@ -199,7 +217,7 @@ async function collectRepository(repository, requestedPackage) {
     status: 'completed',
     ecosystem,
     sourceUrl: (packageFile || cargoManifestFile).sourceUrl,
-    entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length + codeGraph.fileCount + codeGraph.importEdgeCount + codeGraph.symbolCount,
+    entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length + codeGraph.fileCount + codeGraph.importEdgeCount + codeGraph.symbolCount + (codeGraph.recentChange?.sampledFilesChanged || 0),
     repository: repository.slug,
     repositoryUrl: repository.url,
     synthetic: false,
@@ -215,7 +233,7 @@ async function collectRepository(repository, requestedPackage) {
       deploymentSignals,
       codeGraph,
     },
-    sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles, ...sourceFiles].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
+    sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles, ...sourceFiles, codeGraph.recentChange?.sourceUrl ? { path: `commit:${codeGraph.recentChange.sha}`, sourceUrl: codeGraph.recentChange.sourceUrl } : null].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
     observedAt: new Date().toISOString(),
   }
 }

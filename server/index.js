@@ -106,8 +106,12 @@ function buildGraph(ingestion) {
       edges.push(['repo', runtimeId], [runtimeId, 'artifact'])
     }
     if (manifest.codeGraph?.nodes?.length) {
-      nodes.push(...manifest.codeGraph.nodes)
-      edges.push(['repo', manifest.codeGraph.nodes[0].id], ...manifest.codeGraph.edges)
+      const changedPaths = new Set((manifest.codeGraph.recentChange?.files || []).map((file) => file.path))
+      const codeNodes = manifest.codeGraph.nodes.map((node) => changedPaths.has(node.label)
+        ? { ...node, changed: true, meta: `${node.meta} · latest public change` }
+        : node)
+      nodes.push(...codeNodes)
+      edges.push(['repo', codeNodes[0].id], ...manifest.codeGraph.edges)
     }
   }
   return { nodes, edges, radius }
@@ -165,6 +169,7 @@ function buildReport(record) {
         symbols: repository.manifest.codeGraph.symbolCount,
         surfaces: repository.manifest.codeGraph.surfaceCount,
         impactCandidates: repository.manifest.codeGraph.impactCandidates,
+        recentChange: repository.manifest.codeGraph.recentChange,
         unresolved: repository.manifest.codeGraph.unresolved?.length || 0,
       } : null,
       lockfilePackageCount: repository?.manifest?.lockPackages?.length || 0,

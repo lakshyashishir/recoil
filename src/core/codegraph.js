@@ -61,6 +61,61 @@ export function parseSourceSymbols(text = '', path = '') {
   return symbols.sort((left, right) => left.line - right.line || left.name.localeCompare(right.name))
 }
 
+function changedLinesFromPatch(patch = '') {
+  const lines = new Set()
+  let newLine = 0
+  for (const rawLine of patch.split('\n')) {
+    const hunk = rawLine.match(/^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/)
+    if (hunk) {
+      newLine = Number(hunk[1])
+      continue
+    }
+    if (!newLine || rawLine.startsWith('\\')) continue
+    if (rawLine.startsWith('+++')) continue
+    if (rawLine.startsWith('+')) {
+      lines.add(newLine)
+      newLine += 1
+      continue
+    }
+    if (rawLine.startsWith('-')) continue
+    newLine += 1
+  }
+  return lines
+}
+
+export function buildChangeImpact(codeGraph, commit) {
+  if (!commit || !codeGraph?.files?.length) return null
+  const sampledPaths = new Set(codeGraph.files.map((file) => file.path))
+  const symbols = codeGraph.symbols || []
+  const files = (commit.files || [])
+    .filter((file) => sampledPaths.has(file.filename))
+    .map((file) => {
+      const changedLines = changedLinesFromPatch(file.patch || '')
+      const fileSymbols = symbols.filter((symbol) => symbol.path === file.filename)
+      const changedSymbols = changedLines.size
+        ? fileSymbols.filter((symbol) => changedLines.has(symbol.line)).map((symbol) => symbol.name)
+        : fileSymbols.map((symbol) => symbol.name)
+      return {
+        path: file.filename,
+        status: file.status,
+        additions: file.additions || 0,
+        deletions: file.deletions || 0,
+        changedLines: changedLines.size,
+        symbols: changedSymbols,
+        symbolMatch: changedLines.size ? 'hunk-line' : 'file-level',
+      }
+    })
+  return {
+    sha: commit.sha || null,
+    message: commit.commit?.message?.split('\n')[0] || 'latest public commit',
+    committedAt: commit.commit?.author?.date || commit.commit?.committer?.date || null,
+    sourceUrl: commit.html_url || null,
+    files,
+    sampledFilesChanged: files.length,
+    totalFilesChanged: commit.files?.length || 0,
+  }
+}
+
 function resolveJavaScript(from, specifier, files) {
   const base = normalizePath(`${from.split('/').slice(0, -1).join('/')}/${specifier}`)
   const candidates = [base, ...SOURCE_EXTENSIONS.map((extension) => `${base}${extension}`), ...SOURCE_EXTENSIONS.map((extension) => `${base}/index${extension}`)]

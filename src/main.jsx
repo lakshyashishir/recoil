@@ -164,6 +164,7 @@ function ReportDossier({ report }) {
           <div><dt>repository</dt><dd>{observed.repository || 'not found'}</dd></div>
           <div><dt>resolved version</dt><dd>{observed.resolvedVersion || 'range only'}</dd></div>
           <div><dt>source graph</dt><dd>{observed.codeGraph ? `${observed.codeGraph.files} files · ${observed.codeGraph.imports} imports · ${observed.codeGraph.symbols} symbols · ${observed.codeGraph.surfaces} surfaces` : 'not collected'}</dd></div>
+          <div><dt>latest change</dt><dd>{observed.codeGraph?.recentChange ? `${observed.codeGraph.recentChange.sha.slice(0, 8)} · ${observed.codeGraph.recentChange.sampledFilesChanged} sampled files` : 'not available'}</dd></div>
         </dl>
       </section>
       <section className="dossier-section">

@@ -15,11 +15,12 @@ This is a new project for Hack Hydra. The existing ClaimTrace application lives 
 - [x] Adaptive red/blue arena: Red selects a reachable route, Blue responds to that route, and Red searches again after the graph changes.
 - [x] HydraDB persistence for evidence, topology, decisions, and every arena round; prior rounds can influence a route-matched Blue decision.
 - [x] Browser workspace, CLI, and OpenTUI operator console backed by the same arena engine.
-- [x] Seventeen regression tests, a network-free adaptive benchmark, and a production bundle build.
+- [x] Nineteen regression tests, a network-free adaptive benchmark, and a production bundle build.
 - [x] Bounded static source graph for public JavaScript/TypeScript/Rust files, including imports, symbols, and unresolved-import uncertainty.
+- [x] Latest public commit impact mapped from changed hunks to sampled source files and indexed symbols.
 - [ ] Hosted HydraDB live smoke run against the configured hackathon database.
-- [ ] Private GitHub repository setup/push; blocked until the local `gh` token is re-authenticated.
-- [ ] Deeper Track 2B impact analysis: symbols, changed functions, ownership, and code-to-deployment paths.
+- [x] Private GitHub repository setup and push.
+- [ ] Deeper Track 2B impact analysis: ownership and verified code-to-deployment paths.
 
 ### LLM boundary
 
@@ -51,7 +52,7 @@ This is a bounded defensive simulation. It never executes package code, sends ex
 
 ### Future Track 2 coverage
 
-The first code-graph evidence layer is now shipped: bounded local imports/modules are attached to the observed repository graph and reported with unresolved edges. The next layer can add function symbols, changed-file impact, ownership, and code-to-deployment paths without diluting the adaptive supply-chain arena.
+The code-graph evidence layer now includes bounded local imports/modules, indexed symbols, inferred deployment surfaces, and the latest public commit mapped from changed hunks to sampled symbols. The next layer can add ownership and verified code-to-deployment paths without diluting the adaptive supply-chain arena.
 
 ## 1. Product framing
 
@@ -536,10 +537,11 @@ The adaptive arena is the first complete product slice. It is done when:
 - [x] CLI and TUI exercise the same engine as the browser.
 - [x] The local benchmark asserts route adaptation and both containment and attacker-win outcomes.
 - [x] A bounded source-level graph is collected without installing or executing repository code.
+- [x] The latest public commit is mapped to sampled source files and symbols when GitHub exposes patch hunks.
 - [x] No downloaded package code is executed.
 - [ ] Hosted HydraDB round-trip is demonstrated in the recording.
-- [ ] A clean-machine setup and private GitHub push are verified.
-- [ ] Optional function-level impact graph is added only after the current source graph is reliable.
+- [x] A private GitHub push is verified.
+- [ ] Ownership and verified function-to-deployment impact are added after more public evidence is available.
 
 ## 18. Decision rule
 

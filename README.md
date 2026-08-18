@@ -13,6 +13,7 @@ The graph separates observed evidence from modeled reachability:
 - real npm registry versions, maintainers, and OSV advisories;
 - real public `package.json`, lockfile, GitHub Actions, Docker, and Compose signals when available;
 - a bounded static JavaScript/TypeScript/Rust source graph that resolves local imports/modules and indexes symbols without executing code;
+- latest public GitHub commit evidence mapped from changed hunks to sampled source files and indexed symbols;
 - modeled build, deployment, service, and data fan-out, explicitly marked synthetic when no public runtime evidence exists;
 - computed red/blue rounds where the attacker adapts after every defensive control;
 - temporal attack events, alternate-route reconstruction, and counterfactual defender controls;
@@ -83,7 +84,7 @@ POST /api/scenarios/:id/advance   advance one attack/defense event
 POST /api/scenarios/:id/evaluate  rank bounded response combinations
 POST /api/scenarios/:id/action    apply or remove a defensive control
 GET  /api/scenarios/:id/report    return observed facts, modeled state, sources, and uncertainty
-GET  /api/scenarios/:id/code-graph return bounded source files, imports, symbols, and inferred surfaces
+GET  /api/scenarios/:id/code-graph return bounded source files, imports, symbols, inferred surfaces, and latest-change impact
 ```
 
 HydraDB memory ingestion is asynchronous. Recoil reports accepted memories as queued, polls each accepted source through the status endpoint, and requests hybrid recall before the arena starts. During an episode, each red route, blue control, exposure change, and residual route is written as an arena-round memory. See the [HydraDB API reference](https://docs.hydradb.com/api-reference). Rust workspaces are read from `Cargo.toml`/`Cargo.lock`; a repository that is not published as a crate is reported as repository-primary evidence rather than as a collector failure.
