@@ -49,6 +49,12 @@ function request(method, path, payload) {
   return Promise.resolve(route(req, res)).then(() => ({ statusCode, headers, body: output ? JSON.parse(output) : null }))
 }
 
+test('API rejects an investigation without a repository before collection', async () => {
+  const result = await request('POST', '/api/scenarios/input-guard/investigate', { query: 'GHSA-route-1234-5678' })
+  assert.equal(result.statusCode, 422)
+  assert.match(result.body.error, /at least one public GitHub repository URL/)
+})
+
 test('API route chain starts, completes, rewinds, and exports a receipt', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.OPENAI_API_KEY

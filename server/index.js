@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 import { hydraStatus } from './hydra.js'
 import { startInvestigation, rewindInvestigation } from './investigation.js'
 import { advisoryAgentStatus } from './advisory-agent.js'
+import { parseInvestigationInput } from './collectors.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
@@ -146,7 +147,10 @@ async function route(req, res) {
   if (req.method === 'POST' && action === 'investigate') {
     return body(req).then((payload) => {
       if (typeof payload.query !== 'string' || !payload.query.trim()) {
-        return json(res, 422, { error: 'Provide an advisory, package, or public GitHub repositories' })
+        return json(res, 422, { error: 'Provide an advisory or package plus at least one public GitHub repository URL' })
+      }
+      if (parseInvestigationInput(payload.query).repositories.length === 0) {
+        return json(res, 422, { error: 'Add at least one public GitHub repository URL so Recoil can prove reachability' })
       }
       if (['running', 'finalizing'].includes(record.investigation?.status)) {
         return json(res, 409, { error: 'An investigation is already running for this case' })
