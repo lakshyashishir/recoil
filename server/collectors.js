@@ -17,7 +17,7 @@ async function readJson(url, options) {
   if (cached !== null) return cached
   let response
   try {
-    response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
+    response = await fetchWithNetworkRetry(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
   } catch (error) {
     throw networkError(url, error)
   }
@@ -32,7 +32,7 @@ async function readOptionalJson(url, options) {
   if (cached !== null) return cached
   let response
   try {
-    response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
+    response = await fetchWithNetworkRetry(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
   } catch (error) {
     throw networkError(url, error)
   }
@@ -50,6 +50,19 @@ function githubHeaders() {
 function networkError(url, error) {
   const code = error?.cause?.code || error?.code
   return new Error(`Unable to fetch ${url}${code ? ` (${code})` : ''}: ${error.message}`, { cause: error })
+}
+
+async function fetchWithNetworkRetry(url, options = {}) {
+  const attempts = Math.max(1, Number(process.env.RECOIL_NETWORK_RETRIES || 3))
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fetch(url, options)
+    } catch (error) {
+      if (attempt === attempts - 1 || error?.name === 'AbortError') throw error
+      await new Promise((resolve) => setTimeout(resolve, 75 * (attempt + 1)))
+    }
+  }
+  throw new Error(`Unable to fetch ${url}`)
 }
 
 function httpError(response, url) {
@@ -130,7 +143,7 @@ async function readGitHubFile(repository, path) {
   const rawUrl = `https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`
   let rawResponse
   try {
-    rawResponse = await fetch(rawUrl, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+    rawResponse = await fetchWithNetworkRetry(rawUrl, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
   } catch (error) {
     throw networkError(rawUrl, error)
   }
@@ -169,7 +182,7 @@ async function readGitHubCommitHistory(repository, path) {
     if (cached && Array.isArray(cached.commits)) return cached
     let response
     try {
-      response = await fetch(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
+      response = await fetchWithNetworkRetry(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
     } catch (error) {
       throw networkError(url, error)
     }
@@ -530,7 +543,7 @@ async function collectIncidentSources(packageName, ecosystem = 'npm') {
       ]
   const results = await Promise.all(sources.map(async (source) => {
     try {
-      const response = await fetch(source.url, { headers: { 'user-agent': 'Recoil-HackHydra/0.1' } })
+      const response = await fetchWithNetworkRetry(source.url, { headers: { 'user-agent': 'Recoil-HackHydra/0.1' } })
       const html = await response.text()
       const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() || source.label
       return { ...source, status: response.ok ? 'reachable' : `http-${response.status}`, title }

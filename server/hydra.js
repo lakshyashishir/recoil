@@ -35,6 +35,19 @@ function networkError(url, error) {
   return new Error(`HydraDB request failed for ${url}${code ? ` (${code})` : ''}: ${error.message}`, { cause: error })
 }
 
+async function fetchWithNetworkRetry(url, options = {}) {
+  const attempts = Math.max(1, Number(process.env.RECOIL_NETWORK_RETRIES || 3))
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fetch(url, options)
+    } catch (error) {
+      if (attempt === attempts - 1 || error?.name === 'AbortError') throw error
+      await new Promise((resolve) => setTimeout(resolve, 75 * (attempt + 1)))
+    }
+  }
+  throw new Error(`HydraDB request failed for ${url}`)
+}
+
 function unwrap(payload) {
   return payload?.data?.inner || payload?.data || payload
 }
@@ -88,7 +101,7 @@ async function ingest(memories, signal) {
       const url = `${apiBase()}/context/ingest`
       let response
       try {
-        response = await fetch(url, {
+        response = await fetchWithNetworkRetry(url, {
           method: 'POST',
           headers: headers(false),
           body: form,
@@ -117,7 +130,7 @@ async function query(body, signal) {
     const url = `${apiBase()}/query`
     let response
     try {
-      response = await fetch(url, {
+      response = await fetchWithNetworkRetry(url, {
         method: 'POST',
         headers: headers(),
         body: JSON.stringify(body),
@@ -380,7 +393,7 @@ export async function pollIngestion(sourceIds = [], signal) {
     url.searchParams.set('database', databaseId())
     url.searchParams.set('id', sourceId)
     try {
-      const response = await fetch(url, { headers: headers(false), signal })
+      const response = await fetchWithNetworkRetry(url, { headers: headers(false), signal })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) return { id: sourceId, status: response.status === 404 ? 'unknown' : 'error', error: errorMessage(payload, response) }
       return { id: sourceId, status: normalizeIndexingStatus(payload) || 'unknown' }

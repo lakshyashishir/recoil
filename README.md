@@ -57,7 +57,7 @@ npm run server
 npm run dev
 ```
 
-Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `GITHUB_TOKEN`, and `RECOIL_CACHE_DIR`. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL; cached evidence is never treated as a substitute for a failed source.
+Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, and `RECOIL_NETWORK_RETRIES`. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source.
 
 To enable the optional advisory-scope pass, provide `OPENAI_API_KEY` and set `RECOIL_ADVISORY_AGENT=on`. It extracts candidate affected symbols from advisory prose using structured output, then the server attaches only exact matches found in the indexed source graph. Leave it off for a fully deterministic run; the package-import verdict does not depend on the model.
 
