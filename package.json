@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "tui": "bun run tui/index.tsx",
-    "server": "node server/index.js"
+    "server": "node --env-file-if-exists=.env server/index.js"
   },
   "dependencies": {
     "@opentui/core": "^0.5.3",

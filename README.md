@@ -27,7 +27,7 @@ npm run dev
 
 The browser runs at `http://127.0.0.1:5173` and the API at `http://127.0.0.1:8787`.
 
-For HydraDB persistence, provide `HYDRA_DB_API_KEY` and `HYDRADB_DATABASE_ID` in the environment. `HYDRADB_COLLECTION_ID` defaults to `recoil`. Without credentials, the local graph and simulator still run in replay mode.
+For HydraDB persistence, copy `.env.example` to `.env` and provide `HYDRA_DB_API_KEY` and `HYDRADB_DATABASE_ID`. `HYDRADB_COLLECTION_ID` defaults to `recoil`. Without credentials, the local graph and simulator still run in replay mode.
 
 The operator TUI is available with:
 

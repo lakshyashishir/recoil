@@ -228,7 +228,19 @@ export async function persistDecision({ scenarioId, queryText, action, selectedA
     },
   })
   const result = await ingest([decision], signal)
-  return { status: result.indexingStatus === 'completed' ? 'persisted' : 'queued', action, memoryCount: 1, result }
+  return {
+    status: result.indexingStatus === 'completed' ? 'persisted' : 'queued',
+    action,
+    operation: controlEnabled ? 'enabled' : 'disabled',
+    exposure,
+    activeNodeIds,
+    blockedNodeIds,
+    attackPath,
+    alternatePaths,
+    round,
+    memoryCount: 1,
+    result,
+  }
 }
 
 export async function persistEvaluation({ scenarioId, queryText, recommended, alternatives }, signal) {

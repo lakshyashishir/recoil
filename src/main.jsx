@@ -455,6 +455,7 @@ function App() {
               <div className="decision-log-head"><span className="section-label">Latest defender action</span><span className="decision-status">{mesh.lastDecision.status}</span></div>
               <strong>{INTERVENTIONS.find((action) => action.id === mesh.lastDecision.result?.action || action.id === mesh.lastDecision.action)?.title || 'Response updated'}</strong>
               <span>{mesh.lastDecision.status === 'queued' ? 'Decision accepted by HydraDB; graph state updated locally.' : 'Decision recorded and graph state updated.'}</span>
+              <span className="decision-route">{mesh.lastDecision.attackPath?.length ? `Residual route · ${mesh.lastDecision.attackPath.map((id) => graph.nodes.find((node) => node.id === id)?.label || id).join(' → ')}` : 'Residual route · no high-value target remains reachable'}</span>
             </div>
           )}
 
