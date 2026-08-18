@@ -3,6 +3,7 @@ const DEFAULT_ADVISORY = 'CVE-2021-4229'
 const KNOWN_AFFECTED_VERSIONS = ['0.7.29', '0.8.0', '1.0.0']
 
 import { buildChangeImpact, buildCodeGraph, enrichImpactCandidates, parseCodeowners } from '../src/core/codegraph.js'
+import { buildObservedGraph, classifyRepository, fixedVersionsFromAdvisory } from '../src/core/evidence.js'
 
 const incidentSources = [
   { label: 'CERT-EU advisory', url: 'https://cert.europa.eu/publications/security-advisories/2021-057/' },
@@ -11,16 +12,27 @@ const incidentSources = [
 ]
 
 async function readJson(url, options) {
-  const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...(options?.headers || {}) } })
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+  const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
+  if (!response.ok) throw httpError(response, url)
   return response.json()
 }
 
 async function readOptionalJson(url, options) {
-  const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...(options?.headers || {}) } })
+  const response = await fetch(url, { ...options, headers: { accept: 'application/json', 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders(), ...(options?.headers || {}) } })
   if (response.status === 404) return null
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+  if (!response.ok) throw httpError(response, url)
   return response.json()
+}
+
+function githubHeaders() {
+  return process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}
+}
+
+function httpError(response, url) {
+  if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0') {
+    return new Error(`GitHub API rate limit exhausted while reading ${url}; set GITHUB_TOKEN or retry later`)
+  }
+  return new Error(`${response.status} ${response.statusText}`)
 }
 
 function parseGitHubRepository(query = '') {
@@ -29,6 +41,18 @@ function parseGitHubRepository(query = '') {
   const owner = match[1]
   const name = match[2].replace(/\.git$/, '')
   return { owner, name, slug: `${owner}/${name}`, url: `https://github.com/${owner}/${name}` }
+}
+
+export function parseGitHubRepositories(query = '') {
+  const repositories = []
+  const pattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/#?\s]+)/gi
+  for (const match of String(query).matchAll(pattern)) {
+    const owner = match[1]
+    const name = match[2].replace(/\.git$/, '')
+    const repository = { owner, name, slug: `${owner}/${name}`, url: `https://github.com/${owner}/${name}` }
+    if (!repositories.some((item) => item.slug.toLowerCase() === repository.slug.toLowerCase())) repositories.push(repository)
+  }
+  return repositories.slice(0, 4)
 }
 
 async function readGitHubFile(repository, path) {
@@ -48,9 +72,9 @@ async function readGitHubFile(repository, path) {
     if (!error.message.includes('403')) throw error
   }
 
-  const rawResponse = await fetch(`https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`, { headers: { 'user-agent': 'Recoil-HackHydra/0.1' } })
+  const rawResponse = await fetch(`https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
   if (rawResponse.status === 404) return null
-  if (!rawResponse.ok) throw new Error(`${rawResponse.status} ${rawResponse.statusText}`)
+  if (!rawResponse.ok) throw httpError(rawResponse, `raw.githubusercontent.com/${repository.slug}/${path}`)
   return { path, sourceUrl: `https://raw.githubusercontent.com/${repository.slug}/HEAD/${path}`, text: await rawResponse.text() }
 }
 
@@ -59,13 +83,13 @@ async function readGitHubDirectory(repository, path) {
     const payload = await readOptionalJson(`https://api.github.com/repos/${repository.owner}/${repository.name}/contents/${path}`, {
       headers: { accept: 'application/vnd.github+json' },
     })
-    if (Array.isArray(payload)) return payload.filter((entry) => entry.type === 'file').slice(0, 12)
-    if (payload) return []
+    if (Array.isArray(payload)) return { entries: payload.filter((entry) => entry.type === 'file').slice(0, 12), status: 'collected' }
+    if (payload) return { entries: [], status: 'not_found' }
   } catch (error) {
-    if (!error.message.includes('403')) throw error
+    if (!error.message.includes('403') && !error.message.includes('rate limit')) throw error
+    return { entries: [], status: 'unavailable', error: error.message }
   }
-  const commonWorkflowNames = ['ci.yml', 'codeql.yml', 'legacy.yml', 'scorecard.yml', 'release.yml', 'deploy.yml', 'test.yml']
-  return commonWorkflowNames.map((name) => ({ name, type: 'file' }))
+  return { entries: [], status: 'not_found' }
 }
 
 async function readGitHubTree(repository) {
@@ -77,10 +101,14 @@ async function readGitHubTree(repository) {
 
 async function collectSourceFiles(repository) {
   let paths = []
+  let status = 'collected'
+  let error = null
   try {
     paths = await readGitHubTree(repository)
-  } catch {
+  } catch (cause) {
     paths = []
+    status = 'unavailable'
+    error = cause.message
   }
   const candidates = paths
     .filter((path) => /^(?:src|lib|app|packages|crates)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
@@ -94,7 +122,7 @@ async function collectSourceFiles(repository) {
       return null
     }
   }))
-  return files.filter(Boolean)
+  return { files: files.filter(Boolean), status, error }
 }
 
 async function collectLatestChange(repository, codeGraph) {
@@ -129,6 +157,7 @@ async function collectCodeowners(repository) {
 function packageDependencies(packageJson) {
   return {
     ...(packageJson.dependencies || {}),
+    ...(packageJson.devDependencies || {}),
     ...(packageJson.optionalDependencies || {}),
   }
 }
@@ -184,7 +213,7 @@ function resolveFromLockfile(lockfile, packageName) {
   return legacyEntry?.version || null
 }
 
-async function collectRepository(repository, requestedPackage) {
+export async function collectRepository(repository, requestedPackage) {
   const packageFile = await readGitHubFile(repository, 'package.json')
   const cargoManifestFile = packageFile ? null : await readGitHubFile(repository, 'Cargo.toml')
   if (!packageFile && !cargoManifestFile) throw new Error(`package.json or Cargo.toml not found in ${repository.slug}`)
@@ -208,16 +237,19 @@ async function collectRepository(repository, requestedPackage) {
         resolved: entry.resolved,
         dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
       }))
-  const workflowEntries = await readGitHubDirectory(repository, '.github/workflows')
-  const workflowFiles = (await Promise.all(workflowEntries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`)))).filter(Boolean)
+  const workflowResult = await readGitHubDirectory(repository, '.github/workflows')
+  const workflowFiles = (await Promise.all(workflowResult.entries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`)))).filter(Boolean)
   const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path)))).filter(Boolean)
-  const sourceFiles = await collectSourceFiles(repository)
+  const sourceResult = await collectSourceFiles(repository)
+  const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
   let codeGraph = buildCodeGraph(sourceFiles)
   codeGraph.recentChange = await collectLatestChange(repository, codeGraph)
   codeGraph = enrichImpactCandidates(codeGraph, parseCodeowners(codeownersFile?.text || ''))
   const workflowText = workflowFiles.map((file) => file.text).join('\n')
   const ciSignals = {
+    status: workflowResult.status,
+    error: workflowResult.error || null,
     workflowFiles: workflowFiles.map((file) => file.path),
     runners: [...new Set([...workflowText.matchAll(/runs-on:\s*([^\s#]+)/g)].map((match) => match[1].includes('${{') ? 'matrix' : match[1]))],
     deployHints: [...new Set(workflowText.split('\n').filter((line) => !line.trim().startsWith('#') && /\b(deploy|publish|release|production|staging)\b/i.test(line)).map((line) => line.trim()).filter(Boolean).slice(0, 12))],
@@ -245,6 +277,9 @@ async function collectRepository(repository, requestedPackage) {
       lockPackages,
       ciSignals,
       deploymentSignals,
+      collection: {
+        sourceFiles: { status: sourceResult.status, error: sourceResult.error, sampled: sourceFiles.length, requested: Math.min(24, sourceFiles.length) },
+      },
       codeGraph,
     },
     sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles, ...sourceFiles, codeownersFile, codeGraph.recentChange?.sourceUrl ? { path: `commit:${codeGraph.recentChange.sha}`, sourceUrl: codeGraph.recentChange.sourceUrl } : null].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
@@ -254,7 +289,8 @@ async function collectRepository(repository, requestedPackage) {
 
 function inferTarget(query = '') {
   const text = String(query)
-  const repository = parseGitHubRepository(text)
+  const repositories = parseGitHubRepositories(text)
+  const repository = repositories[0] || parseGitHubRepository(text)
   const advisoryId = text.match(/\b(?:CVE-\d{4}-\d+|GHSA-[a-z0-9-]+)\b/i)?.[0]?.toUpperCase() || null
   const packageCandidates = [...text.replace(/(?:https?:\/\/)?(?:www\.)?github\.com\/[^/\s]+\/[^/#?\s]+/gi, '').matchAll(/(?:npm:)?(@[a-z0-9._-]+\/[a-z0-9._-]+|[a-z0-9][a-z0-9._-]+)(?:@(\d+\.\d+\.\d+))?/gi)]
   const packageMatch = packageCandidates.find((match) => {
@@ -267,10 +303,19 @@ function inferTarget(query = '') {
     advisoryId,
     inferred: Boolean(packageMatch),
     repository,
+    repositories,
   }
 }
 
-async function collectRegistry(packageName, ecosystem = 'npm') {
+export function parseInvestigationInput(query = '') {
+  const target = inferTarget(query)
+  return {
+    ...target,
+    repositories: target.repositories?.length ? target.repositories : target.repository ? [target.repository] : [],
+  }
+}
+
+async function collectRegistry(packageName, ecosystem = 'npm', advisory = null) {
   if (ecosystem === 'cargo') {
     const sourceUrl = `https://crates.io/api/v1/crates/${encodeURIComponent(packageName)}`
     const payload = await readOptionalJson(sourceUrl)
@@ -316,9 +361,7 @@ async function collectRegistry(packageName, ecosystem = 'npm') {
     package: payload.name,
     latest: payload['dist-tags']?.latest,
     affectedVersions: packageName === DEFAULT_PACKAGE ? KNOWN_AFFECTED_VERSIONS : [],
-    fixedVersions: packageName === DEFAULT_PACKAGE
-      ? ['0.7.30', '0.8.1', '1.0.1'].filter((version) => versions.includes(version))
-      : [],
+    fixedVersions: fixedVersionsFromAdvisory(advisory, packageName).filter((version) => versions.includes(version)),
     maintainers: (payload.maintainers || []).map((maintainer) => maintainer.name),
     observedAt: new Date().toISOString(),
   }
@@ -351,8 +394,20 @@ async function collectAdvisories(packageName, advisoryId, ecosystem = 'npm') {
       published: vulnerability.published,
       modified: vulnerability.modified,
       references: (vulnerability.references || []).slice(0, 8),
+      affected: vulnerability.affected || [],
     })),
     observedAt: new Date().toISOString(),
+  }
+}
+
+async function collectAdvisoryById(advisoryId) {
+  if (!advisoryId) return null
+  const sourceUrl = `https://api.osv.dev/v1/vulns/${encodeURIComponent(advisoryId)}`
+  try {
+    const advisory = await readJson(sourceUrl)
+    return { ...advisory, sourceUrl }
+  } catch (error) {
+    return { id: advisoryId, sourceUrl, error: error.message }
   }
 }
 
@@ -448,6 +503,110 @@ export async function runIngestion({ query = `${DEFAULT_ADVISORY} / fixture/stor
     package: packageName,
     target: { ...target, packageName, inferred: target.inferred || !target.packageName },
     collectors,
+    completedAt: new Date().toISOString(),
+  }
+}
+
+function advisoryPackageName(advisory) {
+  return advisory?.affected?.find((entry) => entry?.package?.ecosystem === 'npm' || entry?.package?.ecosystem === 'crates.io')?.package?.name || advisory?.affected?.[0]?.package?.name || null
+}
+
+function advisoryCollector(advisory, advisoryId) {
+  if (!advisory) return { collector: 'advisory-resolver', status: advisoryId ? 'failed' : 'not_requested', sourceUrl: advisoryId ? `https://api.osv.dev/v1/vulns/${encodeURIComponent(advisoryId)}` : 'https://api.osv.dev', error: advisoryId ? 'Advisory record could not be fetched.' : null, entities: 0, targetAdvisory: null, vulnerabilities: [] }
+  if (advisory.error) return { collector: 'advisory-resolver', status: 'failed', sourceUrl: advisory.sourceUrl, error: advisory.error, entities: 0, targetAdvisory: null, vulnerabilities: [] }
+  return {
+    collector: 'advisory-resolver',
+    status: 'completed',
+    sourceUrl: advisory.sourceUrl,
+    entities: 1,
+    targetAdvisory: advisory,
+    vulnerabilities: [{ id: advisory.id, aliases: advisory.aliases || [], summary: advisory.summary || '', published: advisory.published || null, modified: advisory.modified || null, references: (advisory.references || []).slice(0, 12), affected: advisory.affected || [] }],
+    observedAt: new Date().toISOString(),
+  }
+}
+
+export async function runMultiRepositoryIngestion({ query = '', scenarioId = '0017' } = {}) {
+  const input = parseInvestigationInput(query)
+  let advisory = await collectAdvisoryById(input.advisoryId)
+  let packageName = input.packageName || advisoryPackageName(advisory)
+  const repositories = input.repositories || []
+  const repositoryResults = await Promise.all(repositories.map(async (repository) => {
+    try {
+      const result = await collectRepository(repository, packageName)
+      if (!packageName && result.inferredPackage) packageName = result.inferredPackage
+      return result
+    } catch (error) {
+      return {
+        collector: 'repository-extractor',
+        status: 'failed',
+        repository: repository.slug,
+        repositoryUrl: repository.url,
+        sourceUrl: repository.url,
+        synthetic: false,
+        error: error.message,
+        manifest: null,
+        sources: [{ path: 'repository', url: repository.url }],
+        observedAt: new Date().toISOString(),
+      }
+    }
+  }))
+  packageName = packageName || repositoryResults.find((result) => result.status === 'completed')?.inferredPackage || null
+  if (!advisory && packageName) {
+    const queried = await collectAdvisories(packageName, input.advisoryId, repositoryResults.find((result) => result.status === 'completed')?.ecosystem || 'npm').catch((error) => ({ collector: 'advisory-resolver', status: 'failed', error: error.message }))
+    advisory = queried.targetAdvisory || null
+  }
+  const ecosystem = repositoryResults.find((result) => result.status === 'completed')?.ecosystem || 'npm'
+  const registry = packageName
+    ? await collectRegistry(packageName, ecosystem, advisory).catch((error) => ({ collector: 'registry-resolver', status: 'failed', package: packageName, ecosystem, error: error.message, fixedVersions: [], affectedVersions: [], maintainers: [] }))
+    : { collector: 'registry-resolver', status: 'not_requested', package: null, ecosystem, fixedVersions: [], affectedVersions: [], maintainers: [] }
+  const advisoryRecord = advisoryCollector(advisory, input.advisoryId)
+  const findings = repositoryResults.map((repository) => repository.status === 'completed'
+    ? classifyRepository({ repository, packageName, advisory, advisoryId: input.advisoryId || advisory?.id })
+    : {
+        repository: repository.repository,
+        repositoryUrl: repository.repositoryUrl,
+        packageName,
+        advisoryId: input.advisoryId || advisory?.id || 'advisory',
+        verdict: 'UNKNOWN',
+        reason: repository.error || 'Repository evidence collection failed.',
+        resolvedVersion: null,
+        declaredRange: null,
+        imports: [],
+        path: [input.advisoryId || advisory?.id || 'advisory', repository.repository || 'repository'],
+        fixedVersions: fixedVersionsFromAdvisory(advisory, packageName),
+        targetVersion: fixedVersionsFromAdvisory(advisory, packageName)[0] || null,
+        rangeAllowsFix: false,
+        allowedVersion: null,
+        sourceSampleSize: 0,
+        sourceBound: 'Repository evidence unavailable',
+        evidenceSources: [repository.repositoryUrl].filter(Boolean),
+      })
+  const graph = buildObservedGraph({ advisoryId: input.advisoryId || advisory?.id || 'advisory', packageName, repositoryFindings: findings })
+  const sources = [...new Set([
+    advisoryRecord.sourceUrl,
+    registry.sourceUrl,
+    ...repositoryResults.flatMap((result) => [result.sourceUrl, ...(result.sources || []).map((source) => source.url)]),
+    ...(advisory?.references || []).map((reference) => reference.url),
+  ].filter(Boolean))]
+  const failed = [advisoryRecord, registry, ...repositoryResults].some((collector) => collector.status === 'failed')
+  return {
+    status: failed ? 'partial' : packageName && advisory ? 'completed' : 'partial',
+    query,
+    scenarioId,
+    package: packageName,
+    target: { ...input, packageName, advisoryId: input.advisoryId || advisory?.id || null, repositories },
+    advisory,
+    registry,
+    collectors: [advisoryRecord, registry, ...repositoryResults],
+    repositories: repositoryResults,
+    findings,
+    graph,
+    sources,
+    temporal: {
+      advisoryPublishedAt: advisory?.published || null,
+      advisoryModifiedAt: advisory?.modified || null,
+      collectedAt: new Date().toISOString(),
+    },
     completedAt: new Date().toISOString(),
   }
 }

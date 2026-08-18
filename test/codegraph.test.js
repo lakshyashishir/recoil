@@ -80,6 +80,17 @@ test('latest public commit maps changed hunks to indexed symbols', () => {
   assert.equal(impact.files[0].symbolMatch, 'hunk-line')
 })
 
+test('source graph preserves external package imports for reachability proof', () => {
+  const graph = buildCodeGraph([
+    { path: 'src/cli.js', sourceUrl: 'https://raw.example/src/cli.js', text: "import minimist from 'minimist'\nimport { parse } from './parse.js'" },
+    { path: 'src/parse.js', sourceUrl: 'https://raw.example/src/parse.js', text: 'export function parse(value) { return value }' },
+  ])
+
+  assert.deepEqual(graph.externalImports.map((item) => ({ packageName: item.packageName, path: item.path, line: item.line })), [
+    { packageName: 'minimist', path: 'src/cli.js', line: 1 },
+  ])
+})
+
 test('impact candidates identify surfaces touched by the latest changed symbols', () => {
   const graph = buildCodeGraph([
     { path: 'src/payments.ts', text: 'export function chargePayment(token) { return stripe.charge(token) }' },

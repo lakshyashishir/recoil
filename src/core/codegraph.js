@@ -22,10 +22,20 @@ function normalizePath(path) {
   return parts.join('/')
 }
 
-function localJavaScriptSpecifiers(text = '') {
+function javascriptSpecifiers(text = '') {
   return [...text.matchAll(/(?:import\s+(?:[\s\S]*?\s+from\s+)?|export\s+[\s\S]*?\s+from\s+|require\s*\(|import\s*\()\s*["']([^"']+)["']/g)]
-    .map((match) => match[1])
-    .filter((specifier) => specifier.startsWith('.'))
+    .map((match) => ({ specifier: match[1], line: lineNumber(text, match.index || 0) }))
+}
+
+function packageNameForSpecifier(specifier = '') {
+  if (specifier.startsWith('@')) return specifier.split('/').slice(0, 2).join('/')
+  return specifier.split('/')[0]
+}
+
+export function externalJavaScriptSpecifiers(text = '', path = '', sourceUrl = null) {
+  return javascriptSpecifiers(text)
+    .filter(({ specifier }) => !specifier.startsWith('.') && !specifier.startsWith('#') && !specifier.startsWith('node:'))
+    .map(({ specifier, line }) => ({ path, sourceUrl, specifier, packageName: packageNameForSpecifier(specifier), line }))
 }
 
 function localRustSpecifiers(text = '') {
@@ -225,16 +235,27 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
   const impactCandidates = [...files.values()].map((file) => inferSurface(file, symbols)).filter(Boolean).slice(0, 24)
   const edges = []
   const unresolved = []
+  const externalImports = []
   for (const file of files.values()) {
     const specifiers = languageFor(file.path) === 'rust'
-      ? localRustSpecifiers(file.text)
-      : localJavaScriptSpecifiers(file.text)
+      ? localRustSpecifiers(file.text).map((specifier) => ({ specifier, line: null }))
+      : javascriptSpecifiers(file.text)
     for (const specifier of specifiers) {
+      if (languageFor(file.path) !== 'rust' && !specifier.specifier.startsWith('.') && !specifier.specifier.startsWith('#') && !specifier.specifier.startsWith('node:')) {
+        externalImports.push({
+          path: file.path,
+          sourceUrl: file.sourceUrl || null,
+          specifier: specifier.specifier,
+          packageName: packageNameForSpecifier(specifier.specifier),
+          line: specifier.line,
+        })
+        continue
+      }
       const resolved = languageFor(file.path) === 'rust'
-        ? resolveRust(file.path, specifier, files)
-        : resolveJavaScript(file.path, specifier, files)
+        ? resolveRust(file.path, specifier.specifier, files)
+        : resolveJavaScript(file.path, specifier.specifier, files)
       if (!resolved) {
-        unresolved.push({ from: file.path, specifier })
+        unresolved.push({ from: file.path, specifier: specifier.specifier })
         continue
       }
       edges.push([`code:${file.path}`, `code:${resolved}`])
@@ -246,6 +267,7 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
     nodes,
     edges: uniqueEdges,
     unresolved: unresolved.slice(0, 40),
+    externalImports: [...new Map(externalImports.map((item) => [`${item.path}>${item.specifier}>${item.line}`, item])).values()].slice(0, 160),
     symbols: symbols.slice(0, 80),
     impactCandidates,
     fileCount: nodes.length,
