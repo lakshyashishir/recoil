@@ -222,6 +222,11 @@ Manual checks:
 - `60920c3` — wait for HydraDB graph indexing before recall
 - `645eab9` — expose the sanitized HydraDB graph receipt in the final report
 - `7a00cd3` — record the graph receipt checkpoint
+- `98f520f` — cover strict recording preflight with a no-network regression test
+- `c8e311a` — expose sanitized HydraDB graph context in the CLI and portable receipt
+- `4bd53fb` — make JSON CLI runs fail on incomplete evidence
+- `9c476aa` — require completed HydraDB indexing and temporal recall in recording smoke
+- `32868b1` — load project `.env` from the CLI entrypoint
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
