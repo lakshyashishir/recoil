@@ -46,7 +46,7 @@ function Landing({ value, setValue, onSubmit, busy, error }) {
         <div className="form-footer"><span>Nothing is installed or executed.</span><button type="submit" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={14} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button></div>
       </form>
       <div className="example-row"><span>input format</span><span>GHSA or CVE + one to four public GitHub repository URLs</span></div>
-      {error && <div className="error-banner"><CircleAlert size={15} /> {error}</div>}
+      {error && <div className="error-banner" role="alert"><CircleAlert size={15} /> {error}</div>}
     </section>
     <footer className="landing-footer"><span>OSV · npm · GitHub · HydraDB</span><span>Observed facts are cited. Inference is labeled.</span></footer>
   </main>
@@ -176,7 +176,13 @@ function App() {
   const investigation = snapshot?.investigation
 
   useEffect(() => {
-    api('/api/scenarios/0017').then(setSnapshot).catch(() => {})
+    let active = true
+    api('/api/scenarios/0017').then((next) => {
+      if (active) setSnapshot(next)
+    }).catch((cause) => {
+      if (active) setError(`Recoil API unavailable. Start the app with npm run start. ${cause.message}`)
+    })
+    return () => { active = false }
   }, [])
 
   useEffect(() => {
