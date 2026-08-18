@@ -83,6 +83,7 @@ POST /api/scenarios/:id/advance   advance one attack/defense event
 POST /api/scenarios/:id/evaluate  rank bounded response combinations
 POST /api/scenarios/:id/action    apply or remove a defensive control
 GET  /api/scenarios/:id/report    return observed facts, modeled state, sources, and uncertainty
+GET  /api/scenarios/:id/code-graph return bounded source files, imports, symbols, and inferred surfaces
 ```
 
 HydraDB memory ingestion is asynchronous. Recoil reports accepted memories as queued, polls each accepted source through the status endpoint, and requests hybrid recall before the arena starts. During an episode, each red route, blue control, exposure change, and residual route is written as an arena-round memory. See the [HydraDB API reference](https://docs.hydradb.com/api-reference). Rust workspaces are read from `Cargo.toml`/`Cargo.lock`; a repository that is not published as a crate is reported as repository-primary evidence rather than as a collector failure.

@@ -163,7 +163,7 @@ function ReportDossier({ report }) {
           <div><dt>advisory</dt><dd>{observed.advisory || 'not specified'}</dd></div>
           <div><dt>repository</dt><dd>{observed.repository || 'not found'}</dd></div>
           <div><dt>resolved version</dt><dd>{observed.resolvedVersion || 'range only'}</dd></div>
-          <div><dt>source graph</dt><dd>{observed.codeGraph ? `${observed.codeGraph.files} files · ${observed.codeGraph.imports} imports · ${observed.codeGraph.symbols} symbols` : 'not collected'}</dd></div>
+          <div><dt>source graph</dt><dd>{observed.codeGraph ? `${observed.codeGraph.files} files · ${observed.codeGraph.imports} imports · ${observed.codeGraph.symbols} symbols · ${observed.codeGraph.surfaces} surfaces` : 'not collected'}</dd></div>
         </dl>
       </section>
       <section className="dossier-section">
@@ -182,6 +182,7 @@ function ReportDossier({ report }) {
         <div className="report-sources"><div className="section-caption">sources</div>{sources.slice(0, 4).map((source) => <a href={source} target="_blank" rel="noreferrer" key={source}><span>{sourceHost(source)}</span><ExternalLink size={11} /></a>)}</div>
       </section>
     </div>
+    {observed.codeGraph?.impactCandidates?.length > 0 && <div className="impact-strip"><div className="section-caption">inferred code-to-deployment links</div><div className="impact-items">{observed.codeGraph.impactCandidates.slice(0, 6).map((candidate) => <span key={`${candidate.file}-${candidate.surface}`}><strong>{candidate.surface}</strong><i>→</i>{candidate.target}<small>{candidate.confidence}</small></span>)}</div></div>}
   </section>
 }
 

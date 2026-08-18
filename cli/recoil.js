@@ -77,6 +77,7 @@ async function main() {
     winner: arena.winner,
     evidenceStatus: snapshot.ingestion.status,
     conclusion: report.conclusion,
+    observed: report.observed,
     arena,
     graph: report.modeled,
     sources: report.sources,

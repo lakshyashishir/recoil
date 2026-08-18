@@ -163,6 +163,8 @@ function buildReport(record) {
         files: repository.manifest.codeGraph.fileCount,
         imports: repository.manifest.codeGraph.importEdgeCount,
         symbols: repository.manifest.codeGraph.symbolCount,
+        surfaces: repository.manifest.codeGraph.surfaceCount,
+        impactCandidates: repository.manifest.codeGraph.impactCandidates,
         unresolved: repository.manifest.codeGraph.unresolved?.length || 0,
       } : null,
       lockfilePackageCount: repository?.manifest?.lockPackages?.length || 0,
@@ -314,6 +316,10 @@ function route(req, res) {
     if (req.method === 'GET' && !action) return json(res, 200, snapshot(record))
     if (req.method === 'GET' && action === 'events') return json(res, 200, { scenarioId: record.id, events: record.events, state: record.state })
     if (req.method === 'GET' && action === 'graph') return json(res, 200, { scenarioId: record.id, graph: snapshot(record).graph })
+    if (req.method === 'GET' && action === 'code-graph') {
+      const repository = record.ingestion?.collectors?.find((collector) => collector.collector === 'repository-extractor')
+      return json(res, 200, { scenarioId: record.id, codeGraph: repository?.manifest?.codeGraph || null })
+    }
     if (req.method === 'GET' && action === 'report') return json(res, 200, buildReport(record))
     if (req.method === 'POST' && action === 'reset') {
       record.state = createInitialState()

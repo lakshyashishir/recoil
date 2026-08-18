@@ -39,6 +39,17 @@ test('code graph is bounded to the configured public-file sample', () => {
   assert.equal(graph.importEdgeCount, 0)
 })
 
+test('code graph reports inferred deployment surfaces separately from exposure scoring', () => {
+  const graph = buildCodeGraph([
+    { path: 'src/payments/checkout.ts', text: 'export function chargePayment(token) { return stripe.charge(token) }' },
+    { path: 'src/auth/session.ts', text: 'export function verifyToken(jwt) { return jwt.verify() }' },
+  ])
+
+  assert.equal(graph.surfaceCount, 2)
+  assert.deepEqual(graph.impactCandidates.map((candidate) => candidate.target), ['payments', 'secrets'])
+  assert.equal(graph.impactCandidates[0].confidence, 'inferred')
+})
+
 test('symbol index keeps kind and source line for later impact analysis', () => {
   const symbols = parseSourceSymbols('class Router {}\n\nexport function trace() {}', 'src/router.js')
 
