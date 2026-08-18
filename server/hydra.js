@@ -258,9 +258,10 @@ function temporalMemory({ id, title, text, kind, scenarioId, repository, validFr
   })
 }
 
-function buildInvestigationMemories(ingestion, report) {
+export function buildInvestigationMemories(ingestion, report) {
   const scenarioId = ingestion.scenarioId || '0017'
   const advisory = report.advisory
+  const graph = ingestion.graph || { nodes: [], edges: [] }
   const memories = []
   memories.push(temporalMemory({
     id: `recoil:temporal:advisory:${stableId(`${scenarioId}:${advisory?.id || ingestion.package}`)}`,
@@ -270,6 +271,19 @@ function buildInvestigationMemories(ingestion, report) {
     validFrom: advisory?.published,
     sourceUrls: [advisory?.sourceUrl].filter(Boolean),
     text: `# Advisory fact\n\n- Advisory: ${advisory?.id || 'unknown'}\n- Package: ${ingestion.package || 'unknown'}\n- Published: ${advisory?.published || 'unknown'}\n- Fixed versions: ${(advisory?.fixedVersions || []).join(', ') || 'not available'}\n- Source: ${advisory?.sourceUrl || 'not available'}`,
+  }))
+  memories.push(memory({
+    id: `recoil:observed-graph:${stableId(`${scenarioId}:${ingestion.package || advisory?.id || 'unknown'}`)}`,
+    title: `Recoil observed graph · ${ingestion.package || advisory?.id || 'unknown'}`,
+    text: `# Observed evidence graph\n\n- Case: ${scenarioId}\n- Package: ${ingestion.package || 'unknown'}\n- Nodes: ${graph.nodes.length}\n- Edges: ${graph.edges.length}\n\n## Nodes\n${graph.nodes.map((node) => `- ${node.id} · ${node.label} · ${node.type}`).join('\n') || '- none'}\n\n## Edges\n${graph.edges.map(([from, to]) => `- ${from} → ${to}`).join('\n') || '- none'}\n\nThis topology contains only observed advisory, package, repository, lockfile, and sampled source evidence. It does not imply runtime execution.`,
+    additionalMetadata: {
+      recoil_kind: 'observed_graph',
+      recoil_scenario_id: scenarioId,
+      recoil_package: ingestion.package || null,
+      recoil_graph_node_count: graph.nodes.length,
+      recoil_graph_edge_count: graph.edges.length,
+      source_urls: JSON.stringify(ingestion.sources || []),
+    },
   }))
   for (const finding of report.repositories || []) {
     memories.push(temporalMemory({

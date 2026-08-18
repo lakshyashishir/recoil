@@ -1,92 +1,82 @@
-# Recoil attack / defense loop
+# Recoil red / blue contract
 
-Recoil is designed as a computed red/blue episode rather than a collection of decorative agents.
-
-```text
-public evidence
-    ↓
-graph builder establishes scope
-    ↓
-red policy selects a reachable route
-    ↓
-blue policy selects a route-aware control
-    ↓
-graph recalculates alternate routes
-    ↓
-round and rationale are written to HydraDB
-    ↓
-red searches again until containment or budget exhaustion
-```
-
-## Attacker side
-
-The attacker is a bounded graph policy, not an exploit runner. Its objective is to maximize reachable impact through relationships that already exist in the evidence/model:
-
-1. Find a publisher or release trust edge.
-2. Introduce the package version into dependency resolution.
-3. Cross the lockfile and build-promotion boundary.
-4. Fan out through the modeled artifact and services.
-5. Reach a high-value data node.
-
-The policy chooses the primary route first, then selects an unused alternate route after a control changes the graph. Each move has an intent, label, exact path, and explanation. Recoil records the route as node IDs, not just a score, so the operator can see exactly which trust edges remain. No package code, payload, or target system is executed.
-
-## Defender side
-
-The defender has a bounded response budget. It first responds to the route it actually sees, then falls back to exhaustive evaluation of the small intervention space. Candidate controls are ranked by:
+Recoil keeps the adversarial structure because it makes the remediation claim testable. It does not role-play a compromise and it does not execute an exploit.
 
 ```text
-lowest modeled exposure
-then lowest response cost
-then fewest residual active nodes
+public advisory + repository evidence
+             ↓
+RED  path prover
+             ↓
+BLUE fix planner
+             ↓
+RED  residual verifier
+             ↓
+dated report + HydraDB memory
 ```
 
-Current controls are:
+## Red: path prover
 
-- pin a known-good release;
-- block artifact promotion;
-- quarantine exposed services;
-- revoke publisher trust;
-- rotate runtime secrets;
-- restore and validate.
+Red is a constrained evidence agent, not an exploit runner. Its job is to construct a path only from observed records:
 
-The control is a counterfactual graph result. Applying it blocks concrete graph nodes, recalculates reachable high-value assets, and exposes the next route to red. Each round writes the red move, blue rationale, before/after exposure, blocked nodes, and residual paths to an `arena_round` memory in HydraDB.
+```text
+advisory
+  → affected package/version
+  → repository lockfile
+  → sampled source file importing the package
+```
 
-The browser also exposes the decision trace for each round: Red's fresh and repeated route candidates, plus Blue's affordable controls with predicted exposure, cost, route-match, and memory-match signals. The same candidates are persisted to HydraDB, and the terminal round writes the ranked containment plan as a separate memory. The selected action is therefore inspectable as a computed choice among alternatives after the live run.
+Every hop has a source URL or is marked unavailable. A repository with an affected lockfile but no sampled import is `DECLARED_ONLY`. A repository whose source collection was incomplete is `UNKNOWN`; Red is not allowed to turn missing evidence into a negative result.
 
-Controls are phase-aware: blocking artifact promotion closes the CI gate for future releases but does not pretend that an artifact already promoted into the incident disappeared. A later upgrade, restore, quarantine, or secret rotation must address that residual state.
+The optional model boundary is narrow: a model may read advisory prose and identify a likely affected symbol or entry point. The server validates that suggestion against the indexed source graph. It cannot create a graph edge, claim runtime execution, or override a verdict.
 
-## Reachability model
+## Blue: fix planner
 
-The baseline graph currently includes publisher/release trust, registry resolution, lockfile and CI promotion, artifact fan-out, five services, and multiple high-value data surfaces: customer data, payment tokens, analytics, feature flags, and audit evidence. Repository ingestion can add observed manifest, dependency, workflow, and container nodes around this baseline.
+Blue receives the advisory’s fixed versions and each repository’s declared dependency range. It produces one of these defensible outcomes:
 
-The modeled exposure is a weighted reachable-risk ratio against the full no-control graph. It is not a claim that every modeled deployment edge exists in production. A path is considered high-value when it reaches a data node; the report preserves both the primary path and bounded alternate paths so a control can be judged by what it actually cuts.
+- `FIX_SURVIVES` — the proposed fixed version is outside the affected range and the declared range admits it;
+- `MANIFEST_CHANGE_REQUIRED` — the fixed version is valid, but the declared range cannot resolve it;
+- `NO_REACHABLE_PATH` — the dependency is declared but no sampled import reaches it;
+- `ALREADY_SAFE` — the repository already resolves outside the affected range;
+- `UNVERIFIED` — the evidence or advisory does not support a proof.
+
+Blue cannot claim that “upgrade” is safe merely because a newer version exists. The fixed version must come from the advisory record, and the semver result is computed from the repository’s declaration.
+
+## Red: residual verification
+
+After Blue’s counterfactual version change, Red evaluates the affected-path predicate again. The result is not “the patch was deployed”; it is:
+
+> If this repository resolved the proposed fixed version, the cited affected path would disappear under the collected evidence.
+
+If the repository has alternate affected entries, an unresolved import, an incomplete source sample, or a range that excludes the fixed version, Recoil reports the residual uncertainty instead of marking the case contained.
+
+## Temporal proof
+
+The lockfile’s earliest public commit supplies `pathObservedAt`. The advisory’s publication date supplies the disclosure boundary. Recoil can therefore show:
+
+```text
+path observed → advisory published → current evidence → proposed fix
+```
+
+Rewind refuses to claim a path before the relevant evidence existed. The same dated facts are written to HydraDB with `valid_from`, source URLs, repository identity, and case identity.
 
 ## HydraDB role
 
-Each case writes separate memories for:
+HydraDB stores and retrieves:
 
-- incident anchor and target;
-- explicit graph topology;
-- computed red/blue arena rounds;
-- each collector result and provenance;
-- every defender decision;
-- the ranked containment plan.
+- advisory facts;
+- repository reachability facts;
+- graph topology and provenance;
+- fix proofs and residual-path decisions;
+- cross-case evidence related to the package and repository.
 
-Before an episode starts, Recoil recalls prior Recoil rounds across scenarios. If a relevant prior control is found, the blue policy can use that precedent and the UI marks the round as memory-assisted. Writes are chunked to respect hosted ingestion limits and are marked queued while HydraDB indexes them asynchronously.
+Writes are chunked and idempotent. The application exposes `persisted`, `queued`, `failed`, or `skipped` honestly. A local report can still be produced when HydraDB is unavailable, but the UI labels it local replay rather than pretending that memory was stored.
 
-## Observed versus modeled
+## What this is not
 
-Repository manifests, package metadata, advisory records, workflow files, and container files are observed public evidence. The deployment fan-out is modeled unless a repository exposes equivalent runtime records. The report includes uncertainty rather than blending these categories together.
+- It is not a live red-team tool.
+- It is not a package installer or malware sandbox.
+- It is not runtime exploit confirmation.
+- It is not a generic graph visualization.
+- It is not a score derived from fictional services or “crown jewels.”
 
-The source layer adds a second, deliberately separate signal: a bounded sample of public source files is indexed for local imports, symbols, inferred operational surfaces, and public CODEOWNERS attribution when available. The latest public commit can add changed-file and changed-symbol evidence when GitHub provides patch hunks. This refines where a modeled blast radius may enter the codebase; it does not silently convert static code hints into runtime exposure or change the core reachability score.
-
-## Why this can become an RL environment
-
-The deterministic loop is the reliable product path and the baseline environment:
-
-- state: active graph, event position, exposure, remaining response budget;
-- attacker actions: traverse the next permitted trust/dependency edge;
-- defender actions: choose a response control or stop;
-- reward: negative reachable exposure minus cost and disruption.
-
-An RL or beam-search policy can be evaluated against this environment later, but the demo does not depend on a trained policy or unsafe external execution.
+The product claim is narrower and stronger: **source-backed supply-chain reachability plus temporal remediation proof.**

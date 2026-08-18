@@ -1,47 +1,69 @@
 # Recoil demo runbook
 
-## Start the product
+## One-sentence framing
+
+> A vulnerable dependency is not the same as vulnerable application code. Recoil traces the evidence path, rewinds when it became true, and proves whether the proposed fix closes it.
+
+## Start
 
 ```bash
 npm install
 cp .env.example .env
-# fill HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID
+# fill HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID for the hosted memory proof
 npm run start
 ```
 
-Open `http://127.0.0.1:5173`. The API and browser are started by the same command.
+Open `http://127.0.0.1:5173`. The API and browser are started together.
 
-## A real case
+## Input
 
-Paste one of these into the investigation target field:
-
-```text
-https://github.com/axios/axios axios
-npm:lodash@4.17.21
-CVE-2021-4229 / fixture/storefront-api
-```
-
-Recoil collects npm or Cargo metadata, OSV advisory records, incident pages, and public repository files. It never installs or executes the package. The workspace then opens an adaptive red/blue arena:
+Use a verified advisory and real public repositories. Do not use placeholder repository URLs in the recording.
 
 ```text
-red route search → blue control → graph recalculation → red alternate route
+<verified GHSA/CVE identifier>
+https://github.com/<owner>/<repository-a>
+https://github.com/<owner>/<repository-b>
+https://github.com/<owner>/<repository-c>
 ```
 
-The final case report preserves every computed round, the initial and residual routes, observed sources, HydraDB memory state, and explicit uncertainty about modeled deployment edges.
+The strongest case contains three different outcomes: one repository that imports the affected package, one that only declares it, and one already outside the affected range. Validate the advisory and repository lockfiles before recording; Recoil must not be presented with invented evidence.
 
-## Terminal clients
+## What the judge sees
 
-With the API running:
+After one click, the investigation runs automatically:
+
+```text
+Reading public records
+Reading each repository manifest and lockfile
+Sampling source imports without installing anything
+Proving REACHED / DECLARED_ONLY / NOT_AFFECTED / UNKNOWN
+Rewinding lockfile history
+Checking the real fixed version against each declared range
+Writing and recalling dated HydraDB evidence
+```
+
+The final report shows the exact source-backed path, repository verdict, exposure window, fixed-version result, residual-path status, source links, and limits.
+
+## Spoken demo script
+
+1. “Most tools stop at ‘this dependency is vulnerable’. Recoil asks whether the vulnerable code is actually reached.”
+2. Submit the advisory and three repositories.
+3. “Red has found a path only when the lockfile, resolved version, and source import support every hop.” Open the `REACHED` repository and show the links.
+4. “This second repository declares the package but does not import it, so it is `DECLARED_ONLY`, not a fabricated compromise.”
+5. “This is the temporal question: the lockfile path existed before the advisory was public.” Click **Before advisory**.
+6. “Blue proposes the fixed version. Recoil checks the declared semver range instead of assuming an upgrade is safe.”
+7. “Red verifies the residual graph. The fix is either proven, requires a manifest change, or remains unknown.”
+8. “HydraDB stores the dated evidence and retrieves related facts; it is the investigation memory, not a green connection badge.”
+
+## Terminal proof
 
 ```bash
-npm run cli -- "https://github.com/axios/axios axios"
-npm run cli -- "https://github.com/axios/axios axios" --fast
-npm run cli -- "npm:lodash@4.17.21" --json
-npm run tui
+npm run cli -- "<verified advisory> https://github.com/<owner>/<repository>"
+npm run cli -- "<verified advisory> https://github.com/<owner>/<repository>" --json
 ```
 
-The CLI runs ingestion, prior-episode recall, adaptive red/blue rounds, HydraDB round persistence, and report generation. The TUI is a local operator view of the same pure arena engine: `s` starts, `space` steps, `r` resets, and `q` exits.
+The CLI and browser consume the same autonomous API state machine. `--json` is useful for showing that the report is structured evidence rather than terminal animation.
 
-## Evidence and safety boundary
+## Safety statement
 
-Public repository and advisory facts are observed. Deployment fan-out and service/data reachability are modeled unless a public source supplies stronger runtime evidence. HydraDB memories are uploaded asynchronously in bounded, idempotent chunks; Recoil displays `queued` until source status becomes terminal and only then performs recall. No exploit payload, package code, or target system is executed.
+Recoil observes public records and performs static graph/reachability analysis. It does not install dependencies, execute package code, send exploit payloads, or probe a live repository or service. Any benchmark fixture is explicitly test input; its output is computed by the evidence engine.
