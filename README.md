@@ -169,6 +169,9 @@ When a real lockfile exposes a transitive chain, the default CLI summary prints 
 the individual dependency hop and its source URL.
 
 For a repeatable external smoke against the configured `.env` (defaulting to the real bytes advisory and HydraDB repository), run `npm run smoke:real`. Set `RECOIL_SMOKE_QUERY` to use a different advisory/repository set. The command exits nonzero when collection is partial, a finding is `UNKNOWN`, or HydraDB fails, so an incomplete demo cannot look green.
+When the smoke gate passes, it writes the sanitized receipt to `.recoil-recordings/<scenario-id>.json`
+(ignored by git). Set `RECOIL_SMOKE_RECEIPT` to choose another output path; no raw HydraDB chunks,
+credentials, or GitHub cache data are written to the artifact.
 
 Set `RECOIL_SMOKE_REQUIRE_CONTRAST=1` for the recording gate. In that mode the case must contain one
 `REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, and HydraDB must finish indexing and return

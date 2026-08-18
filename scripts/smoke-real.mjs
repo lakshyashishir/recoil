@@ -1,12 +1,16 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { parseGitHubRepositories, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 import { persistInvestigation, recallTemporal } from '../server/hydra.js'
+import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
 
 const query = process.env.RECOIL_SMOKE_QUERY || 'GHSA-434x-w66g-qw3r https://github.com/hydra-db/hydradb'
 const scenarioId = process.env.RECOIL_SMOKE_SCENARIO || `real-${Date.now()}`
 const requiredContrast = process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
 const requiredHydra = process.env.RECOIL_SMOKE_REQUIRE_HYDRA === '1' || requiredContrast
+const receiptPath = process.env.RECOIL_SMOKE_RECEIPT || `.recoil-recordings/${scenarioId}.json`
 
 function print(label, value) {
   console.log(`${label.padEnd(12)} ${value}`)
@@ -63,4 +67,10 @@ print('boundary', 'no install · no repository execution · no exploit payload')
 const blockers = recordingBlockers({ report, evidenceStatus: ingestion.status, hydra: { ...hydra, recall }, requireContrast: requiredContrast, requireHydra: requiredHydra })
 for (const blocker of blockers) print('gate', blocker)
 if (requiredContrast && blockers.some((blocker) => blocker.startsWith('missing contrast'))) print('contrast', blockers.find((blocker) => blocker.startsWith('missing contrast')))
+if (!blockers.length) {
+  const receipt = buildEvidenceReceipt({ scenarioId, query, report, hydra: { ...hydra, recall } })
+  await mkdir(dirname(receiptPath), { recursive: true })
+  await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`)
+  print('receipt', receiptPath)
+}
 if (blockers.length) process.exitCode = 1

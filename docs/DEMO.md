@@ -39,6 +39,10 @@ completed indexing and a successful temporal recall. Strict mode also checks for
 three repository URLs and HydraDB credentials before starting collection, so it does not spend API calls on
 an invalid recording setup.
 
+When that strict smoke passes, it also saves the sanitized portable receipt under
+`.recoil-recordings/<scenario-id>.json`. Keep that artifact for the recording; the directory is ignored by
+git and does not contain raw HydraDB chunks or credentials.
+
 ## What the judge sees
 
 After one click, the investigation runs automatically:
