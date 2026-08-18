@@ -198,3 +198,5 @@ Manual checks:
 - `f3b377f` — source reachability and fix-proof benchmark
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
+
+The reproducible local gate is `npm run verify`; it runs the regression suite, evidence benchmark, and production build in order.

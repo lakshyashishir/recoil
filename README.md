@@ -107,6 +107,8 @@ In evidence mode, legacy arena operations are retired with an explicit `410` res
 npm test
 npm run benchmark
 npm run build
+# or run all three gates in order
+npm run verify
 ```
 
 The tests cover semver and OSV range evaluation, JavaScript/Rust source graphs, incomplete-source safety, temporal rewind, HydraDB memory construction, and an end-to-end mocked multi-repository ingestion. The benchmark generates four deterministic evidence cases and asserts:
