@@ -244,7 +244,8 @@ export function applyAdvisoryScope(ingestion, scope) {
   const findings = (ingestion?.findings || []).map((finding) => {
     const repository = (ingestion?.repositories || []).find((item) => item.repository === finding.repository)
     const symbols = repository?.manifest?.codeGraph?.symbols || []
-    const matches = candidates.flatMap((candidate) => symbols.filter((symbol) => symbol.name.toLowerCase() === candidate.name.toLowerCase()).map((symbol) => ({
+    const importerPaths = new Set((finding.imports || []).map((item) => item.path))
+    const matches = candidates.flatMap((candidate) => symbols.filter((symbol) => symbol.name.toLowerCase() === candidate.name.toLowerCase() && importerPaths.has(symbol.path)).map((symbol) => ({
       ...symbol,
       candidate: candidate.name,
       reason: candidate.reason || null,
@@ -255,10 +256,30 @@ export function applyAdvisoryScope(ingestion, scope) {
       ...finding,
       advisoryScope: matches.length
         ? { status: 'VALIDATED_SYMBOL', symbols: validatedSymbols }
-        : { status: candidates.length ? 'MODULE_LEVEL_ONLY' : 'NOT_REQUESTED', symbols: [] },
+        : { status: candidates.length ? 'MODULE_LEVEL_ONLY' : 'NOT_REQUESTED', symbols: [], note: candidates.length ? 'No model-named symbol was found in an importing file.' : null },
       path: symbolHops.length ? [...(finding.path || []), ...symbolHops] : finding.path,
       evidenceSources: [...new Set([...(finding.evidenceSources || []), ...matches.map((symbol) => symbol.sourceUrl).filter(Boolean)])],
     }
   })
-  return { ...ingestion, advisoryScope: scope || { status: 'skipped', affectedSymbols: [] }, findings }
+  const graph = ingestion?.graph || { nodes: [], edges: [] }
+  const symbolNodes = findings.flatMap((finding) => (finding.advisoryScope?.symbols || []).map((symbol) => ({
+    id: `symbol:${finding.repository}:${symbol.path}:${symbol.line}:${symbol.name}`,
+    label: `${symbol.name} · ${symbol.path}:${symbol.line}`,
+    type: 'symbol',
+    sourceUrl: symbol.sourceUrl || null,
+  })))
+  const symbolEdges = findings.flatMap((finding) => (finding.advisoryScope?.symbols || []).map((symbol) => [
+    `code:${finding.repository}:${symbol.path}`,
+    `symbol:${finding.repository}:${symbol.path}:${symbol.line}:${symbol.name}`,
+  ]))
+  return {
+    ...ingestion,
+    advisoryScope: scope || { status: 'skipped', affectedSymbols: [] },
+    findings,
+    graph: {
+      ...graph,
+      nodes: [...new Map([...(graph.nodes || []), ...symbolNodes].map((node) => [node.id, node])).values()],
+      edges: [...new Map([...(graph.edges || []), ...symbolEdges].map((edge) => [edge.join('>'), edge])).values()],
+    },
+  }
 }
