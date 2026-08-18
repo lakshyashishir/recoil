@@ -42,13 +42,17 @@ for (const finding of report.repositories || []) {
 }
 for (const fix of report.challenge || []) print('fix', `${fix.status} · ${fix.repository} · ${fix.proposedVersion || 'no fixed version'}`)
 print('rewind', `${report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
-print('hydra', `${hydra.status} · ${hydra.memoryCount || 0} memories · ${recall.datedChunkCount || 0} dated facts · ${recall.priorScenarioIds?.length || 0} prior cases`)
+const graphContext = recall.graphContext || {}
+const graphTriplets = graphContext.tripletCount ?? graphContext.triplets?.length ?? 0
+print('hydra', `${hydra.status} · ${hydra.memoryCount || 0} memories · ${recall.datedChunkCount || 0} dated facts · ${recall.priorScenarioIds?.length || 0} prior cases · ${graphTriplets} graph triplets`)
 if (hydra.error) print('hydra-error', hydra.error)
+if (hydra.indexingError) print('hydra-index', hydra.indexingError)
+if (requiredHydra && hydra.status !== 'persisted') print('hydra-gate', `required completed indexing, received ${hydra.status}`)
+if (requiredHydra && recall.status !== 'recalled') print('hydra-gate', `required temporal recall, received ${recall.status}`)
 print('sources', `${report.sources?.length || 0} public URLs`)
 print('boundary', 'no install · no repository execution · no exploit payload')
 
 const hasUnresolvedFinding = (report.repositories || []).some((finding) => finding.verdict === 'UNKNOWN')
 const missingContrast = missingRequiredVerdicts(report)
 if (requiredContrast && missingContrast.length) print('contrast', `missing ${missingContrast.join(', ')}`)
-if (requiredHydra && !['persisted', 'queued'].includes(hydra.status)) print('hydra-gate', `required persistence, received ${hydra.status}`)
-if (ingestion.status !== 'completed' || hasUnresolvedFinding || hydra.status === 'failed' || requiredHydra && !['persisted', 'queued'].includes(hydra.status) || missingContrast.length && requiredContrast) process.exitCode = 1
+if (ingestion.status !== 'completed' || hasUnresolvedFinding || hydra.status === 'failed' || requiredHydra && (hydra.status !== 'persisted' || recall.status !== 'recalled') || missingContrast.length && requiredContrast) process.exitCode = 1

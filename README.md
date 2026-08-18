@@ -133,11 +133,11 @@ repositories and failed collectors, and surfaces mixed lockfile-version ambiguit
 For a repeatable external smoke against the configured `.env` (defaulting to the real bytes advisory and HydraDB repository), run `npm run smoke:real`. Set `RECOIL_SMOKE_QUERY` to use a different advisory/repository set. The command exits nonzero when collection is partial, a finding is `UNKNOWN`, or HydraDB fails, so an incomplete demo cannot look green.
 
 Set `RECOIL_SMOKE_REQUIRE_CONTRAST=1` for the recording gate. In that mode the case must contain one
-`REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, and HydraDB must be persisted or queued,
-in addition to the normal completeness checks. Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you want to require
-HydraDB persistence without requiring the three-way contrast. Strict modes fail before collection when the
-query has fewer than three GitHub repositories or the required HydraDB credentials are missing, avoiding a
-misleading partial run and unnecessary public/API requests.
+`REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, and HydraDB must finish indexing and return
+a temporal recall, in addition to the normal completeness checks. Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you
+want to require the HydraDB write/read proof without requiring the three-way contrast. Strict modes fail before
+collection when the query has fewer than three GitHub repositories or the required HydraDB credentials are
+missing, avoiding a misleading partial run and unnecessary public/API requests.
 
 The OpenTUI console remains available for local operator use:
 

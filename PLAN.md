@@ -57,7 +57,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 ### Still required before calling the hackathon build complete
 
 - [ ] Validate and freeze one real advisory plus three real public repositories for the recording.
-- [ ] Run that case against the configured HydraDB cloud database and retain the successful output without committing secrets or cache files.
+- [ ] Run that case against the configured HydraDB cloud database, with completed indexing and temporal recall, and retain the successful output without committing secrets or cache files.
 - [ ] Verify the browser and CLI against the same real case.
 - [x] Improve source-level path precision by connecting advisory-described symbols to indexed symbols with a validated optional model step.
 - [x] Add cross-case HydraDB recall that visibly relates a new case to a prior package/repository fact.
