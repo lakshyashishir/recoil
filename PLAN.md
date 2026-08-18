@@ -58,6 +58,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Add CLI `--recording` enforcement for the three-way contrast plus completed HydraDB write and temporal-read proof.
 - [x] Share the same recording blocker contract between the CLI and real smoke, with regression coverage for ready and failed cases.
 - [x] Normalize HydraDB graph-context response shapes so top-level triplets remain visible in rewind, browser, and receipts.
+- [x] Surface API startup failures in the browser landing state instead of silently rendering an empty product.
 
 ### Still required before calling the hackathon build complete
 
@@ -243,6 +244,8 @@ Manual checks:
 - `59b82d2` — enforce strict recording mode in the CLI
 - `eae4387` — share strict recording blockers between CLI and smoke
 - `168b01b` — preserve HydraDB graph triplets across report surfaces
+- `8ba1a10` — make strict recording workflow explicit in the demo runbook
+- `0298623` — surface API startup failures in the browser
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
