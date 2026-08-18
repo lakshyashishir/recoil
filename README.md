@@ -2,7 +2,7 @@
 
 Recoil is a graph-native attack-and-defense simulator for software supply-chain incidents.
 
-Give it an npm package, advisory, or public GitHub repository. Recoil collects public package and advisory evidence, reads repository manifests without installing dependencies, builds a bounded propagation graph, then evaluates the smallest defensive response that disconnects the modeled path.
+Give it an npm package, advisory, or public GitHub repository. Recoil collects public package and advisory evidence, reads Node or Rust repository manifests without installing dependencies, builds a bounded propagation graph, then evaluates the smallest defensive response that disconnects the modeled path.
 
 The product is intentionally defensive. It never downloads or executes package code and never probes a target system.
 
@@ -74,7 +74,7 @@ POST /api/scenarios/:id/action    apply or remove a defensive control
 GET  /api/scenarios/:id/report    return observed facts, modeled state, sources, and uncertainty
 ```
 
-HydraDB memory ingestion is asynchronous. Recoil reports accepted memories as queued, polls each accepted source through the status endpoint, and only treats the case as indexed when every source reaches a terminal completed state. It then requests hybrid recall with graph context. See the [HydraDB API reference](https://docs.hydradb.com/api-reference).
+HydraDB memory ingestion is asynchronous. Recoil reports accepted memories as queued, polls each accepted source through the status endpoint, and only treats the case as indexed when every source reaches a terminal completed state. It then requests hybrid recall with graph context. See the [HydraDB API reference](https://docs.hydradb.com/api-reference). Rust workspaces are read from `Cargo.toml`/`Cargo.lock`; a repository that is not published as a crate is reported as repository-primary evidence rather than as a collector failure.
 
 ## Safety and uncertainty
 

@@ -55,6 +55,7 @@ async function main() {
   line(`evidence ${snapshot.ingestion.status} · ${(snapshot.ingestion.collectors || []).length} collectors · ${snapshot.graph.nodes.length} nodes / ${snapshot.graph.edges.length} edges`)
   line(`hydra   ${snapshot.hydra.status}${snapshot.hydra.memoryCount ? ` · ${snapshot.hydra.memoryCount} memories` : ''}`)
   if (failedCollectors.length) line(`warning ${failedCollectors.map((collector) => `${collector.collector}: ${collector.error}`).join('; ')}`)
+  if (snapshot.hydra.status === 'skipped') line('warning HydraDB was not configured in the API process; this run is local-only.')
 
   line('attack  advancing propagation sequence')
   snapshot = await advanceToBoundary(id, snapshot)
@@ -76,7 +77,8 @@ async function main() {
   const result = {
     scenarioId: id,
     query,
-    status: report.modeled.completed ? 'complete' : 'incomplete',
+    status: report.modeled.completed ? 'complete' : report.modeled.simulationComplete ? 'modeled-only' : 'incomplete',
+    evidenceStatus: snapshot.ingestion.status,
     conclusion: report.conclusion,
     graph: report.modeled,
     sources: report.sources,
@@ -89,6 +91,7 @@ async function main() {
     line(`route   ${report.modeled.primaryPath.length ? report.modeled.primaryPath.join(' → ') : 'severed'}`)
     line(`sources ${report.sources.length}`)
     line(`note    ${report.uncertainty[0]}`)
+    if (result.status === 'modeled-only') line('warning The attack/defense result completed, but public evidence collection was partial.')
   }
 }
 

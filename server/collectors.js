@@ -73,6 +73,49 @@ function packageDependencies(packageJson) {
   }
 }
 
+function parseTomlValue(value) {
+  const trimmed = value.trim().replace(/\s+#.*$/, '')
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed.slice(1, -1)
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1)
+  const version = trimmed.match(/\bversion\s*=\s*["']([^"']+)["']/)?.[1]
+  return version || trimmed
+}
+
+function parseCargoManifest(text) {
+  let section = ''
+  const packageInfo = {}
+  const dependencies = {}
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#')) continue
+    const sectionMatch = line.match(/^\[([^\]]+)\]$/)
+    if (sectionMatch) {
+      section = sectionMatch[1]
+      continue
+    }
+    const assignment = line.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/)
+    if (!assignment) continue
+    const [, key, value] = assignment
+    if (section === 'package' && ['name', 'version'].includes(key)) packageInfo[key] = parseTomlValue(value)
+    if (section === 'dependencies' || section === 'workspace.dependencies' || section.startsWith('target.') && section.endsWith('.dependencies')) {
+      dependencies[key] = parseTomlValue(value)
+    }
+  }
+  return { ...packageInfo, dependencies }
+}
+
+function parseCargoLock(text) {
+  return text.split(/\[\[package\]\]/).slice(1).map((block) => {
+    const name = block.match(/^\s*name\s*=\s*["']([^"']+)["']/m)?.[1]
+    const version = block.match(/^\s*version\s*=\s*["']([^"']+)["']/m)?.[1]
+    const dependenciesBlock = block.match(/^\s*dependencies\s*=\s*\[([\s\S]*?)\]/m)?.[1] || ''
+    const dependencies = [...dependenciesBlock.matchAll(/["']([^"']+)["']/g)]
+      .map((match) => match[1].split(' ').at(0))
+      .filter(Boolean)
+    return name && version ? { name, version, dependencies: [...new Set(dependencies)].slice(0, 8) } : null
+  }).filter(Boolean).slice(0, 160)
+}
+
 function resolveFromLockfile(lockfile, packageName) {
   if (!lockfile || !packageName) return null
   const packageEntry = lockfile.packages?.[`node_modules/${packageName}`]
@@ -83,13 +126,28 @@ function resolveFromLockfile(lockfile, packageName) {
 
 async function collectRepository(repository, requestedPackage) {
   const packageFile = await readGitHubFile(repository, 'package.json')
-  if (!packageFile) throw new Error(`package.json not found in ${repository.slug}`)
-  const packageJson = JSON.parse(packageFile.text)
-  const dependencies = packageDependencies(packageJson)
-  const inferredPackage = requestedPackage || packageJson.name || Object.keys(dependencies)[0] || null
-  const lockFile = await readGitHubFile(repository, 'package-lock.json')
-    || await readGitHubFile(repository, 'npm-shrinkwrap.json')
-  const lockfile = lockFile ? JSON.parse(lockFile.text) : null
+  const cargoManifestFile = packageFile ? null : await readGitHubFile(repository, 'Cargo.toml')
+  if (!packageFile && !cargoManifestFile) throw new Error(`package.json or Cargo.toml not found in ${repository.slug}`)
+  const ecosystem = cargoManifestFile ? 'cargo' : 'npm'
+  const packageJson = packageFile ? JSON.parse(packageFile.text) : null
+  const cargoManifest = cargoManifestFile ? parseCargoManifest(cargoManifestFile.text) : null
+  const dependencies = packageJson ? packageDependencies(packageJson) : cargoManifest.dependencies
+  const inferredPackage = requestedPackage || packageJson?.name || cargoManifest?.name || (cargoManifest ? repository.name : Object.keys(dependencies)[0]) || null
+  const lockFile = cargoManifestFile
+    ? await readGitHubFile(repository, 'Cargo.lock')
+    : await readGitHubFile(repository, 'package-lock.json') || await readGitHubFile(repository, 'npm-shrinkwrap.json')
+  const lockfile = lockFile && ecosystem === 'npm' ? JSON.parse(lockFile.text) : null
+  const lockPackages = ecosystem === 'cargo'
+    ? (lockFile ? parseCargoLock(lockFile.text) : [])
+    : Object.entries(lockfile?.packages || {})
+      .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
+      .slice(0, 120)
+      .map(([path, entry]) => ({
+        name: path.replace(/^node_modules\//, ''),
+        version: entry.version,
+        resolved: entry.resolved,
+        dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
+      }))
   const workflowEntries = await readGitHubDirectory(repository, '.github/workflows')
   const workflowFiles = (await Promise.all(workflowEntries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`)))).filter(Boolean)
   const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path)))).filter(Boolean)
@@ -100,28 +158,22 @@ async function collectRepository(repository, requestedPackage) {
     deployHints: [...new Set(workflowText.split('\n').filter((line) => !line.trim().startsWith('#') && /\b(deploy|publish|release|production|staging)\b/i.test(line)).map((line) => line.trim()).filter(Boolean).slice(0, 12))],
   }
   const deploymentSignals = containerFiles.map((file) => ({ path: file.path, kind: file.path.toLowerCase().includes('compose') ? 'compose' : 'container' }))
-  const resolvedVersion = resolveFromLockfile(lockfile, inferredPackage)
-  const lockPackages = Object.entries(lockfile?.packages || {})
-    .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
-    .slice(0, 120)
-    .map(([path, entry]) => ({
-      name: path.replace(/^node_modules\//, ''),
-      version: entry.version,
-      resolved: entry.resolved,
-      dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
-    }))
+  const resolvedVersion = ecosystem === 'cargo'
+    ? lockPackages.find((item) => item.name === inferredPackage)?.version || null
+    : resolveFromLockfile(lockfile, inferredPackage)
   return {
     collector: 'repository-extractor',
     status: 'completed',
-    sourceUrl: packageFile.sourceUrl,
+    ecosystem,
+    sourceUrl: (packageFile || cargoManifestFile).sourceUrl,
     entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length,
     repository: repository.slug,
     repositoryUrl: repository.url,
     synthetic: false,
     inferredPackage,
     manifest: {
-      name: packageJson.name || repository.name,
-      version: packageJson.version || null,
+      name: packageJson?.name || cargoManifest?.name || repository.name,
+      version: packageJson?.version || cargoManifest?.version || null,
       dependencies,
       resolved: inferredPackage ? { [inferredPackage]: resolvedVersion || 'range-only' } : {},
       lockfile: lockFile?.path || null,
@@ -129,7 +181,7 @@ async function collectRepository(repository, requestedPackage) {
       ciSignals,
       deploymentSignals,
     },
-    sources: [packageFile, lockFile, ...workflowFiles, ...containerFiles].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
+    sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
     observedAt: new Date().toISOString(),
   }
 }
@@ -152,7 +204,42 @@ function inferTarget(query = '') {
   }
 }
 
-async function collectRegistry(packageName) {
+async function collectRegistry(packageName, ecosystem = 'npm') {
+  if (ecosystem === 'cargo') {
+    const sourceUrl = `https://crates.io/api/v1/crates/${encodeURIComponent(packageName)}`
+    const payload = await readOptionalJson(sourceUrl)
+    if (!payload) {
+      return {
+        collector: 'registry-resolver',
+        status: 'not_found',
+        ecosystem,
+        sourceUrl,
+        entities: 0,
+        package: packageName,
+        latest: null,
+        affectedVersions: [],
+        fixedVersions: [],
+        maintainers: [],
+        note: 'No published crate was found; repository evidence remains the primary package source.',
+        observedAt: new Date().toISOString(),
+      }
+    }
+    const crate = payload.crate || {}
+    const versions = payload.versions || []
+    return {
+      collector: 'registry-resolver',
+      status: 'completed',
+      ecosystem,
+      sourceUrl,
+      entities: versions.length,
+      package: crate.name || packageName,
+      latest: crate.max_version || versions.find((version) => version.yanked === false)?.num || null,
+      affectedVersions: [],
+      fixedVersions: [],
+      maintainers: [],
+      observedAt: new Date().toISOString(),
+    }
+  }
   const payload = await readJson(`https://registry.npmjs.org/${encodeURIComponent(packageName)}`)
   const versions = Object.keys(payload.versions || {})
   return {
@@ -171,11 +258,11 @@ async function collectRegistry(packageName) {
   }
 }
 
-async function collectAdvisories(packageName, advisoryId) {
+async function collectAdvisories(packageName, advisoryId, ecosystem = 'npm') {
   const payload = await readJson('https://api.osv.dev/v1/query', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ package: { ecosystem: 'npm', name: packageName } }),
+    body: JSON.stringify({ package: { ecosystem: ecosystem === 'cargo' ? 'crates.io' : 'npm', name: packageName } }),
   })
   const vulnerabilities = payload.vulns || []
   const normalizedAdvisory = advisoryId?.toUpperCase()
@@ -203,9 +290,14 @@ async function collectAdvisories(packageName, advisoryId) {
   }
 }
 
-async function collectIncidentSources(packageName) {
+async function collectIncidentSources(packageName, ecosystem = 'npm') {
   const sources = packageName === DEFAULT_PACKAGE
     ? incidentSources
+    : ecosystem === 'cargo'
+      ? [
+          { label: 'crates.io package page', url: `https://crates.io/crates/${encodeURIComponent(packageName)}` },
+          { label: 'OSV package query', url: `https://osv.dev/list?q=${encodeURIComponent(packageName)}` },
+        ]
     : [
         { label: 'npm package page', url: `https://www.npmjs.com/package/${encodeURIComponent(packageName)}` },
         { label: 'OSV package query', url: `https://osv.dev/list?q=${encodeURIComponent(packageName)}` },
@@ -263,18 +355,22 @@ export async function runIngestion({ query = `${DEFAULT_ADVISORY} / fixture/stor
   }
 
   let packageName = target.packageName
+  let ecosystem = 'npm'
   if (!packageName && target.repository) {
     await run('repository-extractor', async () => {
       const result = await collectRepository(target.repository, null)
       packageName = result.inferredPackage || DEFAULT_PACKAGE
+      ecosystem = result.ecosystem || ecosystem
       return result
     })
   }
   packageName = packageName || DEFAULT_PACKAGE
-  await run('registry-resolver', () => collectRegistry(packageName))
-  await run('advisory-resolver', () => collectAdvisories(packageName, target.advisoryId))
-  await run('incident-researcher', () => collectIncidentSources(packageName))
-  if (!collectors.some((collector) => collector.collector === 'repository-extractor' && collector.status === 'completed')) {
+  const completedRepository = collectors.find((collector) => collector.collector === 'repository-extractor' && collector.status === 'completed')
+  ecosystem = completedRepository?.ecosystem || ecosystem
+  await run('registry-resolver', () => collectRegistry(packageName, ecosystem))
+  await run('advisory-resolver', () => collectAdvisories(packageName, target.advisoryId, ecosystem))
+  await run('incident-researcher', () => collectIncidentSources(packageName, ecosystem))
+  if (!collectors.some((collector) => collector.collector === 'repository-extractor')) {
     if (target.repository) await run('repository-extractor', () => collectRepository(target.repository, packageName))
     else collectors.push(collectRepositoryFixture(packageName, target.version))
   }

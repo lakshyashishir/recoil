@@ -69,8 +69,9 @@ function buildGraph(ingestion) {
     radius.lockfilePackages = manifest.lockPackages?.length || 0
     radius.transitiveAvailable = (manifest.lockPackages || []).filter((item) => item?.name && !directNames.has(item.name)).length
     radius.transitiveIncluded = transitivePackages.length
+    const transitiveIds = new Map(transitivePackages.map((item) => [item, `lock:${item.name}@${item.version}`]))
     transitivePackages.forEach((item, index) => {
-      const id = `lock:${item.name}`
+      const id = transitiveIds.get(item)
       nodes.push({
         id,
         label: `${item.name}@${item.version}`,
@@ -82,7 +83,11 @@ function buildGraph(ingestion) {
         activeAt: 4,
       })
       edges.push([manifestId, id])
-      const parent = item.dependencies?.map((name) => directIds.get(name) || `lock:${name}`).find((candidate) => nodes.some((node) => node.id === candidate))
+      const parent = item.dependencies?.map((name) => {
+        if (directIds.has(name)) return directIds.get(name)
+        const matchingPackage = transitivePackages.find((candidate) => candidate.name === name)
+        return matchingPackage ? transitiveIds.get(matchingPackage) : null
+      }).find((candidate) => candidate && nodes.some((node) => node.id === candidate))
       if (parent) edges.push([parent, id])
     })
     if (manifest.ciSignals?.workflowFiles?.length) {
@@ -127,6 +132,7 @@ function buildReport(record) {
       : 'The investigation is incomplete; the available evidence does not support a complete conclusion.',
     observed: {
       package: ingestion.package || null,
+      ecosystem: repository?.ecosystem || 'npm',
       advisory: ingestion.target?.advisoryId || null,
       advisoryRecord: advisory?.targetAdvisory ? { id: advisory.targetAdvisory.id, summary: advisory.targetAdvisory.summary, references: advisory.targetAdvisory.references?.length || 0 } : null,
       affectedVersions: registry?.affectedVersions || [],
@@ -146,7 +152,10 @@ function buildReport(record) {
       reachableExposure: reachability.exposure,
       eventCount: record.events.length,
       defenseRounds: record.round || 0,
-      completed: record.state.eventIndex >= record.events.length,
+      simulationComplete: record.state.eventIndex >= record.events.length,
+      evidenceComplete: ingestion.status === 'completed',
+      completed: record.state.eventIndex >= record.events.length && ingestion.status === 'completed',
+      mode: ingestion.status === 'completed' ? 'evidence-backed-model' : 'modeled-only',
       reachableTargets: reachability.reachableTargetIds,
       primaryPath: reachability.primaryPath,
       alternatePaths: reachability.alternatePaths,
@@ -160,6 +169,7 @@ function buildReport(record) {
     recommendation: recommended,
     uncertainty: [
       repository?.synthetic ? 'Deployment and service fan-out are synthetic demo records.' : 'Service and data fan-out is modeled; repository evidence is not a runtime inventory.',
+      registry?.status === 'not_found' ? `No published ${repository?.ecosystem === 'cargo' ? 'crate' : 'package'} registry record was found; repository files are the primary evidence.` : null,
       repository?.status === 'failed' ? `Repository evidence collection failed: ${repository.error || 'unknown error'}.` : null,
       repository && !repository.manifest?.lockfile ? 'The public repository did not expose a lockfile; dependency resolution is range-based.' : null,
       record.graph.radius?.transitiveAvailable > record.graph.radius?.transitiveIncluded
