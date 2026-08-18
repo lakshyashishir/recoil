@@ -210,7 +210,7 @@ test('HydraDB adapter waits for asynchronous graph indexing before recall', asyn
       return {
         ok: true,
         status: 200,
-        json: async () => ({ data: { inner: { statuses: memoryIds.map((id) => ({ id, indexing_status: statusCalls > 1 ? 'completed' : 'embedding' })) } } }),
+        json: async () => ({ data: { inner: { statuses: memoryIds.map((id) => ({ source_id: id, indexing_status: statusCalls > 1 ? 'completed' : 'embedding' })) } } }),
       }
     }
     throw new Error(`unexpected HydraDB URL: ${url}`)

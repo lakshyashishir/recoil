@@ -212,7 +212,7 @@ async function waitForIndexing(result, signal) {
     const merged = sourceIds.map((id) => statusById.get(id) || (result.results || []).find((item) => resultId(item) === id)).filter(Boolean)
     const failed = merged.find((item) => ['failed', 'errored', 'error'].includes(indexingStatus(item)))
     if (failed) {
-      const error = new Error(`HydraDB indexing failed for ${failed.id}: ${failed.error_message || failed.message || indexingStatus(failed)}`)
+      const error = new Error(`HydraDB indexing failed for ${resultId(failed) || 'unknown memory'}: ${failed.error_message || failed.message || indexingStatus(failed)}`)
       error.code = 'HYDRA_INDEX_FAILED'
       throw error
     }
