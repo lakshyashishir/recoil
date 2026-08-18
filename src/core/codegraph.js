@@ -1,13 +1,5 @@
 const SOURCE_EXTENSIONS = ['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.rs']
 
-const SURFACE_RULES = [
-  { id: 'billing', target: 'payments', tokens: ['payment', 'billing', 'checkout', 'invoice', 'stripe'] },
-  { id: 'identity', target: 'secrets', tokens: ['auth', 'credential', 'secret', 'token', 'session', 'jwt'] },
-  { id: 'data', target: 'customer-db', tokens: ['database', 'db', 'postgres', 'mysql', 'redis', 'prisma', 'sql', 'repository'] },
-  { id: 'build', target: 'ci', tokens: ['deploy', 'release', 'docker', 'workflow', 'pipeline', 'build'] },
-  { id: 'network', target: 'gateway', tokens: ['api', 'server', 'router', 'http', 'request', 'webhook'] },
-]
-
 function languageFor(path = '') {
   return path.endsWith('.rs') ? 'rust' : 'javascript'
 }
@@ -171,7 +163,7 @@ function ownersForPath(path, rules) {
   return owners
 }
 
-export function enrichImpactCandidates(codeGraph, codeowners = []) {
+export function enrichChangeEvidence(codeGraph, codeowners = []) {
   if (!codeGraph) return codeGraph
   const rules = Array.isArray(codeowners) ? codeowners : parseCodeowners(codeowners)
   const changedFiles = (codeGraph.recentChange?.files || []).map((file) => ({
@@ -181,21 +173,10 @@ export function enrichImpactCandidates(codeGraph, codeowners = []) {
   const recentChange = codeGraph.recentChange
     ? { ...codeGraph.recentChange, files: changedFiles, ownershipRules: rules.length }
     : null
-  const changes = new Map(changedFiles.map((file) => [file.path, file]))
   return {
     ...codeGraph,
     recentChange,
     ownershipRules: rules.length,
-    impactCandidates: (codeGraph.impactCandidates || []).map((candidate) => {
-      const change = changes.get(candidate.file)
-      return {
-        ...candidate,
-        changed: Boolean(change),
-        changedSymbols: change?.symbols || [],
-        changeMatch: change?.symbolMatch || null,
-        owners: change?.owners || [],
-      }
-    }),
   }
 }
 
@@ -216,26 +197,7 @@ function resolveRust(from, specifier, files) {
   return candidates.find((candidate) => files.has(candidate)) || null
 }
 
-function inferSurface(file, symbols) {
-  const haystack = `${file.path} ${file.text}`.toLowerCase()
-  const matches = SURFACE_RULES.map((rule) => ({
-    rule,
-    hits: rule.tokens.filter((token) => haystack.includes(token)),
-  })).filter((item) => item.hits.length)
-  if (!matches.length) return null
-  const best = matches.sort((left, right) => right.hits.length - left.hits.length)[0]
-  return {
-    file: file.path,
-    target: best.rule.target,
-    surface: best.rule.id,
-    matchedTerms: best.hits,
-    symbols: symbols.filter((symbol) => symbol.path === file.path).map((symbol) => symbol.name).slice(0, 8),
-    confidence: best.hits.length > 1 ? 'inferred' : 'weak-inference',
-    reason: `${best.hits.join(', ')} matched in public source path or text`,
-  }
-}
-
-export function buildCodeGraph(sourceFiles = [], { maxFiles = 24, inferSurfaces = true } = {}) {
+export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
   const selected = sourceFiles
     .filter((file) => file?.path && file?.text && SOURCE_EXTENSIONS.some((extension) => file.path.endsWith(extension)))
     .slice(0, maxFiles)
@@ -251,7 +213,6 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24, inferSurfaces 
     y: 10 + (Math.floor(index / 5) * 17),
   }))
   const symbols = [...files.values()].flatMap((file) => parseSourceSymbols(file.text, file.path).map((symbol) => ({ ...symbol, path: file.path, sourceUrl: file.sourceUrl || null })))
-  const impactCandidates = inferSurfaces ? [...files.values()].map((file) => inferSurface(file, symbols)).filter(Boolean).slice(0, 24) : []
   const edges = []
   const unresolved = []
   const externalImports = []
@@ -303,10 +264,8 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24, inferSurfaces 
     unresolved: unresolved.slice(0, 40),
     externalImports: [...new Map(externalImports.map((item) => [`${item.path}>${item.specifier}>${item.line}`, item])).values()].slice(0, 160),
     symbols: symbols.slice(0, 80),
-    impactCandidates,
     fileCount: nodes.length,
     importEdgeCount: uniqueEdges.length,
     symbolCount: Math.min(symbols.length, 80),
-    surfaceCount: impactCandidates.length,
   }
 }

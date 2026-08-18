@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { buildChangeImpact, buildCodeGraph, enrichImpactCandidates, parseCodeowners } from '../src/core/codegraph.js'
+import { buildChangeImpact, buildCodeGraph, enrichChangeEvidence, parseCodeowners } from '../src/core/codegraph.js'
 import { buildObservedGraph, classifyRepository, fixedVersionsFromAdvisory } from '../src/core/evidence.js'
 
 async function readJson(url, options) {
@@ -415,7 +415,7 @@ export async function collectRepository(repository, requestedPackage) {
   const sourceResult = await collectSourceFiles(repository)
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
-  let codeGraph = buildCodeGraph(sourceFiles, { inferSurfaces: false, maxFiles: sourceResult.limit || sourceFiles.length || 24 })
+  let codeGraph = buildCodeGraph(sourceFiles, { maxFiles: sourceResult.limit || sourceFiles.length || 24 })
   const dependencyAliases = ecosystem === 'cargo' ? cargoManifest.dependencyAliases || {} : {}
   const normalizedDependencies = { ...dependencies }
   for (const [alias, packageName] of Object.entries(dependencyAliases)) {
@@ -430,7 +430,7 @@ export async function collectRepository(repository, requestedPackage) {
     }),
   }
   codeGraph.recentChange = await collectLatestChange(repository, codeGraph)
-  codeGraph = enrichImpactCandidates(codeGraph, parseCodeowners(codeownersFile?.text || ''))
+  codeGraph = enrichChangeEvidence(codeGraph, parseCodeowners(codeownersFile?.text || ''))
   const workflowText = workflowFiles.map((file) => file.text).join('\n')
   const ciSignals = {
     status: workflowResult.status,

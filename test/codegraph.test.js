@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildChangeImpact, buildCodeGraph, enrichImpactCandidates, parseCodeowners, parseSourceSymbols } from '../src/core/codegraph.js'
+import { buildChangeImpact, buildCodeGraph, enrichChangeEvidence, parseCodeowners, parseSourceSymbols } from '../src/core/codegraph.js'
 
 test('JavaScript code graph resolves relative imports without executing source', () => {
   const graph = buildCodeGraph([
@@ -51,17 +51,6 @@ test('code graph is bounded to the configured public-file sample', () => {
   assert.equal(graph.importEdgeCount, 0)
 })
 
-test('code graph reports inferred deployment surfaces separately from exposure scoring', () => {
-  const graph = buildCodeGraph([
-    { path: 'src/payments/checkout.ts', text: 'export function chargePayment(token) { return stripe.charge(token) }' },
-    { path: 'src/auth/session.ts', text: 'export function verifyToken(jwt) { return jwt.verify() }' },
-  ])
-
-  assert.equal(graph.surfaceCount, 2)
-  assert.deepEqual(graph.impactCandidates.map((candidate) => candidate.target), ['payments', 'secrets'])
-  assert.equal(graph.impactCandidates[0].confidence, 'inferred')
-})
-
 test('symbol index keeps kind and source line for later impact analysis', () => {
   const symbols = parseSourceSymbols('class Router {}\n\nexport function trace() {}', 'src/router.js')
 
@@ -103,12 +92,12 @@ test('source graph preserves external package imports for reachability proof', (
   ])
 })
 
-test('impact candidates identify surfaces touched by the latest changed symbols', () => {
+test('change evidence preserves changed symbols without inventing deployment surfaces', () => {
   const graph = buildCodeGraph([
     { path: 'src/payments.ts', text: 'export function chargePayment(token) { return stripe.charge(token) }' },
     { path: 'src/auth/session.ts', text: 'export function verifyToken(jwt) { return jwt.verify() }' },
   ])
-  const enriched = enrichImpactCandidates({
+  const enriched = enrichChangeEvidence({
     ...graph,
     recentChange: {
       files: [
@@ -117,9 +106,8 @@ test('impact candidates identify surfaces touched by the latest changed symbols'
     },
   })
 
-  assert.deepEqual(enriched.impactCandidates.map((candidate) => candidate.changedSymbols), [['chargePayment'], []])
-  assert.equal(enriched.impactCandidates[0].changed, true)
-  assert.equal(enriched.impactCandidates[0].changeMatch, 'hunk-line')
+  assert.deepEqual(enriched.recentChange.files[0].symbols, ['chargePayment'])
+  assert.equal('impactCandidates' in enriched, false)
 })
 
 test('CODEOWNERS attribution follows the last matching public rule', () => {
@@ -127,12 +115,11 @@ test('CODEOWNERS attribution follows the last matching public rule', () => {
   const graph = buildCodeGraph([
     { path: 'src/payments.ts', text: 'export function chargePayment(token) { return stripe.charge(token) }' },
   ])
-  const enriched = enrichImpactCandidates({
+  const enriched = enrichChangeEvidence({
     ...graph,
     recentChange: { files: [{ path: 'src/payments.ts', symbols: ['chargePayment'], symbolMatch: 'hunk-line' }] },
   }, rules)
 
   assert.deepEqual(enriched.recentChange.files[0].owners, ['@payments-owner'])
-  assert.deepEqual(enriched.impactCandidates[0].owners, ['@payments-owner'])
   assert.equal(enriched.ownershipRules, 3)
 })

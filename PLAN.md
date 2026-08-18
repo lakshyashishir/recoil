@@ -63,6 +63,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Expose the recording contract and evidence-proof capabilities through `/api/health` for operator and demo readiness checks.
 - [x] Require non-empty HydraDB memory and dated temporal recall before strict recording can pass.
 - [x] Prefer raw GitHub source reads after tree discovery to protect the strict recording workflow from API-rate exhaustion.
+- [x] Remove heuristic source-to-deployment surface inference so every displayed path remains tied to observed repository evidence.
 
 ### Still required before calling the hackathon build complete
 
