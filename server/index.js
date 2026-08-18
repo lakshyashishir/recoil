@@ -18,6 +18,8 @@ import {
 import { runIngestion } from './collectors.js'
 import { createArenaState, stepArena } from '../src/core/arena.js'
 import { hydraStatus, persistArenaRound, persistDecision, persistEvaluation, persistIngestion, pollIngestion, recall } from './hydra.js'
+import { getAgentStatus, runAgentRound } from './agents.js'
+import { applySandboxControl, createSandboxState, runRegressionSuite, sandboxSummary } from '../sandbox/fixture.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
@@ -265,6 +267,7 @@ function snapshot(record) {
     ingestion: record.ingestion,
     hydra: record.hydra,
     arena: record.arena,
+    sandbox: sandboxSummary(record.sandbox),
     sources: [
       { id: 'osv', label: 'OSV advisory', type: 'advisory', status: sourceStatus('advisory-resolver') },
       { id: 'registry', label: registryLabel, type: 'registry', status: sourceStatus('registry-resolver') },
@@ -288,6 +291,7 @@ function getOrCreate(id = '0017', body = {}) {
       ingestion: { status: 'not_started', collectors: [] },
       hydra: { status: 'not_started', memoryCount: 0, recall: null },
       arena: null,
+      sandbox: createSandboxState(),
     })
   }
   return scenarios.get(id)
@@ -299,11 +303,11 @@ async function body(req) {
   return raw ? JSON.parse(raw) : {}
 }
 
-function route(req, res) {
+async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
   if (req.method === 'OPTIONS') return json(res, 204, {})
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'recoil-api', hydra: hydraStatus(), capabilities: ['npm', 'cargo', 'osv', 'repository-evidence', 'adaptive-arena'], time: new Date().toISOString() })
+    return json(res, 200, { ok: true, service: 'recoil-api', hydra: hydraStatus(), agents: getAgentStatus(), capabilities: ['npm', 'cargo', 'osv', 'repository-evidence', 'adaptive-arena', 'constrained-red-blue-agents'], time: new Date().toISOString() })
   }
   if (req.method === 'GET' && url.pathname === '/api/scenario') return json(res, 200, snapshot(getOrCreate()))
   if (req.method === 'POST' && url.pathname === '/api/scenarios') {
@@ -335,6 +339,7 @@ function route(req, res) {
       record.ingestion = { status: 'not_started', collectors: [] }
       record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
       record.arena = null
+      record.sandbox = createSandboxState()
       return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'ingest') {
@@ -342,6 +347,7 @@ function route(req, res) {
       record.round = 0
       record.ingestion = { status: 'running', collectors: [] }
       record.hydra = { status: 'running', memoryCount: 0, recall: null }
+      record.sandbox = createSandboxState()
       return runIngestion({ query: record.query, scenarioId: record.id }).then((result) => {
         record.ingestion = result
         record.graph = buildGraph(result)
@@ -383,10 +389,47 @@ function route(req, res) {
       if (!record.arena) return json(res, 409, { error: 'Start the arena after collecting evidence' })
       if (['contained', 'breached', 'exhausted'].includes(record.arena.status)) return json(res, 200, snapshot(record))
       const previous = record.arena
-      const next = stepArena(previous, record.graph.nodes, record.graph.edges, { memory: record.hydra?.arenaRecall })
-      record.arena = next
-      const round = next.lastRound
-      const terminal = ['contained', 'breached', 'exhausted'].includes(next.status)
+      const deterministic = stepArena(previous, record.graph.nodes, record.graph.edges, { memory: record.hydra?.arenaRecall })
+      const fallback = { redPath: deterministic.lastRound.red.path, blueAction: deterministic.lastRound.blue.action }
+      let agentRound
+      try {
+        agentRound = await runAgentRound({
+          state: previous,
+          graphNodes: record.graph.nodes,
+          graphEdges: record.graph.edges,
+          memory: record.hydra?.arenaRecall,
+          sandbox: record.sandbox,
+          evidence: record.ingestion,
+          packageName: record.ingestion?.package || 'target',
+          query: record.query,
+          scenarioId: record.id,
+          fallback,
+        })
+      } catch (error) {
+        agentRound = { mode: 'deterministic-fallback', policy: fallback, red: { trace: [], reason: `Red fallback: ${error.message}` }, blue: { trace: [], reason: `Blue fallback: ${error.message}` } }
+      }
+      const next = stepArena(previous, record.graph.nodes, record.graph.edges, { memory: record.hydra?.arenaRecall, policy: agentRound.policy })
+      const sandboxControl = applySandboxControl(record.sandbox, next.lastRound.blue.action)
+      const sandboxRegression = runRegressionSuite(record.sandbox)
+      const sandboxRound = {
+        probe: agentRound.probe || null,
+        control: sandboxControl,
+        regression: sandboxRegression,
+        summary: sandboxSummary(record.sandbox),
+      }
+      const agentTrace = {
+        mode: agentRound.mode,
+        red: agentRound.red,
+        blue: agentRound.blue,
+      }
+      record.arena = {
+        ...next,
+        agentMode: agentRound.mode,
+        agents: agentTrace,
+        lastRound: { ...next.lastRound, agentMode: agentRound.mode, agents: agentTrace, sandbox: sandboxRound },
+      }
+      const round = record.arena.lastRound
+      const terminal = ['contained', 'breached', 'exhausted'].includes(record.arena.status)
       const plans = terminal ? evaluateInterventions(record.state, record.graph.nodes, record.graph.edges) : []
       record.hydra = { ...record.hydra, arenaPersistStatus: 'queued' }
       persistArenaRound({
@@ -427,6 +470,7 @@ function route(req, res) {
         graphEdges: record.graph.edges,
         memory: record.hydra?.arenaRecall,
       })
+      record.sandbox = createSandboxState()
       return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'persist') {
@@ -494,6 +538,7 @@ function route(req, res) {
         record.ingestion = { status: 'not_started', collectors: [] }
         record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
         record.arena = null
+        record.sandbox = createSandboxState()
         return json(res, 202, snapshot(record))
       }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
     }

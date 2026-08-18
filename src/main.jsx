@@ -151,28 +151,36 @@ function Graph({ snapshot, selectedNode, setSelectedNode, view = 'focus' }) {
   )
 }
 
-function AgentPanels({ arena, graph }) {
+function AgentPanels({ arena, graph, busy, agentStatus }) {
   const round = arena?.lastRound
   const labels = new Map((graph?.nodes || []).map((node) => [node.id, node.label]))
   const redPath = round?.red?.path?.map((id) => labels.get(id) || id).join(' → ')
   const blueCandidates = round?.blue?.candidates || []
+  const agentMode = round?.agentMode || arena?.agentMode || (agentStatus?.configured ? 'llm-constrained' : 'deterministic-fallback')
+  const modeLabel = busy ? 'agent loop in progress' : agentMode === 'llm-constrained' ? `LLM policy · ${round?.agents?.red?.model || agentStatus?.model || 'configured'}` : 'deterministic fallback'
+  const redTools = [...new Set((round?.agents?.red?.trace || []).map((item) => item.tool).filter(Boolean))]
+  const blueTools = [...new Set((round?.agents?.blue?.trace || []).map((item) => item.tool).filter(Boolean))]
   return <section className="agent-panels" aria-label="Current attack and defense decisions">
     <article className="agent-panel attack-panel">
-      <div className="agent-panel-head"><div><div className="section-caption">red / attack</div><h2>Find a route</h2></div><span className="agent-panel-state">{round ? `round ${round.round}` : 'waiting'}</span></div>
+      <div className="agent-panel-head"><div><div className="section-caption">red / attack</div><h2>Find a route</h2></div><span className="agent-panel-state">{busy ? 'thinking' : round ? `round ${round.round}` : 'waiting'}</span></div>
+      {busy && <div className="agent-working red-working"><span className="working-dot" /> Red is reading the graph, evidence and fixture state.</div>}
       {round ? <>
         <strong className="agent-panel-action">{round.red.label}</strong>
         <p>{round.red.intent}. Red can only choose edges that exist in the current graph.</p>
         <div className="agent-route"><span>selected path</span><strong>{redPath || 'No reachable path'}</strong></div>
-        <div className="agent-panel-foot"><span>{round.red.candidates?.length || 0} reachable routes evaluated</span><span>target: {labels.get(round.red.target) || round.red.target || 'none'}</span></div>
+        <div className="agent-probe"><span>disposable fixture probe</span><strong>{round.sandbox?.probe?.status || 'not run'}</strong><small>{round.sandbox?.probe?.reason || 'The selected route will be tested inside the local fixture.'}</small></div>
+        <div className="agent-panel-foot"><span>{round.red.candidates?.length || 0} reachable routes evaluated</span><span>{redTools.length ? `tools: ${redTools.join(' · ')}` : modeLabel}</span></div>
       </> : <div className="agent-panel-empty"><strong>Red is ready.</strong><p>Run the first round and it will select the highest-impact route that the graph actually allows.</p></div>}
     </article>
     <article className="agent-panel defense-panel">
-      <div className="agent-panel-head"><div><div className="section-caption">blue / defense</div><h2>Cut the route</h2></div><span className="agent-panel-state">{round ? `round ${round.round}` : 'next'}</span></div>
+      <div className="agent-panel-head"><div><div className="section-caption">blue / defense</div><h2>Cut the route</h2></div><span className="agent-panel-state">{busy ? 'responding' : round ? `round ${round.round}` : 'next'}</span></div>
+      {busy && <div className="agent-working blue-working"><span className="working-dot" /> Blue will retest the route after Red chooses.</div>}
       {round ? <>
         <strong className="agent-panel-action">{round.blue.title || 'No control selected'}</strong>
         <p>{round.blue.rationale}</p>
         <div className="agent-result"><span>exposure</span><strong>{round.before.exposure}%</strong><ArrowRight size={13} /><strong className={round.after.exposure < round.before.exposure ? 'good' : ''}>{round.after.exposure}%</strong><small>{round.after.reachableTargets.length ? `${round.after.reachableTargets.length} targets remain` : 'route contained'}</small></div>
-        <div className="agent-panel-foot"><span>{blueCandidates.length} controls compared</span><span>{round.blue.memoryUsed ? 'HydraDB precedent used' : 'graph policy'}</span></div>
+        <div className="agent-regression"><span>fixture regression</span><strong>{round.sandbox?.regression?.filter((check) => check.status === 'passed').length || 0}/{round.sandbox?.regression?.length || 0} checks passed</strong><small>{round.sandbox?.control?.action ? `control applied: ${round.sandbox.control.action}` : 'no fixture control applied'}</small></div>
+        <div className="agent-panel-foot"><span>{blueCandidates.length} controls compared</span><span>{blueTools.length ? `tools: ${blueTools.join(' · ')}` : round.blue.memoryUsed ? 'HydraDB precedent used' : modeLabel}</span></div>
       </> : <div className="agent-panel-empty"><strong>Blue responds second.</strong><p>It will score available defenses against Red’s exact route, then apply the best valid graph mutation.</p></div>}
     </article>
   </section>
@@ -272,7 +280,7 @@ function DecisionRail({ snapshot, selectedNode }) {
   </aside>
 }
 
-function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onPause, onReset, busy, autoRun, setAutoRun, selectedNode, setSelectedNode, graphView, setGraphView, error }) {
+function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onPause, onReset, busy, agentStatus, autoRun, setAutoRun, selectedNode, setSelectedNode, graphView, setGraphView, error }) {
   const arena = snapshot?.arena
   const terminal = ['contained', 'breached', 'exhausted'].includes(arena?.status)
   const waiting = !terminal && !arena?.lastRound
@@ -288,18 +296,12 @@ function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onP
     setAutoRun(!autoRun)
   }
   return <div className="case-layout">
-    <aside className="case-rail">
-      <div className="case-rail-top"><div className="brand-mini"><span className="brand-square" /> RECOIL</div><span className="case-id">CASE 0017</span></div>
-      <div className="case-target"><div className="section-caption">target</div><input value={query} onChange={(event) => setQuery(event.target.value)} /><button onClick={onStart} disabled={busy}><RotateCcw size={13} /> re-run evidence</button></div>
-      <div className="case-purpose"><span className="signal-dot" />{repo?.repository || 'public target'}<p>{repo?.ecosystem === 'cargo' ? 'Rust workspace evidence' : 'dependency evidence'} · no package execution</p></div>
-      <SourceRail snapshot={snapshot} />
-      <div className="case-rail-bottom"><span><ShieldCheck size={13} /> defensive simulation</span><span>graph v0.7 arena</span></div>
-    </aside>
     <main className="arena-main">
-      <header className="arena-header"><div><div className="section-caption">investigation / {arena?.round || 0} rounds</div><h1>{headerTitle}</h1><p>{headerCopy}</p></div><div className="arena-actions"><span className={`hydra-chip ${snapshot?.hydra?.status === 'persisted' ? 'connected' : ''}`}><Database size={13} /> {snapshot?.hydra?.status || 'local replay'}</span><button className={`quiet-button ${waiting ? 'primary-button' : ''}`} onClick={handleRun} disabled={busy}>{autoRun ? <><Pause size={14} /> pause loop</> : <><Play size={14} /> {waiting ? 'start first round' : terminal ? 'replay stopped' : 'run loop'}</>}</button><button className="quiet-button" onClick={onReset}><RotateCcw size={14} /> reset</button></div></header>
+      <div className="target-strip"><div><div className="section-caption">target under test</div><strong>{repo?.repository || query}</strong><span>{repo?.ecosystem === 'cargo' ? 'Rust workspace evidence' : 'public dependency evidence'} · local fixture execution only</span></div><button className="quiet-button" onClick={onStart} disabled={busy}><RotateCcw size={14} /> re-run evidence</button></div>
+      <header className="arena-header"><div><div className="section-caption">investigation / {arena?.round || 0} rounds</div><h1>{busy ? 'Red and Blue are working.' : headerTitle}</h1><p>{busy ? 'Red is selecting a legal route. Blue will execute a control and retest the owned fixture before this round returns.' : headerCopy}</p></div><div className="arena-actions"><span className="agent-mode-chip">{busy ? 'Red → Blue · working' : arena?.agentMode === 'llm-constrained' || agentStatus?.configured ? 'Red / Blue · model policy' : arena?.agentMode === 'deterministic-fallback' ? 'Red / Blue · graph fallback' : 'Red / Blue · ready'}</span><span className={`hydra-chip ${snapshot?.hydra?.status === 'persisted' ? 'connected' : ''}`}><Database size={13} /> {snapshot?.hydra?.status || 'local replay'}</span><button className={`quiet-button ${waiting ? 'primary-button' : ''}`} onClick={handleRun} disabled={busy}>{autoRun ? <><Pause size={14} /> pause loop</> : <><Play size={14} /> {waiting ? 'start first round' : terminal ? 'replay stopped' : 'run loop'}</>}</button><button className="quiet-button" onClick={onReset}><RotateCcw size={14} /> reset</button></div></header>
       <section className="score-ribbon"><div><span>initial exposure</span><strong className={waiting ? 'is-pending' : ''}>{waiting ? '—' : formatPct(arena?.initialExposure)}</strong></div><ArrowRight size={16} /><div><span>current exposure</span><strong className={waiting ? 'is-pending' : arena?.currentExposure < 50 ? 'good' : ''}>{waiting ? '—' : formatPct(arena?.currentExposure)}</strong></div><div className="ribbon-divider" /><div><span>targets in reach</span><strong className={waiting ? 'is-pending' : ''}>{waiting ? '—' : arena?.reachableTargets?.length || 0}</strong></div><div><span>memory</span><strong>{arena?.memory?.used ? 'used' : arena?.memory?.available ? 'available' : waiting ? 'ready' : 'local only'}</strong></div></section>
       {waiting && <section className="start-guide"><div className="start-guide-number">01</div><div><div className="section-caption">your next move</div><h2>Start the investigation</h2><p>Red will choose the first reachable route. Blue will compare controls against it. Pause after every round to inspect why.</p></div><button className="primary-button" onClick={onStep} disabled={busy}><Play size={14} /> run first round</button></section>}
-      <AgentPanels arena={arena} graph={graph} />
+      <AgentPanels arena={arena} graph={graph} busy={busy} agentStatus={agentStatus} />
       <section className="graph-section"><div className="graph-toolbar"><div><div className="section-caption">attack path map</div><strong>{graphView === 'focus' ? 'The route, at a glance' : 'All collected evidence'}</strong><span>{graphView === 'focus' ? 'The few nodes that matter for the next decision' : 'Open this only when you need the full graph'}</span></div><div className="graph-toggle"><button className={graphView === 'focus' ? 'active' : ''} onClick={() => setGraphView('focus')}>route view</button><button className={graphView === 'full' ? 'active' : ''} onClick={() => setGraphView('full')}>all evidence</button></div></div><Graph snapshot={snapshot} selectedNode={selectedNode} setSelectedNode={setSelectedNode} view={graphView} /></section>
       <section className="episode-section"><div className="episode-head"><div><div className="section-caption">what happened</div><strong>{arena?.history?.length ? `${arena.history.length} computed rounds` : 'waiting for the first round'}</strong></div><button className="step-button" onClick={onStep} disabled={busy || terminal}><Zap size={14} /> {waiting ? 'run first round' : 'step one round'}</button></div><RoundFeed arena={arena} graph={graph} /></section>
       {terminal && <section className={`final-report ${arena.winner === 'defender' ? 'won' : 'lost'}`}><div className="final-icon">{arena.winner === 'defender' ? <ShieldCheck size={20} /> : <Target size={20} />}</div><div><div className="section-caption">episode result</div><h2>{arena.winner === 'defender' ? 'Defender contained the modeled blast radius.' : 'The attacker survived the response budget.'}</h2><p>{arena.winner === 'defender' ? `The red agent found ${arena.metrics.attackMoves} route${arena.metrics.attackMoves === 1 ? '' : 's'}, and blue cut them in ${arena.metrics.containedRound} rounds.` : 'The graph still contains a reachable high-value path. Re-run with a different target or response budget.'}</p></div><div className="final-score"><strong>{formatPct(arena.currentExposure)}</strong><span>final exposure</span></div></section>}
@@ -316,6 +318,7 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [autoRun, setAutoRun] = useState(false)
   const [backend, setBackend] = useState('checking')
+  const [agentStatus, setAgentStatus] = useState(null)
   const [selectedNode, setSelectedNode] = useState('release')
   const [graphView, setGraphView] = useState('focus')
   const [error, setError] = useState('')
@@ -324,7 +327,10 @@ function App() {
   const arena = snapshot?.arena
 
   useEffect(() => {
-    api('/api/health').then((payload) => setBackend(payload.hydra?.status === 'ready' ? 'connected' : 'local')).catch(() => setBackend('offline'))
+    api('/api/health').then((payload) => {
+      setBackend(payload.hydra?.status === 'ready' ? 'connected' : 'local')
+      setAgentStatus(payload.agents || null)
+    }).catch(() => setBackend('offline'))
     api('/api/scenarios/0017').then((payload) => {
       if (payload.ingestion?.status !== 'not_started') setSnapshot(payload)
       if (['contained', 'breached', 'exhausted'].includes(payload.arena?.status)) api('/api/scenarios/0017/report').then(setReport).catch(() => {})
@@ -396,7 +402,7 @@ function App() {
 
   return <div className="app-shell">
     <header className="topbar"><div className="brand-mini"><span className="brand-square" /> RECOIL <small>adaptive supply-chain defense</small></div><div className="topbar-center"><span className="live-mark" /> trace a dependency · test a defense</div><div className="topbar-right"><span className={`connection ${backend}`}><span /> {backend === 'connected' ? 'HydraDB connected' : backend === 'local' ? 'local replay' : backend}</span><button className="help-button" aria-label="About Recoil"><CircleHelp size={15} /></button></div></header>
-    {hasCase ? <CaseWorkspace snapshot={snapshot} report={report} query={query} setQuery={setQuery} onStart={startCase} onStep={stepArena} onPause={() => setAutoRun(false)} onReset={resetCase} busy={busy} autoRun={autoRun} setAutoRun={setAutoRun} selectedNode={selectedNode} setSelectedNode={setSelectedNode} graphView={graphView} setGraphView={setGraphView} error={error} /> : <Landing query={query} setQuery={setQuery} onStart={startCase} busy={busy} error={error} />}
+    {hasCase ? <CaseWorkspace snapshot={snapshot} report={report} query={query} setQuery={setQuery} onStart={startCase} onStep={stepArena} onPause={() => setAutoRun(false)} onReset={resetCase} busy={busy} agentStatus={agentStatus} autoRun={autoRun} setAutoRun={setAutoRun} selectedNode={selectedNode} setSelectedNode={setSelectedNode} graphView={graphView} setGraphView={setGraphView} error={error} /> : <Landing query={query} setQuery={setQuery} onStart={startCase} busy={busy} error={error} />}
   </div>
 }
 

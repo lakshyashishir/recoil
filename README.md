@@ -38,7 +38,11 @@ For separate terminals, use `npm run server` and `npm run dev`.
 
 For HydraDB persistence, copy `.env.example` to `.env` and provide `HYDRA_DB_API_KEY` and `HYDRADB_DATABASE_ID`. `HYDRADB_COLLECTION_ID` defaults to `recoil`. Without credentials, the local graph and simulator still run in replay mode.
 
-Recoil does not require an LLM key. The attack route, exposure score, intervention choice, and containment result are computed from the graph so the security decision is reproducible and auditable. HydraDB's `infer` ingestion and graph-enriched recall provide the memory layer. An LLM may be added later as an optional report narrator, but it will not be trusted to invent graph state or declare an attack successful.
+Recoil can run without an LLM key using the deterministic graph policy. When `OPENAI_API_KEY` is configured, Red and Blue become constrained policy agents: they can inspect the graph, public evidence, recalled HydraDB context, and an allowlisted local fixture probe, then return strict structured decisions. The server validates every proposed path and control against the graph before applying it; the deterministic policy remains the fallback.
+
+When this workspace also contains the sibling `claimtrace/.env`, `npm run start` imports its OpenAI key and model into the server process at runtime; the key is not copied into Recoil or printed. To use a different file, set `RECOIL_SHARED_ENV_FILE`, or put `OPENAI_API_KEY` directly in Recoil's `.env`.
+
+The execution boundary is deliberate. Recoil never installs or executes code from a public repository and never probes a live target. The agent loop can execute only the owned disposable fixture in `sandbox/fixture.js`, which records a probe result and runs a small regression suite after each defensive control. This lets the demo show a real observe → attack hypothesis → defense → regression loop without turning a public URL into an execution target. Set `RECOIL_AGENT_MODEL=gpt-5` or another available model to override the default.
 
 The operator TUI is available with:
 

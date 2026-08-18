@@ -52,13 +52,14 @@ function memorySuggestsAction(memory, actionId, path = []) {
   })
 }
 
-function chooseAttack(state, reachability, graphNodes) {
+function chooseAttack(state, reachability, graphNodes, policy = null) {
   const routes = [
     reachability.primaryPath,
     ...(reachability.alternatePaths || []).filter((path) => routeKey(path) !== routeKey(reachability.primaryPath)),
   ].filter((path) => path.length > 1)
   const usedRoutes = new Set((state.history || []).map((round) => routeKey(round.red?.path || [])))
-  const path = firstRouteWithNewShape(routes, usedRoutes)
+  const policyPath = Array.isArray(policy?.redPath) ? routes.find((candidate) => routeKey(candidate) === routeKey(policy.redPath)) : null
+  const path = policyPath || firstRouteWithNewShape(routes, usedRoutes)
   const description = describeAttack(path)
   const target = path.at(-1) || 'no high-value target'
   return {
@@ -69,6 +70,8 @@ function chooseAttack(state, reachability, graphNodes) {
     pathLabel: routeLabel(path, graphNodes),
     target,
     result: path.length ? 'route found' : 'no route available',
+    policy: policyPath ? 'llm-constrained' : 'deterministic',
+    policyRationale: policy?.redReason || null,
     candidates: routes.slice(0, 3).map((candidate) => ({
       path: candidate,
       pathLabel: routeLabel(candidate, graphNodes),
@@ -82,7 +85,7 @@ function actionById(id) {
   return INTERVENTIONS.find((action) => action.id === id) || null
 }
 
-function chooseDefense(state, reachability, attack, graphNodes, graphEdges, memory) {
+function chooseDefense(state, reachability, attack, graphNodes, graphEdges, memory, policy = null) {
   const spent = state.selectedActions.reduce((sum, id) => sum + (actionById(id)?.cost || 0), 0)
   const candidates = INTERVENTIONS.filter((action) => !state.selectedActions.includes(action.id) && spent + action.cost <= RESPONSE_BUDGET)
   if (!candidates.length) return { action: null, rationale: 'The response budget is exhausted.', memoryUsed: false }
@@ -110,14 +113,17 @@ function chooseDefense(state, reachability, attack, graphNodes, graphEdges, memo
   })
   const remembered = candidates.find((action) => memorySuggestsAction(memory, action.id, attack.path))
   const routeAction = routePriority.map((id) => candidates.find((action) => action.id === id)).find(Boolean)
-  const selected = remembered || routeAction || [...candidates].sort((left, right) => {
+  const policySelected = candidates.find((action) => action.id === policy?.blueAction)
+  const selected = policySelected || remembered || routeAction || [...candidates].sort((left, right) => {
     const leftResult = getReachability({ eventIndex: peakEventIndex(graphNodes), selectedActions: [...state.selectedActions, left.id] }, graphNodes, graphEdges)
     const rightResult = getReachability({ eventIndex: peakEventIndex(graphNodes), selectedActions: [...state.selectedActions, right.id] }, graphNodes, graphEdges)
     return leftResult.exposure - rightResult.exposure || left.cost - right.cost
   })[0]
   const predicted = getReachability({ eventIndex: peakEventIndex(graphNodes), selectedActions: [...state.selectedActions, selected.id] }, graphNodes, graphEdges)
-  const memoryUsed = Boolean(remembered)
-  const rationale = memoryUsed
+  const memoryUsed = Boolean(remembered && !policySelected)
+  const rationale = policySelected && policy?.blueReason
+    ? policy.blueReason
+    : memoryUsed
     ? `HydraDB recalled a prior ${selected.title.toLowerCase()} response for this propagation shape.`
     : routeAction
       ? `${selected.title} cuts the observed ${routeAction === 'block-promotion' ? 'CI promotion' : routeAction === 'upgrade' ? 'resolver' : 'runtime'} edge before the attacker can reuse it.`
@@ -129,6 +135,7 @@ function chooseDefense(state, reachability, attack, graphNodes, graphEdges, memo
     rationale,
     predictedExposure: predicted.exposure,
     memoryUsed,
+    policy: policySelected ? 'llm-constrained' : 'deterministic',
     candidates: evaluations.map((candidate) => ({
       ...candidate,
       selected: candidate.id === selected.id,
@@ -178,11 +185,11 @@ export function createArenaState({
   }
 }
 
-export function stepArena(state, graphNodes = NODES, graphEdges = EDGES, { memory = null } = {}) {
+export function stepArena(state, graphNodes = NODES, graphEdges = EDGES, { memory = null, policy = null } = {}) {
   if (!state || ['contained', 'breached', 'exhausted'].includes(state.status)) return state
   const before = getReachability({ eventIndex: peakEventIndex(graphNodes), selectedActions: state.selectedActions }, graphNodes, graphEdges)
-  const red = chooseAttack(state, before, graphNodes)
-  const blue = chooseDefense(state, before, red, graphNodes, graphEdges, memory || state.memory)
+  const red = chooseAttack(state, before, graphNodes, policy)
+  const blue = chooseDefense(state, before, red, graphNodes, graphEdges, memory || state.memory, policy)
   const selectedActions = blue.action ? [...state.selectedActions, blue.action] : [...state.selectedActions]
   const after = getReachability({ eventIndex: peakEventIndex(graphNodes), selectedActions }, graphNodes, graphEdges)
   const round = state.round + 1
