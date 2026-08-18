@@ -11,6 +11,7 @@ test('optional advisory agent parses structured scope and remains isolated from 
   globalThis.fetch = async (url, options) => {
     assert.equal(url, 'https://api.openai.com/v1/responses')
     assert.equal(options.method, 'POST')
+    assert.ok(options.signal)
     return {
       ok: true,
       status: 200,
