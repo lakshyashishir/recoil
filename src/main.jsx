@@ -103,8 +103,12 @@ function EvidenceQuality({ quality }) {
   if (!quality) return null
   const complete = quality.readyForRecording
   const sourceCoverage = quality.sourceCoverage
+  const blockers = [
+    ...(quality.collectorIssues || []).map((item) => `${item.collector}: ${item.status}`),
+    ...(quality.unknownFindings || []).map((item) => `${item.repository}: ${item.verdict}`),
+  ]
   return <section className={`evidence-quality quality-${quality.status}`} aria-label="Evidence quality">
-    <div className="quality-copy"><p className="eyebrow">EVIDENCE STATUS</p><strong>{complete ? 'Ready to record' : quality.status === 'review' ? 'Review before recording' : 'Evidence collection incomplete'}</strong><p>{quality.reason}</p></div>
+    <div className="quality-copy"><p className="eyebrow">EVIDENCE STATUS</p><strong>{complete ? 'Ready to record' : quality.status === 'review' ? 'Review before recording' : 'Evidence collection incomplete'}</strong><p>{quality.reason}</p>{blockers.length > 0 && <p className="quality-blockers">{blockers.slice(0, 3).join(' · ')}{blockers.length > 3 ? ` · +${blockers.length - 3} more` : ''}</p>}</div>
     <div className="quality-facts"><span>{quality.unknownFindings?.length || 0}<small>unclassified</small></span><span>{quality.ambiguousVersions?.length || 0}<small>version ambiguities</small></span>{sourceCoverage && <span>{sourceCoverage.sampledFiles}/{sourceCoverage.candidateFiles}<small>source files sampled</small></span>}</div>
   </section>
 }
@@ -136,10 +140,12 @@ function ReceiptLink() {
 function FinalReport({ report, hydra, onRewind }) {
   const summary = report?.summary || {}
   const scope = report?.advisoryScope || {}
+  const quality = report?.evidenceQuality || {}
+  const confirmedHeadline = quality.readyForRecording ? `${summary.reached || 0} of ${summary.totalRepositories || 0} repositories` : `${summary.reached || 0} confirmed path${summary.reached === 1 ? '' : 's'}`
   const scopeLabel = scope.status === 'completed' ? `${scope.affectedSymbols?.length || 0} advisory symbol candidate${scope.affectedSymbols?.length === 1 ? '' : 's'} checked against indexed code` : 'module-level package proof; symbol scope not enabled'
   return <main className="report-page">
-    <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{summary.reached || 0} of {summary.totalRepositories || 0} repositories<br /><i>reach vulnerable code.</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p><ReceiptLink /></section>
-    <EvidenceQuality quality={report?.evidenceQuality} />
+    <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{confirmedHeadline}<br /><i>{quality.readyForRecording ? 'reach vulnerable code.' : 'found so far.'}</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.{summary.unknown ? ` ${summary.unknown} repository${summary.unknown === 1 ? '' : 'ies'} remain unclassified and are not counted as safe.` : ''}</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p><ReceiptLink /></section>
+    <EvidenceQuality quality={quality} />
     <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
     <Rewind report={report} activeReport={report} onSelect={onRewind} />
     <HydraProof hydra={hydra} />
