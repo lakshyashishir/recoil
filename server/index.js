@@ -109,7 +109,9 @@ async function route(req, res) {
       recordingContract: {
         requiredVerdicts: ['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'],
         requiresHydraPersistence: true,
+        requiresHydraMemory: true,
         requiresHydraTemporalRecall: true,
+        requiresDatedTemporalFact: true,
         incompleteHydraWrites: process.env.RECOIL_HYDRA_PERSIST_PARTIAL === '1',
       },
       capabilities: [

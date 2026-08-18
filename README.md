@@ -112,8 +112,9 @@ npm run doctor -- --network
 ```
 
 `--recording` requires an advisory or package selector, three public repositories, and HydraDB write/read
-credentials. `--network` performs bounded reachability checks against OSV, GitHub, and HydraDB; failures
-are diagnostics, not evidence, and do not create a case.
+credentials. The `/api/health` recording contract also exposes that at least one memory and one dated
+temporal fact must be present. `--network` performs bounded reachability checks against OSV, GitHub, and
+HydraDB; failures are diagnostics, not evidence, and do not create a case.
 
 The strict recording gate also requires HydraDB to report at least one stored memory and one dated fact
 from temporal recall; an HTTP-successful but empty query cannot be recorded as memory proof.
