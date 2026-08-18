@@ -51,6 +51,8 @@ Current controls are:
 
 The recommendation is a counterfactual graph result. Applying it blocks concrete graph nodes, recalculates reachable high-value assets, tests the remaining route, and starts the next response round. Each decision writes the round, blocked nodes, primary route, and alternate paths considered to a `defense_decision` memory in HydraDB.
 
+Controls are phase-aware: blocking artifact promotion closes the CI gate for future releases but does not pretend that an artifact already promoted into the incident disappeared. A later upgrade, restore, quarantine, or secret rotation must address that residual state.
+
 ## Reachability model
 
 The baseline graph currently includes publisher/release trust, registry resolution, lockfile and CI promotion, artifact fan-out, five services, and multiple high-value data surfaces: customer data, payment tokens, analytics, feature flags, and audit evidence. Repository ingestion can add observed manifest, dependency, workflow, and container nodes around this baseline.

@@ -61,7 +61,7 @@ export const EDGES = [
 
 export const INTERVENTIONS = [
   { id: 'upgrade', title: 'Pin a known-good release', description: 'Stop the compromised package at resolution', cost: 1, reduction: 34 },
-  { id: 'block-promotion', title: 'Block artifact promotion', description: 'Hold CI until the dependency is cleared', cost: 2, reduction: 28 },
+  { id: 'block-promotion', title: 'Block artifact promotion', description: 'Hold CI and future releases; keep existing artifacts in scope', cost: 2, reduction: 28 },
   { id: 'quarantine', title: 'Quarantine exposed services', description: 'Remove affected workloads from the path', cost: 2, reduction: 22 },
   { id: 'revoke', title: 'Revoke publisher trust', description: 'Invalidate the maintainer and release edge', cost: 3, reduction: 20 },
   { id: 'rotate-secrets', title: 'Rotate runtime secrets', description: 'Cut credential-assisted lateral movement', cost: 3, reduction: 14 },
@@ -182,7 +182,6 @@ export function getBlockedNodeIds(state, graphNodes = NODES) {
   }
   if (state.selectedActions.includes('block-promotion')) {
     blocked.add('ci')
-    blocked.add('artifact')
   }
   if (state.selectedActions.includes('quarantine')) {
     ;['gateway', 'storefront', 'payments', 'checkout', 'admin', 'partner-webhook'].forEach((id) => blocked.add(id))
