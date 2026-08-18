@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildObservedGraph, classifyRepository, satisfiesRange, versionAffectedByAdvisory } from '../src/core/evidence.js'
+import { applyAdvisoryScope, buildObservedGraph, classifyRepository, satisfiesRange, versionAffectedByAdvisory } from '../src/core/evidence.js'
 
 const advisory = {
   id: 'GHSA-test',
@@ -65,4 +65,26 @@ test('incomplete source collection is unknown instead of falsely declared-only',
   const partial = classifyRepository({ repository: partialRepository, packageName: 'minimist', advisory, advisoryId: advisory.id })
   assert.equal(partial.verdict, 'UNKNOWN')
   assert.match(partial.reason, /source collection was partial/)
+})
+
+test('advisory symbol suggestions are attached only after exact source validation', () => {
+  const finding = classifyRepository({ repository: repository(), packageName: 'minimist', advisory, advisoryId: advisory.id })
+  const ingestion = {
+    findings: [finding],
+    repositories: [{
+      ...repository(),
+      manifest: {
+        ...repository().manifest,
+        codeGraph: {
+          ...repository().manifest.codeGraph,
+          symbols: [{ name: 'parseArgs', kind: 'function', path: 'src/cli.js', line: 4, sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' }],
+        },
+      },
+    }],
+  }
+  const scoped = applyAdvisoryScope(ingestion, { status: 'completed', affectedSymbols: [{ name: 'parseArgs', reason: 'advisory names the parser entry point' }] })
+  assert.equal(scoped.findings[0].advisoryScope.status, 'VALIDATED_SYMBOL')
+  assert.equal(scoped.findings[0].advisoryScope.symbols[0].name, 'parseArgs')
+  const unscoped = applyAdvisoryScope(ingestion, { status: 'completed', affectedSymbols: [{ name: 'doesNotExist', reason: 'not indexed' }] })
+  assert.equal(unscoped.findings[0].advisoryScope.status, 'MODULE_LEVEL_ONLY')
 })

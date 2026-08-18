@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { applyAdvisoryScope } from '../src/core/evidence.js'
 import { buildInvestigationReport, createInvestigationState } from '../src/core/investigation.js'
+import { resolveAdvisoryScope } from './advisory-agent.js'
 import { runMultiRepositoryIngestion } from './collectors.js'
 import { persistInvestigation, recallTemporal } from './hydra.js'
 
@@ -25,14 +27,33 @@ export function startInvestigation(record, query) {
 export async function executeInvestigation(record) {
   const state = record.investigation
   try {
-    const evidence = await runMultiRepositoryIngestion({
+    const collectedEvidence = await runMultiRepositoryIngestion({
       query: record.query,
       scenarioId: state.caseId || record.id,
       onProgress: (event) => {
         pushEvent(state, event)
       },
     })
-    state.evidence = evidence
+    pushEvent(state, {
+      type: 'step',
+      key: 'advisory-scope',
+      status: 'working',
+      title: 'Checking advisory scope',
+      detail: 'Matching advisory language against indexed symbols without allowing the model to create graph edges.',
+    })
+    const scope = await resolveAdvisoryScope(collectedEvidence)
+    const scopedEvidence = applyAdvisoryScope(collectedEvidence, scope)
+    state.evidence = scopedEvidence
+    pushEvent(state, {
+      type: 'step',
+      key: 'advisory-scope',
+      status: scope.status === 'failed' ? 'failed' : 'complete',
+      title: scope.status === 'completed' ? 'Advisory scope checked' : 'Module-level scope retained',
+      detail: scope.status === 'completed'
+        ? `${scope.affectedSymbols?.length || 0} candidate symbol${scope.affectedSymbols?.length === 1 ? '' : 's'} returned; only exact indexed matches are attached.`
+        : scope.reason || scope.error || 'The deterministic package-import proof remains authoritative.',
+    })
+    const evidence = scopedEvidence
     pushEvent(state, {
       type: 'step',
       key: 'proving-paths',

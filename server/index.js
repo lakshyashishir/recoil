@@ -21,6 +21,7 @@ import { hydraStatus, persistArenaRound, persistDecision, persistEvaluation, per
 import { getAgentStatus, runAgentRound } from './agents.js'
 import { applySandboxControl, createSandboxState, runRegressionSuite, sandboxSummary } from '../sandbox/fixture.js'
 import { rewindInvestigation, startInvestigation } from './investigation.js'
+import { advisoryAgentStatus } from './advisory-agent.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
@@ -310,7 +311,7 @@ async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
   if (req.method === 'OPTIONS') return json(res, 204, {})
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'recoil-api', hydra: hydraStatus(), agents: getAgentStatus(), capabilities: ['npm', 'cargo', 'osv', 'repository-evidence', 'adaptive-arena', 'constrained-red-blue-agents'], time: new Date().toISOString() })
+    return json(res, 200, { ok: true, service: 'recoil-api', hydra: hydraStatus(), agents: getAgentStatus(), advisoryScopeAgent: advisoryAgentStatus(), capabilities: ['npm', 'cargo', 'osv', 'repository-evidence', 'source-reachability', 'temporal-rewind', 'fix-proof', 'hydradb-temporal-memory'], time: new Date().toISOString() })
   }
   if (req.method === 'GET' && url.pathname === '/api/scenario') return json(res, 200, snapshot(getOrCreate()))
   if (req.method === 'POST' && url.pathname === '/api/scenarios') {

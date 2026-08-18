@@ -210,3 +210,24 @@ export function buildObservedGraph({ advisoryId, packageName, repositoryFindings
   }
   return { nodes: [...new Map(nodes.map((node) => [node.id, node])).values()], edges: [...new Set(edges.map((edge) => edge.join('>')))].map((edge) => edge.split('>')), packageName }
 }
+
+export function applyAdvisoryScope(ingestion, scope) {
+  const candidates = (scope?.affectedSymbols || []).filter((item) => item?.name).slice(0, 12)
+  const findings = (ingestion?.findings || []).map((finding) => {
+    const repository = (ingestion?.repositories || []).find((item) => item.repository === finding.repository)
+    const symbols = repository?.manifest?.codeGraph?.symbols || []
+    const matches = candidates.flatMap((candidate) => symbols.filter((symbol) => symbol.name.toLowerCase() === candidate.name.toLowerCase()).map((symbol) => ({
+      ...symbol,
+      candidate: candidate.name,
+      reason: candidate.reason || null,
+    })))
+    return {
+      ...finding,
+      advisoryScope: matches.length
+        ? { status: 'VALIDATED_SYMBOL', symbols: [...new Map(matches.map((symbol) => [`${symbol.path}:${symbol.line}:${symbol.name}`, symbol])).values()] }
+        : { status: candidates.length ? 'MODULE_LEVEL_ONLY' : 'NOT_REQUESTED', symbols: [] },
+      evidenceSources: [...new Set([...(finding.evidenceSources || []), ...matches.map((symbol) => symbol.sourceUrl).filter(Boolean)])],
+    }
+  })
+  return { ...ingestion, advisoryScope: scope || { status: 'skipped', affectedSymbols: [] }, findings }
+}

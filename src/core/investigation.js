@@ -80,6 +80,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       fixedVersions: [...new Set(currentFindings.flatMap((finding) => finding.fixedVersions || []))].sort(compareVersions),
       sourceUrl: advisory.sourceUrl || ingestion?.collectors?.find((collector) => collector.collector === 'advisory-resolver')?.sourceUrl || null,
     } : null,
+    advisoryScope: ingestion?.advisoryScope || { status: 'not_requested', affectedSymbols: [] },
     repositories: currentFindings,
     challenge,
     rewind: {
@@ -106,6 +107,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       ...currentFindings.filter((finding) => finding.sourceSampleSize).map((finding) => `${finding.repository}: ${finding.sourceBound}.`),
       'Reachability is proven only from the collected public source sample; it is not proof of runtime execution.',
       'No package code or exploit payload was executed.',
+      ingestion?.advisoryScope?.status === 'failed' ? `Advisory symbol scope was unavailable: ${ingestion.advisoryScope.error || 'model request failed'}.` : null,
     ],
     generatedAt: new Date().toISOString(),
   }
