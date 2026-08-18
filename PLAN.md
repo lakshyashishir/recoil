@@ -60,6 +60,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Normalize HydraDB graph-context response shapes so top-level triplets remain visible in rewind, browser, and receipts.
 - [x] Surface API startup failures in the browser landing state instead of silently rendering an empty product.
 - [x] Skip HydraDB writes for incomplete evidence by default so failed/unknown runs do not consume credits or become durable precedent.
+- [x] Expose the recording contract and evidence-proof capabilities through `/api/health` for operator and demo readiness checks.
 
 ### Still required before calling the hackathon build complete
 
@@ -248,6 +249,7 @@ Manual checks:
 - `8ba1a10` — make strict recording workflow explicit in the demo runbook
 - `0298623` — surface API startup failures in the browser
 - `2635831` — defer HydraDB writes for incomplete evidence
+- `87f45f8` — expose recording contract in API health
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
