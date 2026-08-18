@@ -151,6 +151,33 @@ function Graph({ snapshot, selectedNode, setSelectedNode, view = 'focus' }) {
   )
 }
 
+function AgentPanels({ arena, graph }) {
+  const round = arena?.lastRound
+  const labels = new Map((graph?.nodes || []).map((node) => [node.id, node.label]))
+  const redPath = round?.red?.path?.map((id) => labels.get(id) || id).join(' → ')
+  const blueCandidates = round?.blue?.candidates || []
+  return <section className="agent-panels" aria-label="Current attack and defense decisions">
+    <article className="agent-panel attack-panel">
+      <div className="agent-panel-head"><div><div className="section-caption">red / attack</div><h2>Find a route</h2></div><span className="agent-panel-state">{round ? `round ${round.round}` : 'waiting'}</span></div>
+      {round ? <>
+        <strong className="agent-panel-action">{round.red.label}</strong>
+        <p>{round.red.intent}. Red can only choose edges that exist in the current graph.</p>
+        <div className="agent-route"><span>selected path</span><strong>{redPath || 'No reachable path'}</strong></div>
+        <div className="agent-panel-foot"><span>{round.red.candidates?.length || 0} reachable routes evaluated</span><span>target: {labels.get(round.red.target) || round.red.target || 'none'}</span></div>
+      </> : <div className="agent-panel-empty"><strong>Red is ready.</strong><p>Run the first round and it will select the highest-impact route that the graph actually allows.</p></div>}
+    </article>
+    <article className="agent-panel defense-panel">
+      <div className="agent-panel-head"><div><div className="section-caption">blue / defense</div><h2>Cut the route</h2></div><span className="agent-panel-state">{round ? `round ${round.round}` : 'next'}</span></div>
+      {round ? <>
+        <strong className="agent-panel-action">{round.blue.title || 'No control selected'}</strong>
+        <p>{round.blue.rationale}</p>
+        <div className="agent-result"><span>exposure</span><strong>{round.before.exposure}%</strong><ArrowRight size={13} /><strong className={round.after.exposure < round.before.exposure ? 'good' : ''}>{round.after.exposure}%</strong><small>{round.after.reachableTargets.length ? `${round.after.reachableTargets.length} targets remain` : 'route contained'}</small></div>
+        <div className="agent-panel-foot"><span>{blueCandidates.length} controls compared</span><span>{round.blue.memoryUsed ? 'HydraDB precedent used' : 'graph policy'}</span></div>
+      </> : <div className="agent-panel-empty"><strong>Blue responds second.</strong><p>It will score available defenses against Red’s exact route, then apply the best valid graph mutation.</p></div>}
+    </article>
+  </section>
+}
+
 function RoundFeed({ arena, graph }) {
   const labels = new Map((graph?.nodes || []).map((node) => [node.id, node.label]))
   if (!arena?.history?.length) return <div className="empty-feed">The arena is ready. Red will search the first reachable route.</div>
@@ -254,7 +281,7 @@ function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onP
   const headerTitle = terminal ? (arena.winner === 'defender' ? 'Route contained.' : 'Attacker reached the limit.') : waiting ? 'Ready to run the first round.' : 'Red found a route.'
   const headerCopy = terminal ? `Blue used ${arena.metrics.controlsUsed} controls. The final route is ${arena.currentPath.length ? 'still reachable' : 'severed'}.` : waiting ? 'Press “run first round”. Red finds a reachable path, then Blue tests a defense against that exact path.' : 'Blue has responded. Run the next round to see whether the attacker finds another way through.'
   function handleRun() {
-    if (arena?.status === 'ready') {
+    if (!arena?.lastRound) {
       onStep()
       return
     }
@@ -272,13 +299,13 @@ function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onP
       <header className="arena-header"><div><div className="section-caption">investigation / {arena?.round || 0} rounds</div><h1>{headerTitle}</h1><p>{headerCopy}</p></div><div className="arena-actions"><span className={`hydra-chip ${snapshot?.hydra?.status === 'persisted' ? 'connected' : ''}`}><Database size={13} /> {snapshot?.hydra?.status || 'local replay'}</span><button className={`quiet-button ${waiting ? 'primary-button' : ''}`} onClick={handleRun} disabled={busy}>{autoRun ? <><Pause size={14} /> pause loop</> : <><Play size={14} /> {waiting ? 'start first round' : terminal ? 'replay stopped' : 'run loop'}</>}</button><button className="quiet-button" onClick={onReset}><RotateCcw size={14} /> reset</button></div></header>
       <section className="score-ribbon"><div><span>initial exposure</span><strong className={waiting ? 'is-pending' : ''}>{waiting ? '—' : formatPct(arena?.initialExposure)}</strong></div><ArrowRight size={16} /><div><span>current exposure</span><strong className={waiting ? 'is-pending' : arena?.currentExposure < 50 ? 'good' : ''}>{waiting ? '—' : formatPct(arena?.currentExposure)}</strong></div><div className="ribbon-divider" /><div><span>targets in reach</span><strong className={waiting ? 'is-pending' : ''}>{waiting ? '—' : arena?.reachableTargets?.length || 0}</strong></div><div><span>memory</span><strong>{arena?.memory?.used ? 'used' : arena?.memory?.available ? 'available' : waiting ? 'ready' : 'local only'}</strong></div></section>
       {waiting && <section className="start-guide"><div className="start-guide-number">01</div><div><div className="section-caption">your next move</div><h2>Start the investigation</h2><p>Red will choose the first reachable route. Blue will compare controls against it. Pause after every round to inspect why.</p></div><button className="primary-button" onClick={onStep} disabled={busy}><Play size={14} /> run first round</button></section>}
+      <AgentPanels arena={arena} graph={graph} />
       <section className="graph-section"><div className="graph-toolbar"><div><div className="section-caption">attack path map</div><strong>{graphView === 'focus' ? 'The route, at a glance' : 'All collected evidence'}</strong><span>{graphView === 'focus' ? 'The few nodes that matter for the next decision' : 'Open this only when you need the full graph'}</span></div><div className="graph-toggle"><button className={graphView === 'focus' ? 'active' : ''} onClick={() => setGraphView('focus')}>route view</button><button className={graphView === 'full' ? 'active' : ''} onClick={() => setGraphView('full')}>all evidence</button></div></div><Graph snapshot={snapshot} selectedNode={selectedNode} setSelectedNode={setSelectedNode} view={graphView} /></section>
       <section className="episode-section"><div className="episode-head"><div><div className="section-caption">what happened</div><strong>{arena?.history?.length ? `${arena.history.length} computed rounds` : 'waiting for the first round'}</strong></div><button className="step-button" onClick={onStep} disabled={busy || terminal}><Zap size={14} /> {waiting ? 'run first round' : 'step one round'}</button></div><RoundFeed arena={arena} graph={graph} /></section>
       {terminal && <section className={`final-report ${arena.winner === 'defender' ? 'won' : 'lost'}`}><div className="final-icon">{arena.winner === 'defender' ? <ShieldCheck size={20} /> : <Target size={20} />}</div><div><div className="section-caption">episode result</div><h2>{arena.winner === 'defender' ? 'Defender contained the modeled blast radius.' : 'The attacker survived the response budget.'}</h2><p>{arena.winner === 'defender' ? `The red agent found ${arena.metrics.attackMoves} route${arena.metrics.attackMoves === 1 ? '' : 's'}, and blue cut them in ${arena.metrics.containedRound} rounds.` : 'The graph still contains a reachable high-value path. Re-run with a different target or response budget.'}</p></div><div className="final-score"><strong>{formatPct(arena.currentExposure)}</strong><span>final exposure</span></div></section>}
       {terminal && (report ? <ReportDossier report={report} /> : <div className="report-loading">Preparing the evidence-backed case report…</div>)}
       {error && <div className="error-line"><AlertTriangle size={14} /> {error}</div>}
     </main>
-    <DecisionRail snapshot={snapshot} selectedNode={selectedNode} />
   </div>
 }
 
@@ -335,7 +362,7 @@ function App() {
       await api('/api/scenarios/0017/ingest', { method: 'POST' })
       const started = await api('/api/scenarios/0017/arena/start', { method: 'POST' })
       setSnapshot(started)
-      setAutoRun(true)
+      setAutoRun(false)
     } catch (cause) {
       setError(cause.message)
     } finally {

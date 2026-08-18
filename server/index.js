@@ -388,7 +388,8 @@ function route(req, res) {
       const round = next.lastRound
       const terminal = ['contained', 'breached', 'exhausted'].includes(next.status)
       const plans = terminal ? evaluateInterventions(record.state, record.graph.nodes, record.graph.edges) : []
-      return persistArenaRound({
+      record.hydra = { ...record.hydra, arenaPersistStatus: 'queued' }
+      persistArenaRound({
         scenarioId: record.id,
         queryText: record.query,
         packageName: record.ingestion?.package || 'target',
@@ -403,15 +404,18 @@ function route(req, res) {
           ? persistEvaluation({ scenarioId: record.id, queryText: record.query, recommended: plans[0], alternatives: plans.slice(0, 6) }).catch((error) => ({ status: 'failed', error: error.message, memoryCount: 0 }))
           : Promise.resolve(null)
         return planPromise.then((planPersisted) => {
-        record.hydra = {
-          ...record.hydra,
-          arenaLastRound: persisted,
-          arenaPlan: planPersisted,
-          arenaMemoryCount: (record.hydra.arenaMemoryCount || 0) + (persisted.memoryCount || 0) + (planPersisted?.memoryCount || 0),
-        }
-        return json(res, 200, snapshot(record))
+          record.hydra = {
+            ...record.hydra,
+            arenaPersistStatus: persisted.status === 'failed' ? 'failed' : 'persisted',
+            arenaLastRound: persisted,
+            arenaPlan: planPersisted,
+            arenaMemoryCount: (record.hydra.arenaMemoryCount || 0) + (persisted.memoryCount || 0) + (planPersisted?.memoryCount || 0),
+          }
         })
-      }).catch((error) => json(res, 200, { ...snapshot(record), arenaError: error.message }))
+      }).catch((error) => {
+        record.hydra = { ...record.hydra, arenaPersistStatus: 'failed', arenaError: error.message }
+      })
+      return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && operation === 'arena/reset') {
       if (!record.ingestion || record.ingestion.status === 'not_started') return json(res, 409, { error: 'Collect evidence before resetting the arena' })
