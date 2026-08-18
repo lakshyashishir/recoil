@@ -55,6 +55,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Poll HydraDB's asynchronous indexing status before recalling graph context; expose queued timeouts without claiming persistence.
 - [x] Attach a per-hop provenance chain to each repository finding and portable receipt: advisory, lockfile resolution, repository, import/symbol, and dated observation.
 - [x] Add a network-free recording doctor with optional bounded endpoint probes so demo readiness is diagnosed before collection.
+- [x] Add CLI `--recording` enforcement for the three-way contrast plus completed HydraDB write and temporal-read proof.
 
 ### Still required before calling the hackathon build complete
 
@@ -236,6 +237,8 @@ Manual checks:
 - `003661d` — attach a per-hop evidence provenance chain to findings and receipts
 - `594ff00` — expose provenance-hop summaries and expansion in the CLI
 - `43fc7ce` — record provenance checkpoints
+- `6937360` — add recording preflight doctor
+- `59b82d2` — enforce strict recording mode in the CLI
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
