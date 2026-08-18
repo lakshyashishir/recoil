@@ -210,6 +210,9 @@ Manual checks:
 - `b941677` — incomplete reports use non-definitive language
 - `d5d82bc` — progress stream labels evidence gaps
 - `618b37a` — inconsistent snapshots cannot bypass the recording gate
+- `b1e0801` — TUI shares the evidence recording gate
+- `32c396b` — preserve all resolved package versions in the graph
+- `2b14446` — mark the pre-redesign review brief archived
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
