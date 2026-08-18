@@ -19,6 +19,7 @@ The graph separates observed evidence from modeled reachability:
 - modeled build, deployment, service, and data fan-out, explicitly marked synthetic when no public runtime evidence exists;
 - computed red/blue rounds where the attacker adapts after every defensive control;
 - explainable policy traces showing Red's alternate routes and Blue's counterfactual control scores;
+- a final response-plan table comparing the best affordable graph mutations by residual exposure and cost;
 - temporal attack events, alternate-route reconstruction, and counterfactual defender controls;
 - concrete route search over alternate dependency, CI, service, and data paths;
 - HydraDB memories for incident evidence, topology, prior decisions, and arena rounds so later defenders can recall what worked.

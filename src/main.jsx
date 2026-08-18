@@ -154,6 +154,8 @@ function ReportDossier({ report }) {
   const controls = arena.selectedActions || []
   const sources = report?.sources || []
   const uncertainty = report?.uncertainty || []
+  const responsePlans = report?.responsePlans || []
+  const interventionTitles = new Map(INTERVENTIONS.map((action) => [action.id, action.title]))
   return <section className="report-dossier">
     <div className="dossier-head"><div><div className="section-caption">case report</div><h2>Evidence, outcome, limits.</h2></div><span className="dossier-boundary">observed facts / modeled response</span></div>
     <div className="dossier-grid">
@@ -186,6 +188,7 @@ function ReportDossier({ report }) {
       </section>
     </div>
     {observed.codeGraph?.impactCandidates?.length > 0 && <div className="impact-strip"><div className="section-caption">inferred code-to-deployment links</div><div className="impact-items">{observed.codeGraph.impactCandidates.slice(0, 6).map((candidate) => <span key={`${candidate.file}-${candidate.surface}`}><strong>{candidate.surface}</strong><i>→</i>{candidate.target}<small>{candidate.changedSymbols?.length ? `changed: ${candidate.changedSymbols.join(' · ')}` : candidate.owners?.length ? `owner: ${candidate.owners.join(' ')}` : candidate.confidence}</small></span>)}</div></div>}
+    {responsePlans.length > 0 && <div className="counterfactual-section"><div className="section-caption">counterfactual response plans</div><p className="counterfactual-note">Top affordable graph mutations, ranked by residual exposure then response cost.</p><div className="plan-table">{responsePlans.map((plan, index) => <div className={`plan-row ${index === 0 ? 'recommended' : ''}`} key={`${plan.actions.join('-')}-${plan.cost}`}><span className="plan-rank">{index === 0 ? 'best' : `0${index + 1}`}</span><strong>{plan.actions.length ? plan.actions.map((action) => interventionTitles.get(action) || action).join(' + ') : 'Observe only'}</strong><span>{formatPct(plan.exposure)}</span><span>{plan.cost}pt</span><small>{plan.activeNodes} active nodes</small></div>)}</div></div>}
   </section>
 }
 

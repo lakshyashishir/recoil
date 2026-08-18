@@ -35,10 +35,13 @@ test('upgrade plus promotion blocking severs every modeled high-value route', ()
 })
 
 test('planner ranks a bounded response that removes the residual path', () => {
-  const plan = evaluateInterventions(complete, NODES, EDGES)[0]
+  const plans = evaluateInterventions(complete, NODES, EDGES)
+  const plan = plans[0]
   assert.ok(plan.cost <= 8)
   assert.equal(plan.exposure, 4)
   assert.deepEqual(plan.attackPath, [])
+  assert.ok(plans.length >= 6)
+  assert.ok(plans.every((candidate, index) => index === 0 || candidate.exposure > plan.exposure || candidate.cost >= plan.cost))
 })
 
 test('defense round records an observed residual route', () => {

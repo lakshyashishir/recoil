@@ -50,6 +50,7 @@ This is a bounded defensive simulation. It never executes package code, sends ex
 - HydraDB recall can influence a blue decision, and the episode remains useful without HydraDB in local replay mode.
 - The CLI and browser show the same episode state from the API rather than implementing separate simulations.
 - Each round exposes Red's candidate routes and Blue's computed counterfactual controls, not only the selected actions.
+- The final dossier exposes the top affordable response plans so an operator can compare containment versus response cost.
 - The network-free benchmark proves route adaptation and containment from graph state, with no scripted final score.
 
 ### Future Track 2 coverage

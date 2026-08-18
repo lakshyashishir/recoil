@@ -198,6 +198,7 @@ function buildReport(record) {
     },
     arena: record.arena,
     recommendation: recommended,
+    responsePlans: plans.slice(0, 6),
     uncertainty: [
       repository?.synthetic ? 'Deployment and service fan-out are synthetic demo records.' : 'Service and data fan-out is modeled; repository evidence is not a runtime inventory.',
       registry?.status === 'not_found' ? `No published ${repository?.ecosystem === 'cargo' ? 'crate' : 'package'} registry record was found; repository files are the primary evidence.` : null,
