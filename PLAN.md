@@ -53,9 +53,9 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [ ] Validate and freeze one real advisory plus three real public repositories for the recording.
 - [ ] Run that case against the configured HydraDB cloud database and retain the successful output without committing secrets or cache files.
 - [ ] Verify the browser and CLI against the same real case.
-- [ ] Improve source-level path precision by connecting advisory-described symbols to indexed symbols with a validated optional model step.
-- [ ] Add cross-case HydraDB recall that visibly relates a new case to a prior package/repository fact.
-- [ ] Add a final provenance/limitations pass so every displayed claim has an explicit evidence boundary.
+- [x] Improve source-level path precision by connecting advisory-described symbols to indexed symbols with a validated optional model step.
+- [x] Add cross-case HydraDB recall that visibly relates a new case to a prior package/repository fact.
+- [x] Add a final provenance/limitations pass so every displayed claim has an explicit evidence boundary.
 - [x] Remove or clearly quarantine legacy arena/TUI language from the public demo path.
 - [ ] Render and inspect the browser at common desktop and mobile widths.
 - [ ] Update the final demo recording and repository instructions after the real smoke run.
@@ -176,6 +176,7 @@ npm test
 npm run benchmark
 npm run build
 npm run start
+npm run smoke:real
 npm run cli -- "<verified advisory> <real repository-a> <real repository-b> <real repository-c>"
 ```
 
