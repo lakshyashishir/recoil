@@ -1,5 +1,7 @@
 import http from 'node:http'
 import { randomUUID } from 'node:crypto'
+import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import {
   EDGES,
   EVENTS,
@@ -645,18 +647,23 @@ async function route(req, res) {
   return json(res, 404, { error: 'Not found' })
 }
 
-const server = http.createServer((req, res) => {
-  Promise.resolve(route(req, res)).catch((error) => {
-    console.error(error)
-    if (!res.headersSent) json(res, 500, { error: 'Internal server error' })
+export { route, getOrCreate, snapshot }
+
+const runningAsEntryPoint = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
+if (runningAsEntryPoint) {
+  const server = http.createServer((req, res) => {
+    Promise.resolve(route(req, res)).catch((error) => {
+      console.error(error)
+      if (!res.headersSent) json(res, 500, { error: 'Internal server error' })
+    })
   })
-})
 
-server.on('error', (error) => {
-  console.error(`Recoil API could not listen on ${port}: ${error.message}`)
-  process.exitCode = 1
-})
+  server.on('error', (error) => {
+    console.error(`Recoil API could not listen on ${port}: ${error.message}`)
+    process.exitCode = 1
+  })
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Recoil API listening on http://127.0.0.1:${port}`)
-})
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`Recoil API listening on http://127.0.0.1:${port}`)
+  })
+}
