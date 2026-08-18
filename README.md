@@ -126,6 +126,6 @@ The completed browser and CLI case can also be exported as a portable JSON evide
 
 ## Evidence boundary
 
-Repository files, lockfiles, advisory records, registry metadata, source imports, and commit dates are observed public evidence. Source-level reachability is bounded by the sampled files that GitHub makes available. It is not proof of runtime execution. Recoil preserves source failures and uncertainty rather than converting them into a confident negative result.
+Repository files, lockfiles, advisory records, registry metadata, source imports, and commit dates are observed public evidence. Source-level reachability is bounded by the sampled files that GitHub makes available. It is not proof of runtime execution. Recoil preserves source failures—and treats an empty source sample as `UNKNOWN`—rather than converting missing evidence into a confident negative result.
 
 See [PLAN.md](PLAN.md), [the demo runbook](docs/DEMO.md), and [the attack/defense contract](docs/ATTACK-DEFENSE.md) for the implementation and presentation plan.

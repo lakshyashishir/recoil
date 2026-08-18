@@ -88,6 +88,15 @@ test('incomplete source collection is unknown instead of falsely declared-only',
   assert.match(partial.reason, /source collection was partial/)
 })
 
+test('an affected dependency with no analyzable source sample is unknown', () => {
+  const emptyRepository = repository({ imports: [] })
+  emptyRepository.repository = 'example/no-source-sample'
+  emptyRepository.manifest.codeGraph = { fileCount: 0, externalImports: [] }
+  const finding = classifyRepository({ repository: emptyRepository, packageName: 'minimist', advisory, advisoryId: advisory.id })
+  assert.equal(finding.verdict, 'UNKNOWN')
+  assert.match(finding.reason, /no analyzable source files were sampled/)
+})
+
 test('advisory symbol suggestions are attached only after exact source validation', () => {
   const finding = classifyRepository({ repository: repository(), packageName: 'minimist', advisory, advisoryId: advisory.id })
   const ingestion = {

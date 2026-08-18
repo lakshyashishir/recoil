@@ -168,9 +168,11 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   } else if (affected === true && imports.length) {
     verdict = 'REACHED'
     reason = `The affected ${packageName}@${resolvedVersion} is imported by ${imports.length} sampled source file${imports.length === 1 ? '' : 's'}.`
-  } else if (affected === true && sourceEvidenceIncomplete) {
+  } else if (affected === true && (sourceEvidenceIncomplete || !codeGraph.fileCount)) {
     verdict = 'UNKNOWN'
-    reason = `The affected ${packageName}@${resolvedVersion} is present, but source collection was ${sourceCollection.status}; Recoil will not infer that no import exists.`
+    reason = sourceEvidenceIncomplete
+      ? `The affected ${packageName}@${resolvedVersion} is present, but source collection was ${sourceCollection.status}; Recoil will not infer that no import exists.`
+      : `The affected ${packageName}@${resolvedVersion} is present, but no analyzable source files were sampled; Recoil will not infer that no import exists.`
   } else if (affected === true) {
     verdict = 'DECLARED_ONLY'
     reason = `The affected ${packageName}@${resolvedVersion} is present in the lockfile, but no sampled source file imports it.`
