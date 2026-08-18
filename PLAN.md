@@ -35,6 +35,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Three-way reachability classification plus honest `UNKNOWN` behavior when source collection is incomplete.
 - [x] Lockfile commit-history collection for temporal exposure evidence.
 - [x] Source-backed observed graph with no fictional deployment or customer nodes.
+- [x] Latest public commit impact attached to sampled importer paths with optional CODEOWNERS attribution.
 - [x] Temporal rewind report that refuses to claim a path before its evidence existed.
 - [x] Counterfactual fixed-version check and per-repository remediation status.
 - [x] HydraDB temporal evidence memories with dated metadata, chunking, retries, and indexing status.

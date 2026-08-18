@@ -50,11 +50,12 @@ The final report shows the exact source-backed path, repository verdict, exposur
 2. Submit the advisory and three repositories.
 3. “Red has found a path only when the lockfile, resolved version, and source import support every hop.” Open the `REACHED` repository and show the links.
 4. “This second repository declares the package but does not import it, so it is `DECLARED_ONLY`, not a fabricated compromise.”
-5. “This is the temporal question: the lockfile path existed before the advisory was public.” Click **Before advisory**.
-6. “Blue proposes the fixed version. Recoil checks the declared semver range instead of assuming an upgrade is safe.”
-7. “Red verifies the residual graph. The fix is either proven, requires a manifest change, or remains unknown.”
-8. “HydraDB stores the dated evidence and retrieves related facts; it is the investigation memory, not a green connection badge.”
-9. Download the evidence receipt and show that the result is a portable, source-cited artifact with an integrity hash.
+5. If present, “The latest public commit touched the importing file; Recoil links the commit and owners without turning that into a runtime claim.”
+6. “This is the temporal question: the lockfile path existed before the advisory was public.” Click **Before advisory**.
+7. “Blue proposes the fixed version. Recoil checks the declared semver range instead of assuming an upgrade is safe.”
+8. “Red verifies the residual graph. The fix is either proven, requires a manifest change, or remains unknown.”
+9. “HydraDB stores the dated evidence and retrieves related facts; it is the investigation memory, not a green connection badge.”
+10. Download the evidence receipt and show that the result is a portable, source-cited artifact with an integrity hash.
 
 ## Terminal proof
 
