@@ -48,7 +48,7 @@ cp .env.example .env
 npm run start
 ```
 
-The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` when serving the app from a container or hosted environment. Verify that the API reports `product: evidence-proof` before recording; an older process may still expose the retired arena surface until it is restarted.
+The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` and point `RECOIL_API_URL` at the reachable API address when serving the app from a container or hosted environment. Verify that the API reports `product: evidence-proof` before recording; an older process may still expose the retired arena surface until it is restarted.
 
 For separate processes:
 
