@@ -242,6 +242,14 @@ Manual checks:
 - `32868b1` — load project `.env` from the CLI entrypoint
 - `4ceb322` — align browser metadata with the evidence-proof product claim
 - `2a24a9a` — distinguish HydraDB writes from temporal-read failures across surfaces
+- `87f45f8` — expose the recording contract in API health
+- `2987888` — record the API health checkpoint
+- `642cdc5` — require non-empty HydraDB temporal proof
+- `a0b9c43` — expose strict recording requirements
+- `7439468` — prefer raw GitHub source reads for bounded source sampling
+- `6d10e24` — remove inferred deployment surfaces
+- `48255fe` — keep generated fixes out of temporal proof
+- `ef7a122` — require complete HydraDB memory acknowledgement
 - `852675e` — reject investigations without repository evidence before collection
 - `dc1cfed` — surface HydraDB read status and graph triplets in the TUI
 - `003661d` — attach a per-hop evidence provenance chain to findings and receipts
