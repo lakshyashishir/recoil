@@ -99,7 +99,7 @@ function Rewind({ report, activeReport, onSelect }) {
   const current = report?.rewind?.currentAsOf || report?.rewind?.asOf || new Date().toISOString()
   if (!before) return <section className="rewind-section rewind-unavailable"><div><p className="eyebrow">TEMPORAL EVIDENCE</p><h2>Rewind unavailable for this case.</h2><p>No dated lockfile history was collected, so Recoil will not invent an exposure window.</p></div></section>
   const active = activeReport?.rewind?.asOf === before ? 'before' : 'current'
-  return <section className="rewind-section"><div className="rewind-copy"><p className="eyebrow">TEMPORAL EVIDENCE · HYDRADB</p><h2>What was true when?</h2><p>Same evidence graph, different point in time. The advisory became public on {report.advisory?.published?.slice(0, 10)}.</p></div><div className="rewind-controls"><button className={active === 'before' ? 'active' : ''} onClick={() => onSelect(before)}><Clock3 size={14} /><span>Before advisory</span><small>{before.slice(0, 10)}</small></button><button className={active === 'current' ? 'active' : ''} onClick={() => onSelect(current)}><Search size={14} /><span>Current record</span><small>{current.slice(0, 10)}</small></button></div></section>
+  return <section className="rewind-section"><div className="rewind-copy"><p className="eyebrow">TEMPORAL EVIDENCE · HYDRADB</p><h2>What was true when?</h2><p>Same evidence graph, different point in time. The advisory became public on {report.advisory?.published?.slice(0, 10)}. Showing evidence as of {activeReport?.rewind?.asOf?.slice(0, 10)}.</p><div className="temporal-findings">{(activeReport?.rewind?.findings || []).map((finding) => <div key={finding.repository}><span>{finding.repository}</span><Verdict value={finding.verdict} /></div>)}</div></div><div className="rewind-controls"><button className={active === 'before' ? 'active' : ''} onClick={() => onSelect(before)}><Clock3 size={14} /><span>Before advisory</span><small>{before.slice(0, 10)}</small></button><button className={active === 'current' ? 'active' : ''} onClick={() => onSelect(current)}><Search size={14} /><span>Current record</span><small>{current.slice(0, 10)}</small></button></div></section>
 }
 
 function HydraProof({ hydra }) {
@@ -183,7 +183,7 @@ function App() {
     try {
       const next = await api(`/api/scenarios/${SCENARIO_ID}/rewind`, { method: 'POST', body: JSON.stringify({ asOf }) })
       setReport(next.report)
-      setHydra(next.hydra)
+      setHydra({ ...(investigation?.hydra || {}), recall: { ...next.hydra, chunkCount: next.hydra?.chunks?.length || 0 }, temporalRecall: next.hydra })
     } catch (cause) { setError(cause.message) }
   }
 

@@ -1,15 +1,11 @@
 /** @jsxImportSource @opentui/react */
 
 import { createCliRenderer } from '@opentui/core'
-import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
-import { useEffect, useMemo, useState } from 'react'
-import { EDGES, NODES } from '../src/core/scenario.js'
-import { createArenaState, stepArena } from '../src/core/arena.js'
+import { createRoot, useEffect, useKeyboard, useRenderer, useState } from '@opentui/react'
 
 const C = {
   bg: '#0b0e0c',
   panel: '#121714',
-  panel2: '#171d19',
   line: '#2b352e',
   text: '#e6ebe6',
   muted: '#86938a',
@@ -20,69 +16,91 @@ const C = {
   green: '#a5cf9d',
 }
 
+const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
+const query = process.argv.slice(2).join(' ').trim() || process.env.RECOIL_TUI_QUERY || ''
+const caseId = `tui-${Math.random().toString(16).slice(2, 10)}`
+
 function Panel({ title, children, style }) {
   return <box title={title} titleColor={C.amber} style={{ border: true, borderColor: C.line, backgroundColor: C.panel, padding: 1, flexDirection: 'column', gap: 1, ...style }}>{children}</box>
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(`${apiBase}${path}`, {
+    ...options,
+    headers: { ...(options.body ? { 'content-type': 'application/json' } : {}), ...(options.headers || {}) },
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || `${response.status} ${response.statusText}`)
+  return payload
+}
+
+function verdictColor(verdict) {
+  if (verdict === 'REACHED') return C.red
+  if (verdict === 'NOT_AFFECTED') return C.green
+  if (verdict === 'DECLARED_ONLY') return C.amber
+  return C.muted
 }
 
 function App() {
   const renderer = useRenderer()
   const compact = renderer.width < 125
-  const [arena, setArena] = useState(() => createArenaState({ scenarioId: 'tui', query: 'https://github.com/axios/axios axios', graphNodes: NODES, graphEdges: EDGES }))
-  const [running, setRunning] = useState(false)
-  const terminal = ['contained', 'breached', 'exhausted'].includes(arena.status)
+  const [state, setState] = useState({ status: query ? 'starting' : 'idle', events: [], report: null, hydra: null, error: null })
 
   useEffect(() => {
-    if (!running || terminal) return undefined
-    const timer = setTimeout(() => setArena((current) => stepArena(current, NODES, EDGES)), 900)
-    return () => clearTimeout(timer)
-  }, [running, terminal, arena.round])
+    if (!query) return undefined
+    let cancelled = false
+    async function run() {
+      try {
+        await request(`/api/scenarios/${caseId}/investigate`, { method: 'POST', body: JSON.stringify({ query }) })
+        while (!cancelled) {
+          const snapshot = await request(`/api/scenarios/${caseId}`)
+          const investigation = snapshot.investigation || {}
+          setState({ status: investigation.status, events: investigation.events || [], report: investigation.report, hydra: investigation.hydra, error: investigation.error })
+          if (['complete', 'failed'].includes(investigation.status)) break
+          await new Promise((resolve) => setTimeout(resolve, 650))
+        }
+      } catch (error) {
+        if (!cancelled) setState((current) => ({ ...current, status: 'failed', error: error.message }))
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [])
 
   useKeyboard((key) => {
     if (key.name === 'q' || key.name === 'escape') process.exit(0)
-    if (key.name === 's') {
-      setArena((current) => ({ ...current, status: 'running', phase: 'red' }))
-      setRunning(true)
-    }
-    if (key.name === 'space') {
-      setArena((current) => stepArena(current, NODES, EDGES))
-      setRunning(false)
-    }
-    if (key.name === 'r') {
-      setArena(createArenaState({ scenarioId: 'tui', query: 'https://github.com/axios/axios axios', graphNodes: NODES, graphEdges: EDGES }))
-      setRunning(false)
-    }
   })
 
-  const last = arena.lastRound
-  const rows = useMemo(() => (arena.history || []).map((round) => ({
-    round,
-    route: round.red.pathLabel || 'no reachable path',
-  })), [arena.history])
+  const report = state.report
+  const summary = report?.summary || {}
+  const terminal = state.status === 'complete' || state.status === 'failed'
 
   return <box style={{ width: '100%', height: '100%', backgroundColor: C.bg, padding: 1, flexDirection: 'column', gap: 1 }}>
     <box style={{ height: 2, flexDirection: 'row', justifyContent: 'space-between' }}>
-      <box style={{ flexDirection: 'row', gap: 2 }}><text fg={C.amber}>▣ RECOIL</text><text fg={C.muted}>ADAPTIVE OPERATOR CONSOLE</text><text fg={C.faint}>/</text><text fg={C.muted}>RED / BLUE ARENA</text></box>
-      <text fg={terminal ? C.green : running ? C.amber : C.faint}>{terminal ? `${arena.winner?.toUpperCase()} · ${arena.status.toUpperCase()}` : running ? '● LOOP RUNNING' : '○ PAUSED'}</text>
+      <box style={{ flexDirection: 'row', gap: 2 }}><text fg={C.amber}>▣ RECOIL</text><text fg={C.muted}>EVIDENCE OPERATOR CONSOLE</text><text fg={C.faint}>/</text><text fg={C.muted}>PATH PROOF</text></box>
+      <text fg={state.status === 'complete' ? C.green : state.status === 'failed' ? C.red : C.amber}>{state.status === 'idle' ? '○ WAITING FOR QUERY' : state.status === 'complete' ? '● CASE COMPLETE' : state.status === 'failed' ? '× CASE FAILED' : '● INVESTIGATION RUNNING'}</text>
     </box>
     <box style={{ flexDirection: 'row', gap: 1, flexGrow: 1 }}>
-      <Panel title="CASE" style={{ width: compact ? 27 : 32 }}>
-        <text fg={C.faint}>TARGET</text><text fg={C.text}>axios / axios</text><text fg={C.muted}>public dependency evidence</text>
-        <text fg={C.faint}>ARENA</text><text fg={C.amber}>round {arena.round} / {arena.maxRounds}</text><text fg={C.muted}>computed routes, no code execution</text>
-        <text fg={C.faint}>SCORE</text><text fg={arena.currentExposure < 50 ? C.green : C.red}>{arena.initialExposure}% → {arena.currentExposure}% exposure</text><text fg={C.muted}>{arena.reachableTargets.length} high-value targets remain</text>
+      <Panel title="CASE" style={{ width: compact ? 31 : 38 }}>
+        <text fg={C.faint}>TARGET</text>
+        <text fg={C.text}>{query || 'No query supplied'}</text>
+        <text fg={C.muted}>{query ? 'public advisory and repository evidence' : 'run: npm run tui -- "<advisory> <github-url>"'}</text>
+        <text fg={C.faint}>HYDRADB</text>
+        <text fg={state.hydra?.status === 'persisted' ? C.green : C.muted}>{state.hydra?.status || 'not started'}</text>
+        <text fg={C.muted}>{state.hydra?.memoryCount || 0} memories · {state.hydra?.recall?.chunkCount || 0} recalled</text>
         <box style={{ flexGrow: 1 }} />
-        <text fg={C.faint}>[s] start loop  [space] step</text><text fg={C.faint}>[r] reset  [q] quit</text>
+        <text fg={C.faint}>[q] quit</text>
       </Panel>
-      <Panel title="LIVE PROPAGATION" style={{ flexGrow: 1 }}>
-        <box style={{ flexDirection: 'row', justifyContent: 'space-between' }}><text fg={C.text}>{last?.red.label || 'Awaiting red agent'}</text><text fg={C.red}>{last ? 'RED MOVE' : 'STANDBY'}</text></box>
-        <box style={{ border: true, borderColor: C.line, backgroundColor: '#0e120f', padding: 1, flexGrow: 1, flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
-          {last ? <><text fg={C.red}>RED  {last.red.pathLabel}</text><text fg={C.faint}>     {last.red.candidates?.length || 0} routes evaluated</text><text fg={C.faint}>     ↓ recompute reachability</text><text fg={C.blue}>BLUE {last.blue.title || 'no control'}</text><text fg={C.muted}>     {last.blue.rationale}</text><text fg={C.faint}>     {last.blue.candidates?.length || 0} controls compared</text><text fg={last.after.reachableTargets.length ? C.amber : C.green}>     {last.before.exposure}% → {last.after.exposure}% · {last.after.reachableTargets.length} targets</text></> : <><text fg={C.faint}>No round has run.</text><text fg={C.muted}>The attacker will search the highest-value route in the graph.</text></>}
-        </box>
-        <text fg={C.faint}>red chooses from graph paths · blue chooses from bounded controls · every round is replayable</text>
+      <Panel title="INVESTIGATION TIMELINE" style={{ flexGrow: 1 }}>
+        {state.error && <text fg={C.red}>{state.error}</text>}
+        {!query && <><text fg={C.amber}>No case is running.</text><text fg={C.muted}>The TUI is a read-only view of the same autonomous API flow as the browser and CLI.</text></>}
+        {query && (state.events || []).map((event) => <box key={`${event.key}:${event.status}`} style={{ flexDirection: 'column', gap: 1, borderBottom: true, borderColor: C.line, paddingBottom: 1 }}><text fg={event.status === 'failed' ? C.red : event.status === 'complete' ? C.green : C.amber}>{event.status === 'complete' ? '✓' : event.status === 'failed' ? '×' : '·'} {event.title}{event.repository ? ` · ${event.repository}` : ''}</text><text fg={C.muted}>{event.detail}</text></box>)}
+        {query && !terminal && <text fg={C.amber}>… collecting the next evidence record</text>}
       </Panel>
-      <Panel title="ROUND MEMORY" style={{ width: compact ? 30 : 39 }}>
-        {rows.length ? rows.map(({ round }) => <box key={round.round} style={{ borderBottom: true, borderColor: C.line, paddingBottom: 1, flexDirection: 'column', gap: 1 }}><text fg={C.amber}>ROUND {round.round}  {round.status}</text><text fg={C.red}>R · {round.red.label}</text><text fg={C.blue}>B · {round.blue.title || 'none'}</text><text fg={C.muted}>{compact ? `${round.before.exposure}% → ${round.after.exposure}%` : round.red.pathLabel}</text></box>) : <text fg={C.faint}>No memories yet.</text>}
+      <Panel title="REPORT" style={{ width: compact ? 34 : 44 }}>
+        {!report ? <text fg={C.faint}>The report appears after collection and proof complete.</text> : <><text fg={C.text}>{summary.reached || 0} reached</text><text fg={C.red}>{summary.declaredOnly || 0} declared only</text><text fg={C.green}>{summary.notAffected || 0} not affected</text><text fg={C.muted}>{summary.unknown || 0} unknown</text><text fg={C.faint}>FIX PROOF</text>{(report.challenge || []).slice(0, compact ? 3 : 6).map((item) => <text key={item.repository} fg={item.status === 'FIX_SURVIVES' || item.status === 'ALREADY_SAFE' ? C.green : verdictColor(item.status)}>{item.repository}: {item.status}</text>)}</>}
         <box style={{ flexGrow: 1 }} />
-        <text fg={arena.memory.used ? C.green : C.faint}>HydraDB precedent {arena.memory.used ? 'used' : 'not available in local TUI'}</text>
+        <text fg={C.faint}>public sources: {report?.sources?.length || 0}</text>
       </Panel>
     </box>
   </box>
