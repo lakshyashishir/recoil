@@ -287,7 +287,7 @@ export function buildInvestigationMemories(ingestion, report) {
     scenarioId,
     validFrom: advisory?.published,
     sourceUrls: [advisory?.sourceUrl].filter(Boolean),
-    text: `# Advisory fact\n\n- Advisory: ${advisory?.id || 'unknown'}\n- Package: ${ingestion.package || 'unknown'}\n- Published: ${advisory?.published || 'unknown'}\n- Fixed versions: ${(advisory?.fixedVersions || []).join(', ') || 'not available'}\n- Source: ${advisory?.sourceUrl || 'not available'}`,
+    text: `# Advisory fact\n\n- Advisory: ${advisory?.id || 'unknown'}\n- Package: ${ingestion.package || 'unknown'}\n- Published: ${advisory?.published || 'unknown'}\n- Fixed versions: ${(advisory?.fixedVersions || []).join(', ') || 'not available'}\n- Validated symbol scope: ${ingestion.advisoryScope?.status || 'not requested'}\n- Candidate symbols: ${(ingestion.advisoryScope?.affectedSymbols || []).map((item) => item.name).join(', ') || 'none'}\n- Source: ${advisory?.sourceUrl || 'not available'}`,
   }))
   memories.push(memory({
     id: `recoil:observed-graph:${stableId(`${scenarioId}:${ingestion.package || advisory?.id || 'unknown'}`)}`,
@@ -311,7 +311,7 @@ export function buildInvestigationMemories(ingestion, report) {
       repository: finding.repository,
       validFrom: finding.pathObservedAt,
       sourceUrls: finding.evidenceSources,
-      text: `# Reachability fact\n\n- Repository: ${finding.repository}\n- Verdict: ${finding.verdict}\n- Package: ${finding.packageName}@${finding.resolvedVersion || 'unresolved'}\n- Declared range: ${finding.declaredRange || 'not found'}\n- Imports: ${(finding.imports || []).map((item) => `${item.path}:${item.line || '?'}`).join(', ') || 'none in sampled files'}\n- Path observed from: ${finding.pathObservedAt || 'unknown'}\n- Evidence path: ${finding.path.join(' -> ')}\n- Reason: ${finding.reason}\n- Sources: ${(finding.evidenceSources || []).join(', ')}`,
+      text: `# Reachability fact\n\n- Repository: ${finding.repository}\n- Verdict: ${finding.verdict}\n- Package: ${finding.packageName}@${finding.resolvedVersion || 'unresolved'}\n- Declared range: ${finding.declaredRange || 'not found'}\n- Imports: ${(finding.imports || []).map((item) => `${item.path}:${item.line || '?'}`).join(', ') || 'none in sampled files'}\n- Advisory symbol scope: ${finding.advisoryScope?.status || 'not requested'}\n- Validated symbols: ${(finding.advisoryScope?.symbols || []).map((item) => `${item.name} (${item.path}:${item.line})`).join(', ') || 'none'}\n- Path observed from: ${finding.pathObservedAt || 'unknown'}\n- Evidence path: ${finding.path.join(' -> ')}\n- Reason: ${finding.reason}\n- Sources: ${(finding.evidenceSources || []).join(', ')}`,
     }))
     const challenge = (report.challenge || []).find((item) => item.repository === finding.repository)
     if (challenge) memories.push(temporalMemory({
