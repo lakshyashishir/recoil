@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildInvestigationReport } from '../src/core/investigation.js'
+import { attachHydraRewind, buildInvestigationReport } from '../src/core/investigation.js'
 
 const baseEvidence = {
     status: 'completed',
@@ -50,6 +50,29 @@ test('investigation report preserves the three-way repository contrast and fix c
   assert.equal(report.rewind.currentAsOf, '2022-04-01T00:00:00.000Z')
   assert.equal(report.evidenceQuality.status, 'complete')
   assert.equal(report.evidenceQuality.readyForRecording, true)
+})
+
+test('HydraDB rewind context is summarized without replacing local verdicts', () => {
+  const report = buildInvestigationReport(baseEvidence)
+  const attached = attachHydraRewind(report, {
+    status: 'recalled',
+    asOf: '2022-03-17T00:00:00.000Z',
+    datedChunkCount: 3,
+    priorScenarioIds: ['prior-case'],
+    sources: ['https://osv.dev/vulnerability/GHSA-test'],
+    chunks: [{ text: 'raw chunk must not be copied' }],
+  })
+  assert.equal(attached.repositories[0].verdict, 'REACHED')
+  assert.deepEqual(attached.rewind.memory, {
+    status: 'recalled',
+    asOf: '2022-03-17T00:00:00.000Z',
+    datedChunkCount: 3,
+    relatedCaseCount: 1,
+    priorScenarioIds: ['prior-case'],
+    sourceUrls: ['https://osv.dev/vulnerability/GHSA-test'],
+    reason: null,
+  })
+  assert.equal('chunks' in attached.rewind.memory, false)
 })
 
 test('rewind refuses to claim a path before its evidence existed', () => {

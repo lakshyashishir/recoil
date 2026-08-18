@@ -50,6 +50,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Browser production build and regression suite.
 - [x] Repeatable real smoke command with strict partial/unknown failure status.
 - [x] Shared evidence-quality contract across report, CLI, browser, and receipt.
+- [x] Attach a sanitized HydraDB temporal-read receipt to rewind reports and exported receipts.
 
 ### Still required before calling the hackathon build complete
 

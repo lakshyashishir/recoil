@@ -65,6 +65,10 @@ path observed → advisory published → current evidence → proposed fix
 
 Rewind refuses to claim a path before the relevant evidence existed. The same dated facts are written to HydraDB with `valid_from`, source URLs, repository identity, and case identity.
 
+Each rewind response includes a bounded HydraDB read receipt—status, as-of timestamp, dated-fact count,
+related prior cases, and source URLs—so the temporal database operation is visible without exposing raw
+retrieval chunks or allowing them to override the deterministic evidence verdict.
+
 ## HydraDB role
 
 HydraDB stores and retrieves:

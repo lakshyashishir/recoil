@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { applyAdvisoryScope } from '../src/core/evidence.js'
-import { buildInvestigationReport, createInvestigationState } from '../src/core/investigation.js'
+import { attachHydraRewind, buildInvestigationReport, createInvestigationState } from '../src/core/investigation.js'
 import { resolveAdvisoryScope } from './advisory-agent.js'
 import { runMultiRepositoryIngestion } from './collectors.js'
 import { persistInvestigation, recallTemporal } from './hydra.js'
@@ -63,7 +63,7 @@ export async function executeInvestigation(record) {
       title: 'Proving repository paths',
       detail: 'Comparing resolved versions with advisory ranges and sampled external imports.',
     })
-    const report = buildInvestigationReport(evidence)
+    let report = buildInvestigationReport(evidence)
     state.report = report
     pushEvent(state, {
       type: 'step',
@@ -88,6 +88,8 @@ export async function executeInvestigation(record) {
       : { status: persisted.status, reason: persisted.reason, chunks: [] }
     state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0, recall: { ...recall, chunkCount: recall.chunks?.length || 0, datedChunkCount: recall.datedChunkCount || 0, relatedCaseCount: recall.priorScenarioIds?.length || 0, priorScenarioIds: recall.priorScenarioIds || [] } }
     record.hydra = state.hydra
+    report = attachHydraRewind(report, recall)
+    state.report = report
     pushEvent(state, {
       type: 'step',
       key: 'hydra',
@@ -125,5 +127,5 @@ export async function rewindInvestigation(record, asOf) {
   const report = buildInvestigationReport(record.investigation.evidence, { asOf: normalized })
   const reportQuery = [record.query, report.package, report.advisory?.id].filter(Boolean).join(' ')
   const hydra = await recallTemporal(reportQuery, normalized, undefined, { excludeScenarioId: record.investigation.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
-  return { report, hydra }
+  return { report: attachHydraRewind(report, hydra), hydra }
 }

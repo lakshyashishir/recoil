@@ -64,6 +64,10 @@ HydraDB stores the investigation as dated evidence memories rather than as a fin
 
 The report exposes the write and recall result. Temporal rewind is computed from the collected lockfile history and uses HydraDB’s dated evidence as the durable investigation record. Without HydraDB credentials, the same local evidence proof remains available and is labelled local replay.
 
+The rewind report also carries a sanitized temporal-read receipt: the as-of timestamp, HydraDB status,
+dated fact count, related prior-case IDs, and returned source URLs. Raw retrieved chunks are never copied
+into the browser report or downloadable receipt, and HydraDB retrieval cannot change a local verdict.
+
 ## Run locally
 
 ```bash

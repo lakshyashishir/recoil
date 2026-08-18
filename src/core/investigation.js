@@ -51,6 +51,31 @@ function challengeFinding(finding, advisory) {
   }
 }
 
+function hydraRewindSummary(recall, asOf) {
+  const priorScenarioIds = recall?.priorScenarioIds || recall?.relatedScenarioIds || []
+  return {
+    status: recall?.status || 'skipped',
+    asOf: recall?.asOf || asOf || null,
+    datedChunkCount: recall?.datedChunkCount || 0,
+    relatedCaseCount: recall?.relatedCaseCount ?? priorScenarioIds.length,
+    priorScenarioIds,
+    sourceUrls: [...new Set(recall?.sources || [])].filter(Boolean).slice(0, 12),
+    reason: recall?.reason || null,
+  }
+}
+
+/** Attach only auditable HydraDB temporal-read metadata; raw chunks stay out. */
+export function attachHydraRewind(report, recall) {
+  if (!report) return report
+  return {
+    ...report,
+    rewind: {
+      ...report.rewind,
+      memory: hydraRewindSummary(recall, report.rewind?.asOf),
+    },
+  }
+}
+
 export function buildInvestigationReport(ingestion, { asOf = new Date().toISOString() } = {}) {
   const findings = ingestion?.findings || []
   const advisory = ingestion?.advisory || ingestion?.collectors?.find((collector) => collector.collector === 'advisory-resolver')?.targetAdvisory || null

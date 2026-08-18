@@ -20,7 +20,7 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
     graph: { nodes: [{ id: 'repo:example/app', label: 'example/app', type: 'repository' }], edges: [] },
     sources: ['https://osv.dev/vulnerability/GHSA-test'],
     limits: ['sampled source only'],
-    rewind: { asOf: '2026-08-19T00:00:00.000Z', beforeAdvisory: '2025-12-31T00:00:00.000Z' },
+    rewind: { asOf: '2026-08-19T00:00:00.000Z', beforeAdvisory: '2025-12-31T00:00:00.000Z', memory: { status: 'recalled', datedChunkCount: 2, relatedCaseCount: 1, priorScenarioIds: ['prior-case'], sourceUrls: [] } },
   }
   const receipt = buildEvidenceReceipt({ scenarioId: 'case-1', report, hydra: { status: 'persisted', memoryCount: 4, recall: { datedChunkCount: 3, relatedCaseCount: 1 } } })
   assert.equal(receipt.schema, 'recoil.evidence-receipt/v1')
@@ -36,6 +36,8 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.match(receipt.integrity.value, /^[a-f0-9]{64}$/)
   assert.equal(receipt.execution.executedRepositoryCode, false)
   assert.equal(receipt.evidenceQuality.readyForRecording, true)
+  assert.equal(receipt.temporal.memory.status, 'recalled')
+  assert.equal(receipt.temporal.memory.datedChunkCount, 2)
 })
 
 test('missing report does not produce a misleading receipt', () => {
