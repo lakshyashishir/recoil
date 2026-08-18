@@ -52,6 +52,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Shared evidence-quality contract across report, CLI, browser, and receipt.
 - [x] Attach a sanitized HydraDB temporal-read receipt to rewind reports and exported receipts.
 - [x] Persist the observed evidence topology through HydraDB's documented `graph_payload` contract and summarize returned graph-context triplets.
+- [x] Poll HydraDB's asynchronous indexing status before recalling graph context; expose queued timeouts without claiming persistence.
 
 ### Still required before calling the hackathon build complete
 
@@ -215,6 +216,10 @@ Manual checks:
 - `b1e0801` — TUI shares the evidence recording gate
 - `32c396b` — preserve all resolved package versions in the graph
 - `2b14446` — mark the pre-redesign review brief archived
+- `86c1f0d` — persist observed topology through HydraDB BYOG
+- `d1b38d2` — use HydraDB v2 REST query field names
+- `cd21bcd` — bound optional advisory-scope model calls
+- `60920c3` — wait for HydraDB graph indexing before recall
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 

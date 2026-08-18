@@ -58,7 +58,7 @@ function hydraRewindSummary(recall, asOf) {
   const chunkRelations = graphContext.chunk_relations || graphContext.chunkRelations || []
   const triplets = [...queryPaths, ...chunkRelations].flatMap((path) => path?.triplets || []).map((triplet) => ({
     source: triplet.source?.name || null,
-    predicate: triplet.relation?.canonical_predicate || triplet.relation?.predicate || null,
+    predicate: triplet.relation?.canonical_predicate || triplet.relation?.canonicalPredicate || triplet.relation?.predicate || null,
     target: triplet.target?.name || null,
     origin: triplet.relation?.origin || null,
   })).filter((triplet) => triplet.source && triplet.target).slice(0, 12)
