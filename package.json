@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "start": "node scripts/start.js",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
+    "cli": "node cli/recoil.js",
+    "test": "node --test",
     "tui": "bun run tui/index.tsx",
     "server": "node --env-file-if-exists=.env server/index.js"
   },

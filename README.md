@@ -21,11 +21,12 @@ The graph separates observed evidence from modeled reachability:
 
 ```bash
 npm install
-npm run server
-npm run dev
+npm run start
 ```
 
-The browser runs at `http://127.0.0.1:5173` and the API at `http://127.0.0.1:8787`.
+`npm run start` launches both processes. The browser runs at `http://127.0.0.1:5173` and the API at `http://127.0.0.1:8787`.
+
+For separate terminals, use `npm run server` and `npm run dev`.
 
 For HydraDB persistence, copy `.env.example` to `.env` and provide `HYDRA_DB_API_KEY` and `HYDRADB_DATABASE_ID`. `HYDRADB_COLLECTION_ID` defaults to `recoil`. Without credentials, the local graph and simulator still run in replay mode.
 
@@ -33,6 +34,21 @@ The operator TUI is available with:
 
 ```bash
 npm run tui
+```
+
+The terminal agent/client can run a complete real case through the API:
+
+```bash
+npm run cli -- "https://github.com/axios/axios axios"
+npm run cli -- "npm:lodash@4.17.21" --json
+```
+
+It collects evidence, advances the attack sequence, asks the bounded planner for a response, applies the recommended controls, and prints the final modeled report. The API must be running first (`npm run start` is the simplest route).
+
+Run the deterministic graph checks with:
+
+```bash
+npm test
 ```
 
 ## Useful targets
