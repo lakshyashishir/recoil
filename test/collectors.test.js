@@ -26,10 +26,18 @@ test('investigation input preserves an explicit GitHub historical ref', () => {
   assert.deepEqual(input.repositories, [{
     owner: 'apache',
     name: 'arrow-rs',
+    refKind: 'tree',
     ref: 'caf1c6022c71af00ef712e9e865acfee74169f0d',
     slug: 'apache/arrow-rs',
     url: 'https://github.com/apache/arrow-rs/tree/caf1c6022c71af00ef712e9e865acfee74169f0d',
   }])
+})
+
+test('investigation input preserves a commit URL ref kind', () => {
+  const input = parseInvestigationInput('GHSA-xvch-5gv4-984h https://github.com/apache/arrow-rs/commit/caf1c6022c71af00ef712e9e865acfee74169f0d')
+  assert.equal(input.repositories[0].refKind, 'commit')
+  assert.equal(input.repositories[0].ref, 'caf1c6022c71af00ef712e9e865acfee74169f0d')
+  assert.equal(input.repositories[0].url, 'https://github.com/apache/arrow-rs/commit/caf1c6022c71af00ef712e9e865acfee74169f0d')
 })
 
 test('Cargo evidence parser preserves workspace dependencies and lockfile edges', () => {

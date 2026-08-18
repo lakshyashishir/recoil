@@ -106,13 +106,17 @@ function writeCache(url, options, payload) {
 
 export function parseGitHubRepositories(query = '') {
   const repositories = []
-  const pattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/#?\s]+)(?:\/(?:tree|commit)\/([^#?\s]+))?/gi
+  const pattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/#?\s]+)(?:\/(tree|commit)\/([^#?\s]+))?/gi
   for (const match of String(query).matchAll(pattern)) {
     const owner = match[1]
     const name = match[2].replace(/\.git$/, '')
-    const ref = match[3]?.replace(/[),.;]+$/, '') || null
-    const repository = { owner, name, slug: `${owner}/${name}`, url: `https://github.com/${owner}/${name}${ref ? `/tree/${ref}` : ''}` }
-    if (ref) repository.ref = ref
+    const ref = match[4]?.replace(/[),.;]+$/, '') || null
+    const refKind = match[3] || 'tree'
+    const repository = { owner, name, slug: `${owner}/${name}`, url: `https://github.com/${owner}/${name}${ref ? `/${refKind}/${ref}` : ''}` }
+    if (ref) {
+      repository.ref = ref
+      repository.refKind = refKind
+    }
     if (!repositories.some((item) => item.slug.toLowerCase() === repository.slug.toLowerCase())) repositories.push(repository)
   }
   return repositories.slice(0, 4)
