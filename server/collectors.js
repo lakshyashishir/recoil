@@ -116,8 +116,12 @@ async function collectLatestChange(repository, codeGraph) {
 
 async function collectCodeowners(repository) {
   for (const path of ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS']) {
-    const file = await readGitHubFile(repository, path)
-    if (file) return file
+    try {
+      const file = await readGitHubFile(repository, path)
+      if (file) return file
+    } catch {
+      // Ownership is optional evidence; a transient GitHub failure must not hide the repository graph.
+    }
   }
   return null
 }
