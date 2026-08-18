@@ -34,6 +34,11 @@ function clip(value, max = 6000) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
+function networkError(error) {
+  const code = error?.cause?.code || error?.code
+  return `Unable to fetch ${OPENAI_API_URL}${code ? ` (${code})` : ''}: ${error.message}`
+}
+
 function responseText(payload) {
   if (typeof payload?.output_text === 'string') return payload.output_text
   return (payload?.output || [])
@@ -90,6 +95,6 @@ export async function resolveAdvisoryScope(ingestion, signal) {
     const parsed = JSON.parse(responseText(payload) || '{}')
     return { status: 'completed', model: modelName(), ...parsed, affectedSymbols: Array.isArray(parsed.affectedSymbols) ? parsed.affectedSymbols.slice(0, 12) : [] }
   } catch (error) {
-    return { status: 'failed', error: error.message, affectedSymbols: [] }
+    return { status: 'failed', error: networkError(error), affectedSymbols: [] }
   }
 }
