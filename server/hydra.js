@@ -415,11 +415,14 @@ export async function persistInvestigation(ingestion, report, signal) {
     if (error.code === 'HYDRA_INDEX_FAILED') throw error
     result = { ...queued, indexingStatus: 'queued', indexingPending: true, indexingError: error.message }
   }
+  const sourceIds = [...new Set((result.results || []).map((item) => item.id).filter(Boolean))]
+  const acknowledgedAll = sourceIds.length >= memories.length
   return {
-    status: result.indexingStatus === 'completed' ? 'persisted' : 'queued',
+    status: result.indexingStatus === 'completed' && acknowledgedAll ? 'persisted' : 'queued',
     memoryCount: memories.length,
-    sourceIds: result.results?.map((item) => item.id).filter(Boolean) || [],
-    indexingError: result.indexingError || null,
+    sourceIds,
+    indexingError: result.indexingError || (acknowledgedAll ? null : `HydraDB acknowledged ${sourceIds.length}/${memories.length} evidence memories`),
+    indexingPending: result.indexingPending || !acknowledgedAll,
     result,
   }
 }

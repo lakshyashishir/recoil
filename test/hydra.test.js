@@ -189,21 +189,27 @@ test('HydraDB adapter waits for asynchronous graph indexing before recall', asyn
   process.env.HYDRADB_INDEX_POLL_MS = '0'
   process.env.HYDRADB_INDEX_WAIT_MS = '1000'
   let statusCalls = 0
+  let ingestCalls = 0
+  const memoryIds = []
   const urls = []
   globalThis.fetch = async (input, options = {}) => {
     const url = String(input)
     urls.push(url)
-    if (url.endsWith('/context/ingest')) return {
-      ok: true,
-      status: 202,
-      json: async () => ({ data: { inner: { results: [{ id: 'memory-1', status: 'queued' }] } } }),
+    if (url.endsWith('/context/ingest')) {
+      const id = `memory-${++ingestCalls}`
+      memoryIds.push(id)
+      return {
+        ok: true,
+        status: 202,
+        json: async () => ({ data: { inner: { results: [{ id, status: 'queued' }] } } }),
+      }
     }
     if (url.includes('/context/status?')) {
       statusCalls += 1
       return {
         ok: true,
         status: 200,
-        json: async () => ({ data: { inner: { statuses: [{ id: 'memory-1', indexing_status: statusCalls > 1 ? 'completed' : 'embedding' }] } } }),
+        json: async () => ({ data: { inner: { statuses: memoryIds.map((id) => ({ id, indexing_status: statusCalls > 1 ? 'completed' : 'embedding' })) } } }),
       }
     }
     throw new Error(`unexpected HydraDB URL: ${url}`)
@@ -218,6 +224,7 @@ test('HydraDB adapter waits for asynchronous graph indexing before recall', asyn
     assert.equal(persisted.status, 'persisted')
     assert.equal(statusCalls, 2)
     assert.ok(urls.some((url) => url.includes('ids=memory-1')))
+    assert.ok(urls.some((url) => url.includes('ids=memory-2')))
   } finally {
     globalThis.fetch = previousFetch
     if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
@@ -228,5 +235,39 @@ test('HydraDB adapter waits for asynchronous graph indexing before recall', asyn
     else process.env.HYDRADB_INDEX_POLL_MS = previousPoll
     if (previousWait === undefined) delete process.env.HYDRADB_INDEX_WAIT_MS
     else process.env.HYDRADB_INDEX_WAIT_MS = previousWait
+  }
+})
+
+test('HydraDB adapter does not call a partial acknowledgement persisted', async () => {
+  const previousFetch = globalThis.fetch
+  const previousKey = process.env.HYDRA_DB_API_KEY
+  const previousDatabase = process.env.HYDRADB_DATABASE_ID
+  process.env.HYDRA_DB_API_KEY = 'test-key'
+  process.env.HYDRADB_DATABASE_ID = 'test-database'
+  globalThis.fetch = async (input) => {
+    const url = String(input)
+    if (url.endsWith('/context/ingest')) return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { inner: { results: [] } } }),
+    }
+    throw new Error(`unexpected HydraDB URL: ${url}`)
+  }
+  try {
+    const result = await persistInvestigation({ scenarioId: 'partial-ack', package: 'minimist', graph: { nodes: [], edges: [] } }, {
+      generatedAt: '2026-08-19T00:00:00.000Z',
+      advisory: { id: 'GHSA-test', published: '2022-03-18T00:00:00Z', fixedVersions: [] },
+      repositories: [],
+      challenge: [],
+    })
+    assert.equal(result.status, 'queued')
+    assert.equal(result.sourceIds.length, 0)
+    assert.match(result.indexingError, /0\//)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
+    else process.env.HYDRA_DB_API_KEY = previousKey
+    if (previousDatabase === undefined) delete process.env.HYDRADB_DATABASE_ID
+    else process.env.HYDRADB_DATABASE_ID = previousDatabase
   }
 })

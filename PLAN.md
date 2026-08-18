@@ -66,6 +66,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Remove heuristic source-to-deployment surface inference so every displayed path remains tied to observed repository evidence.
 - [x] Keep counterfactual fix proofs undated so generated remediation output cannot masquerade as historical evidence.
 - [x] Require strict recording to account for every HydraDB memory acknowledgement, not just HTTP success.
+- [x] Keep ordinary HydraDB status queued until the complete memory batch is acknowledged across all clients.
 
 ### Still required before calling the hackathon build complete
 
