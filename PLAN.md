@@ -30,6 +30,7 @@ This is a bounded defensive simulation. It never executes package code, sends ex
 - Each round records before/after exposure, red route, blue action, rationale, and residual route.
 - HydraDB recall can influence a blue decision, and the episode remains useful without HydraDB in local replay mode.
 - The CLI and browser show the same episode state from the API rather than implementing separate simulations.
+- The network-free benchmark proves route adaptation and containment from graph state, with no scripted final score.
 
 ### Future Track 2 coverage
 

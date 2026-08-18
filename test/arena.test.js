@@ -39,3 +39,14 @@ test('defender can use a recalled promotion precedent', () => {
   assert.equal(result.lastRound.blue.memoryUsed, true)
   assert.equal(result.memory.used, true)
 })
+
+test('defender does not apply an unrelated recalled control as a match', () => {
+  const memory = { chunks: [{ text: 'Prior episode: block-promotion cut the first CI route.' }] }
+  const initial = createArenaState({ scenarioId: 'memory-route-test', graphNodes: NODES, graphEdges: EDGES })
+  const first = stepArena(initial, NODES, EDGES)
+  const second = stepArena(first, NODES, EDGES, { memory })
+
+  assert.equal(second.lastRound.red.path.includes('resolver'), true)
+  assert.equal(second.lastRound.blue.action, 'upgrade')
+  assert.equal(second.lastRound.blue.memoryUsed, false)
+})

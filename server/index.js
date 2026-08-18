@@ -208,6 +208,8 @@ function snapshot(record) {
   const reachability = getReachability(arenaState, record.graph.nodes, record.graph.edges)
   const exposure = reachability.exposure
   const collectors = new Map((record.ingestion?.collectors || []).map((collector) => [collector.collector, collector]))
+  const repositoryCollector = collectors.get('repository-extractor')
+  const registryLabel = repositoryCollector?.ecosystem === 'cargo' ? 'crates.io registry' : 'npm registry'
   const sourceStatus = (collectorName) => collectors.get(collectorName)?.status || (record.ingestion?.status === 'running' ? 'working' : 'ready')
   return {
     id: record.id,
@@ -224,13 +226,23 @@ function snapshot(record) {
     events: record.events,
     interventions: INTERVENTIONS,
     state,
-    metrics: { exposure, contained: 100 - exposure, eventIndex: state.eventIndex, complete: state.eventIndex >= (record.events?.length || EVENTS.length) },
+    metrics: record.arena
+      ? {
+          exposure,
+          contained: 100 - exposure,
+          eventIndex: state.eventIndex,
+          round: record.arena.round,
+          attackMoves: record.arena.metrics.attackMoves,
+          defenseMoves: record.arena.metrics.defenseMoves,
+          complete: ['contained', 'breached', 'exhausted'].includes(record.arena.status),
+        }
+      : { exposure, contained: 100 - exposure, eventIndex: state.eventIndex, complete: state.eventIndex >= (record.events?.length || EVENTS.length) },
     ingestion: record.ingestion,
     hydra: record.hydra,
     arena: record.arena,
     sources: [
       { id: 'osv', label: 'OSV advisory', type: 'advisory', status: sourceStatus('advisory-resolver') },
-      { id: 'npm', label: 'npm registry', type: 'registry', status: sourceStatus('registry-resolver') },
+      { id: 'registry', label: registryLabel, type: 'registry', status: sourceStatus('registry-resolver') },
       { id: 'incident', label: 'Incident sources', type: 'research', status: sourceStatus('incident-researcher') },
       { id: 'github', label: 'Repository manifest', type: 'repository', status: sourceStatus('repository-extractor') },
       { id: 'hydra', label: 'HydraDB memory graph', type: 'memory', status: record.hydra?.status || 'ready' },
@@ -266,7 +278,7 @@ function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
   if (req.method === 'OPTIONS') return json(res, 204, {})
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'recoil-api', hydra: hydraStatus(), sources: ['npm-registry', 'osv', 'incident-pages', 'synthetic-fixture'], time: new Date().toISOString() })
+    return json(res, 200, { ok: true, service: 'recoil-api', hydra: hydraStatus(), capabilities: ['npm', 'cargo', 'osv', 'repository-evidence', 'adaptive-arena'], time: new Date().toISOString() })
   }
   if (req.method === 'GET' && url.pathname === '/api/scenario') return json(res, 200, snapshot(getOrCreate()))
   if (req.method === 'POST' && url.pathname === '/api/scenarios') {

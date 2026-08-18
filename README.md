@@ -51,7 +51,10 @@ Run the deterministic graph checks with:
 
 ```bash
 npm test
+npm run benchmark
 ```
+
+The benchmark is a local, network-free regression check for the arena policy. It asserts that red changes route after a graph mutation, that blue contains the computed high-value paths, and that controls are selected from graph state. It does not fabricate a security finding or execute package code.
 
 ## Useful targets
 

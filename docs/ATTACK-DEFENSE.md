@@ -1,21 +1,21 @@
 # Recoil attack / defense loop
 
-Recoil is designed as a legible incident loop rather than a collection of decorative agents.
+Recoil is designed as a computed red/blue episode rather than a collection of decorative agents.
 
 ```text
 public evidence
     ↓
-orchestrator establishes scope
+graph builder establishes scope
     ↓
-attack planner crosses trust and dependency edges
+red policy selects a reachable route
     ↓
-defender monitor surfaces evidence
+blue policy selects a route-aware control
     ↓
-containment planner evaluates counterfactuals
+graph recalculates alternate routes
     ↓
-defender operator applies a bounded control
+round and rationale are written to HydraDB
     ↓
-graph and HydraDB decision memory are updated
+red searches again until containment or budget exhaustion
 ```
 
 ## Attacker side
@@ -28,11 +28,11 @@ The attacker is a bounded graph policy, not an exploit runner. Its objective is 
 4. Fan out through the modeled artifact and services.
 5. Reach a high-value data node.
 
-Each step has an actor (`attack planner`), intent, label, and explanation. At the response boundary, the planner runs a bounded path search over the current graph and selects the highest-value residual route. Recoil records the route as node IDs, not just a score, so the operator can see exactly which trust edges remain. No package code, payload, or target system is executed.
+The policy chooses the primary route first, then selects an unused alternate route after a control changes the graph. Each move has an intent, label, exact path, and explanation. Recoil records the route as node IDs, not just a score, so the operator can see exactly which trust edges remain. No package code, payload, or target system is executed.
 
 ## Defender side
 
-The defender has a bounded response budget. Recoil exhaustively evaluates the small intervention space and ranks plans by:
+The defender has a bounded response budget. It first responds to the route it actually sees, then falls back to exhaustive evaluation of the small intervention space. Candidate controls are ranked by:
 
 ```text
 lowest modeled exposure
@@ -49,7 +49,7 @@ Current controls are:
 - rotate runtime secrets;
 - restore and validate.
 
-The recommendation is a counterfactual graph result. Applying it blocks concrete graph nodes, recalculates reachable high-value assets, tests the remaining route, and starts the next response round. Each decision writes the round, blocked nodes, primary route, and alternate paths considered to a `defense_decision` memory in HydraDB.
+The control is a counterfactual graph result. Applying it blocks concrete graph nodes, recalculates reachable high-value assets, and exposes the next route to red. Each round writes the red move, blue rationale, before/after exposure, blocked nodes, and residual paths to an `arena_round` memory in HydraDB.
 
 Controls are phase-aware: blocking artifact promotion closes the CI gate for future releases but does not pretend that an artifact already promoted into the incident disappeared. A later upgrade, restore, quarantine, or secret rotation must address that residual state.
 
@@ -65,12 +65,12 @@ Each case writes separate memories for:
 
 - incident anchor and target;
 - explicit graph topology;
-- attack/defense timeline;
+- computed red/blue arena rounds;
 - each collector result and provenance;
 - every defender decision;
 - the ranked containment plan.
 
-This lets a later recall retrieve both semantic evidence and the graph/timeline explanation. Writes are chunked to respect hosted ingestion limits and are marked queued while HydraDB indexes them asynchronously.
+Before an episode starts, Recoil recalls prior Recoil rounds across scenarios. If a relevant prior control is found, the blue policy can use that precedent and the UI marks the round as memory-assisted. Writes are chunked to respect hosted ingestion limits and are marked queued while HydraDB indexes them asynchronously.
 
 ## Observed versus modeled
 

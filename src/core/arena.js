@@ -33,10 +33,23 @@ function describeAttack(path) {
   return { label: 'Probe the reachable crown-jewel route', intent: 'find a path to high-value data' }
 }
 
-function memorySuggestsAction(memory, actionId) {
+function memorySuggestsAction(memory, actionId, path = []) {
   if (!memory) return false
-  const text = JSON.stringify(memory).toLowerCase()
-  return text.includes(actionId) || (actionId === 'block-promotion' && text.includes('promotion'))
+  const chunks = Array.isArray(memory?.chunks) ? memory.chunks : [memory]
+  const routeTerms = new Set(path.flatMap((id) => {
+    if (id === 'ci' || id === 'runner') return ['ci', 'promotion', 'runner']
+    if (id === 'resolver' || id === 'lockfile') return ['resolver', 'lockfile', 'dependency']
+    if (id === 'secrets') return ['secret', 'credential', 'runtime']
+    if (id === 'artifact') return ['artifact', 'release']
+    if (id === 'payments' || id === 'checkout') return ['payment', 'checkout', 'service']
+    return []
+  }))
+  return chunks.some((chunk) => {
+    const text = JSON.stringify(chunk).toLowerCase()
+    const actionMatch = text.includes(actionId) || (actionId === 'block-promotion' && text.includes('promotion'))
+    const routeMatch = routeTerms.size === 0 || [...routeTerms].some((term) => text.includes(term))
+    return actionMatch && routeMatch
+  })
 }
 
 function chooseAttack(state, reachability, graphNodes) {
@@ -77,7 +90,7 @@ function chooseDefense(state, reachability, attack, graphNodes, graphEdges, memo
     route.has('payments') || route.has('checkout') ? 'quarantine' : null,
     'revoke',
   ].filter(Boolean)
-  const remembered = candidates.find((action) => memorySuggestsAction(memory, action.id))
+  const remembered = candidates.find((action) => memorySuggestsAction(memory, action.id, attack.path))
   const routeAction = routePriority.map((id) => candidates.find((action) => action.id === id)).find(Boolean)
   const selected = remembered || routeAction || [...candidates].sort((left, right) => {
     const leftResult = getReachability({ eventIndex: peakEventIndex(graphNodes), selectedActions: [...state.selectedActions, left.id] }, graphNodes, graphEdges)

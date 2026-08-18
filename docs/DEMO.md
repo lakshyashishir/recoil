@@ -21,15 +21,13 @@ npm:lodash@4.17.21
 CVE-2021-4229 / fixture/storefront-api
 ```
 
-Recoil collects npm metadata, OSV advisory records, incident pages, and public repository files. It never installs or executes the package. The workspace then advances the bounded attack sequence, showing the current route and the high-value targets reachable through it.
-
-When the response window opens, use **Find minimum containment** or choose controls directly. Each applied control creates a new round:
+Recoil collects npm or Cargo metadata, OSV advisory records, incident pages, and public repository files. It never installs or executes the package. The workspace then opens an adaptive red/blue arena:
 
 ```text
-defender control → attacker residual-route test → graph recalculation
+red route search → blue control → graph recalculation → red alternate route
 ```
 
-The final case report preserves the initial route, alternate routes, current route, observed sources, HydraDB evidence state, and explicit uncertainty about modeled deployment edges.
+The final case report preserves every computed round, the initial and residual routes, observed sources, HydraDB memory state, and explicit uncertainty about modeled deployment edges.
 
 ## Terminal clients
 
@@ -37,11 +35,12 @@ With the API running:
 
 ```bash
 npm run cli -- "https://github.com/axios/axios axios"
+npm run cli -- "https://github.com/axios/axios axios" --fast
 npm run cli -- "npm:lodash@4.17.21" --json
 npm run tui
 ```
 
-The CLI runs ingestion, event advancement, planning, recommended controls, and report generation. The TUI is a local operator view: `s` starts, `space` steps, `1–3` selects the first controls, `r` resets, and `q` exits.
+The CLI runs ingestion, prior-episode recall, adaptive red/blue rounds, HydraDB round persistence, and report generation. The TUI is a local operator view of the same pure arena engine: `s` starts, `space` steps, `r` resets, and `q` exits.
 
 ## Evidence and safety boundary
 
