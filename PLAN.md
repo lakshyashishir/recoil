@@ -56,6 +56,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Attach a per-hop provenance chain to each repository finding and portable receipt: advisory, lockfile resolution, repository, import/symbol, and dated observation.
 - [x] Add a network-free recording doctor with optional bounded endpoint probes so demo readiness is diagnosed before collection.
 - [x] Add CLI `--recording` enforcement for the three-way contrast plus completed HydraDB write and temporal-read proof.
+- [x] Share the same recording blocker contract between the CLI and real smoke, with regression coverage for ready and failed cases.
 
 ### Still required before calling the hackathon build complete
 

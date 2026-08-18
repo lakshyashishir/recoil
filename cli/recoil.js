@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { hasIncompleteEvidence, missingRequiredVerdicts } from '../src/core/validation.js'
+import { hasIncompleteEvidence } from '../src/core/validation.js'
 import { parseGitHubRepositories } from '../server/collectors.js'
+import { recordingBlockers as buildRecordingBlockers, recordingPreflight as buildRecordingPreflight } from '../src/core/recording.js'
 
 const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
 const args = process.argv.slice(2)
@@ -41,21 +42,16 @@ function sleep(ms) {
 }
 
 function recordingPreflight(queryText) {
-  const blockers = []
-  const repositoryCount = parseGitHubRepositories(queryText).length
-  if (repositoryCount < 3) blockers.push(`requires 3 public GitHub repositories; found ${repositoryCount}`)
-  if (!process.env.HYDRA_DB_API_KEY || !process.env.HYDRADB_DATABASE_ID) blockers.push('requires HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID')
-  return blockers
+  return buildRecordingPreflight({
+    repositoryCount: parseGitHubRepositories(queryText).length,
+    hydraConfigured: Boolean(process.env.HYDRA_DB_API_KEY && process.env.HYDRADB_DATABASE_ID),
+    requireContrast: true,
+    requireHydra: true,
+  })
 }
 
 function recordingBlockers(result) {
-  const blockers = []
-  if (hasIncompleteEvidence(result)) blockers.push(result.report?.evidenceQuality?.reason || 'public evidence is incomplete')
-  const missing = missingRequiredVerdicts(result.report)
-  if (missing.length) blockers.push(`missing contrast verdicts: ${missing.join(', ')}`)
-  if (result.hydra?.status !== 'persisted') blockers.push(`HydraDB write status is ${result.hydra?.status || 'unknown'}`)
-  if (result.hydra?.recall?.status !== 'recalled') blockers.push(`HydraDB temporal read status is ${result.hydra?.recall?.status || 'not-run'}`)
-  return blockers
+  return buildRecordingBlockers({ report: result.report, evidenceStatus: result.evidenceStatus, hydra: result.hydra, requireContrast: true, requireHydra: true })
 }
 
 function printEvents(events, seen) {

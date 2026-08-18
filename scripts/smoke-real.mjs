@@ -1,7 +1,7 @@
 import { parseGitHubRepositories, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 import { persistInvestigation, recallTemporal } from '../server/hydra.js'
-import { missingRequiredVerdicts } from '../src/core/validation.js'
+import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
 
 const query = process.env.RECOIL_SMOKE_QUERY || 'GHSA-434x-w66g-qw3r https://github.com/hydra-db/hydradb'
 const scenarioId = process.env.RECOIL_SMOKE_SCENARIO || `real-${Date.now()}`
@@ -13,12 +13,19 @@ function print(label, value) {
 }
 
 const repositoryCount = parseGitHubRepositories(query).length
-if (requiredContrast && repositoryCount < 3) {
-  print('preflight', `contrast mode requires 3 public GitHub repositories; found ${repositoryCount}`)
-  process.exit(2)
-}
-if (requiredHydra && (!process.env.HYDRA_DB_API_KEY || !process.env.HYDRADB_DATABASE_ID)) {
-  print('preflight', 'HydraDB recording is required; set HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID')
+const preflightBlockers = recordingPreflight({
+  repositoryCount,
+  hydraConfigured: Boolean(process.env.HYDRA_DB_API_KEY && process.env.HYDRADB_DATABASE_ID),
+  requireContrast: requiredContrast,
+  requireHydra: requiredHydra,
+})
+if (preflightBlockers.length) {
+  const messages = preflightBlockers.map((blocker) => blocker.startsWith('requires 3 public GitHub repositories')
+    ? `contrast mode ${blocker}`
+    : blocker.startsWith('requires HYDRA_DB_API_KEY')
+      ? 'HydraDB recording is required; set HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID'
+      : blocker)
+  print('preflight', messages.join(' · '))
   process.exit(2)
 }
 
@@ -53,7 +60,7 @@ if (requiredHydra && recall.status !== 'recalled') print('hydra-gate', `required
 print('sources', `${report.sources?.length || 0} public URLs`)
 print('boundary', 'no install · no repository execution · no exploit payload')
 
-const hasUnresolvedFinding = (report.repositories || []).some((finding) => finding.verdict === 'UNKNOWN')
-const missingContrast = missingRequiredVerdicts(report)
-if (requiredContrast && missingContrast.length) print('contrast', `missing ${missingContrast.join(', ')}`)
-if (ingestion.status !== 'completed' || hasUnresolvedFinding || hydra.status === 'failed' || requiredHydra && (hydra.status !== 'persisted' || recall.status !== 'recalled') || missingContrast.length && requiredContrast) process.exitCode = 1
+const blockers = recordingBlockers({ report, evidenceStatus: ingestion.status, hydra: { ...hydra, recall }, requireContrast: requiredContrast, requireHydra: requiredHydra })
+for (const blocker of blockers) print('gate', blocker)
+if (requiredContrast && blockers.some((blocker) => blocker.startsWith('missing contrast'))) print('contrast', blockers.find((blocker) => blocker.startsWith('missing contrast')))
+if (blockers.length) process.exitCode = 1

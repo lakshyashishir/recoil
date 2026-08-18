@@ -1,0 +1,31 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
+
+test('recording preflight requires contrast repositories and HydraDB only in strict mode', () => {
+  assert.deepEqual(recordingPreflight({ repositoryCount: 1, hydraConfigured: false, requireContrast: true, requireHydra: true }), [
+    'requires 3 public GitHub repositories; found 1',
+    'requires HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID',
+  ])
+  assert.deepEqual(recordingPreflight({ repositoryCount: 1, hydraConfigured: false }), [])
+})
+
+test('recording blockers accept a complete contrast with HydraDB temporal recall', () => {
+  const report = {
+    evidenceQuality: { readyForRecording: true, reason: 'complete' },
+    repositories: [{ verdict: 'REACHED' }, { verdict: 'DECLARED_ONLY' }, { verdict: 'NOT_AFFECTED' }],
+  }
+  assert.deepEqual(recordingBlockers({ report, evidenceStatus: 'completed', hydra: { status: 'persisted', recall: { status: 'recalled' } }, requireContrast: true, requireHydra: true }), [])
+})
+
+test('recording blockers preserve incomplete evidence and HydraDB failures', () => {
+  const report = { evidenceQuality: { readyForRecording: false, reason: 'one repository is unknown' }, repositories: [{ verdict: 'UNKNOWN' }] }
+  const blockers = recordingBlockers({ report, evidenceStatus: 'partial', hydra: { status: 'failed', recall: { status: 'failed' } }, requireContrast: true, requireHydra: true })
+  assert.deepEqual(blockers, [
+    'one repository is unknown',
+    'missing contrast verdicts: REACHED, DECLARED_ONLY, NOT_AFFECTED',
+    'HydraDB write failed',
+    'HydraDB write status is failed',
+    'HydraDB temporal read status is failed',
+  ])
+})
