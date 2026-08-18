@@ -26,6 +26,18 @@ import { EDGES, EVENTS, INTERVENTIONS, NODES, SCENARIO } from './core/scenario.j
 import './style.css'
 
 const DEFAULT_QUERY = 'https://github.com/axios/axios axios'
+const FOCUS_NODE_IDS = new Set([
+  'maintainer',
+  'release',
+  'resolver',
+  'lockfile',
+  'repo',
+  'runner',
+  'ci',
+  'artifact',
+  'payments',
+  'customer-db',
+])
 
 function formatPct(value) {
   return `${Math.max(0, Math.min(100, value || 0))}%`
@@ -101,7 +113,7 @@ function Graph({ snapshot, selectedNode, setSelectedNode, view = 'focus' }) {
   const blocked = new Set(graph.blockedNodeIds || [])
   const primaryPath = graph.primaryPath || []
   const route = new Set(primaryPath.map((id, index, path) => index ? `${path[index - 1]}->${id}` : null).filter(Boolean))
-  const focusIds = new Set(NODES.map((node) => node.id))
+  const focusIds = new Set(FOCUS_NODE_IDS)
   primaryPath.forEach((id) => focusIds.add(id))
   if (selectedNode) focusIds.add(selectedNode)
   const visibleNodes = view === 'full' ? graph.nodes : graph.nodes.filter((node) => focusIds.has(node.id))
@@ -208,26 +220,28 @@ function DecisionRail({ snapshot, selectedNode }) {
   const used = new Set(arena?.selectedActions || [])
   const waiting = !last && !['contained', 'breached', 'exhausted'].includes(arena?.status)
   return <aside className="decision-rail">
-    <div className="rail-heading"><div><div className="section-caption">live policies</div><h2>Red / Blue</h2></div><span className={`arena-state ${arena?.status || 'ready'}`}>{arena?.status || 'ready'}</span></div>
+    <div className="rail-heading"><div><div className="section-caption">attack / defense loop</div><h2>What happens next</h2></div><span className={`arena-state ${arena?.status || 'ready'}`}>{arena?.status || 'ready'}</span></div>
     <section className="agent-block red-block">
-      <div className="agent-title"><span className="agent-mark red-mark">R</span><div><strong>Red agent</strong><small>route search</small></div><span className="agent-state">{waiting ? 'ready' : arena?.status === 'running' ? 'thinking' : 'complete'}</span></div>
+      <div className="agent-title"><span className="agent-mark red-mark">R</span><div><strong>Red · finds a path</strong><small>attacker</small></div><span className="agent-state">{waiting ? 'ready' : arena?.status === 'running' ? 'thinking' : 'complete'}</span></div>
       <div className="agent-value">{last?.red?.label || 'Choose the first route'}</div>
       <p>{last?.red?.pathLabel || 'Red searches valid graph edges toward a high-value asset. It cannot invent a route.'}</p>
     </section>
     <section className="agent-block blue-block">
-      <div className="agent-title"><span className="agent-mark blue-mark">B</span><div><strong>Blue agent</strong><small>containment policy</small></div><span className="agent-state">{waiting ? 'queued' : last?.blue?.memoryUsed ? 'memory-assisted' : 'route-aware'}</span></div>
+      <div className="agent-title"><span className="agent-mark blue-mark">B</span><div><strong>Blue · blocks the path</strong><small>defender</small></div><span className="agent-state">{waiting ? 'next' : last?.blue?.memoryUsed ? 'memory-assisted' : 'route-aware'}</span></div>
       <div className="agent-value">{last?.blue?.title || 'Will respond to Red'}</div>
       <p>{last?.blue?.rationale || 'Blue compares affordable controls against the route Red actually chose, then cuts the best one.'}</p>
     </section>
-    <section className="score-block">
-      <div className="score-line"><span>current exposure</span><strong className={arena?.currentExposure < 50 ? 'good' : ''}>{formatPct(arena?.currentExposure)}</strong></div>
-      <div className="score-bar"><span style={{ width: `${arena?.currentExposure || 0}%` }} /></div>
-      <div className="score-line"><span>high-value targets</span><strong>{arena?.reachableTargets?.length || 0}</strong></div>
-      <div className="score-line"><span>controls committed</span><strong>{arena?.metrics?.controlsUsed || 0} / {arena?.responseBudget || 8}</strong></div>
-      <div className="score-line"><span>episode rounds</span><strong>{arena?.round || 0} / {arena?.maxRounds || 6}</strong></div>
-    </section>
-    <section className="controls-block"><div className="section-caption">controls in graph</div>{(snapshot?.interventions || INTERVENTIONS).map((action) => <div className={`control-line ${used.has(action.id) ? 'used' : ''}`} key={action.id}><span>{used.has(action.id) ? <Check size={13} /> : <span className="control-empty" />}</span><span>{action.title}</span><b>{action.cost}pt</b></div>)}</section>
-    <section className="selected-block"><div className="section-caption">selected entity</div><strong>{selected?.label || '—'}</strong><span>{selected?.meta || 'Click a node in the graph to inspect its current state.'}</span></section>
+    {waiting ? <section className="waiting-rail"><div className="section-caption">first round</div><strong>Run the round to see a real result.</strong><p>Red picks a reachable route. Blue tests a control against that exact route. The graph and exposure score update after both moves.</p></section> : <>
+      <section className="score-block">
+        <div className="score-line"><span>current exposure</span><strong className={arena?.currentExposure < 50 ? 'good' : ''}>{formatPct(arena?.currentExposure)}</strong></div>
+        <div className="score-bar"><span style={{ width: `${arena?.currentExposure || 0}%` }} /></div>
+        <div className="score-line"><span>high-value targets</span><strong>{arena?.reachableTargets?.length || 0}</strong></div>
+        <div className="score-line"><span>controls committed</span><strong>{arena?.metrics?.controlsUsed || 0} / {arena?.responseBudget || 8}</strong></div>
+        <div className="score-line"><span>episode rounds</span><strong>{arena?.round || 0} / {arena?.maxRounds || 6}</strong></div>
+      </section>
+      <section className="controls-block"><div className="section-caption">available defenses</div>{(snapshot?.interventions || INTERVENTIONS).map((action) => <div className={`control-line ${used.has(action.id) ? 'used' : ''}`} key={action.id}><span>{used.has(action.id) ? <Check size={13} /> : <span className="control-empty" />}</span><span>{action.title}</span><b>{action.cost}pt</b></div>)}</section>
+      <section className="selected-block"><div className="section-caption">selected entity</div><strong>{selected?.label || '—'}</strong><span>{selected?.meta || 'Click a node in the graph to inspect its current state.'}</span></section>
+    </>}
   </aside>
 }
 
@@ -237,8 +251,8 @@ function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onP
   const waiting = !terminal && !arena?.lastRound
   const repo = snapshot?.ingestion?.collectors?.find((item) => item.collector === 'repository-extractor')
   const graph = snapshot?.graph || { nodes: NODES, edges: EDGES }
-  const headerTitle = terminal ? (arena.winner === 'defender' ? 'Route contained.' : 'Attacker reached the limit.') : waiting ? 'Ready to trace the first route.' : 'The graph is under pressure.'
-  const headerCopy = terminal ? `Blue used ${arena.metrics.controlsUsed} controls. The final route is ${arena.currentPath.length ? 'still reachable' : 'severed'}.` : waiting ? 'Start the arena. Red chooses a route, then Blue responds with a computed control.' : 'Each move is computed from the current graph. Open a round to inspect the decision.'
+  const headerTitle = terminal ? (arena.winner === 'defender' ? 'Route contained.' : 'Attacker reached the limit.') : waiting ? 'Ready to run the first round.' : 'Red found a route.'
+  const headerCopy = terminal ? `Blue used ${arena.metrics.controlsUsed} controls. The final route is ${arena.currentPath.length ? 'still reachable' : 'severed'}.` : waiting ? 'Press “run first round”. Red finds a reachable path, then Blue tests a defense against that exact path.' : 'Blue has responded. Run the next round to see whether the attacker finds another way through.'
   function handleRun() {
     if (arena?.status === 'ready') {
       onStep()
@@ -255,10 +269,10 @@ function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onP
       <div className="case-rail-bottom"><span><ShieldCheck size={13} /> defensive simulation</span><span>graph v0.7 arena</span></div>
     </aside>
     <main className="arena-main">
-      <header className="arena-header"><div><div className="section-caption">adaptive arena / {arena?.round || 0} rounds</div><h1>{headerTitle}</h1><p>{headerCopy}</p></div><div className="arena-actions"><span className={`hydra-chip ${snapshot?.hydra?.status === 'persisted' ? 'connected' : ''}`}><Database size={13} /> {snapshot?.hydra?.status || 'local replay'}</span><button className={`quiet-button ${waiting ? 'primary-button' : ''}`} onClick={handleRun} disabled={busy}>{autoRun ? <><Pause size={14} /> pause loop</> : <><Play size={14} /> {waiting ? 'start first round' : terminal ? 'replay stopped' : 'run loop'}</>}</button><button className="quiet-button" onClick={onReset}><RotateCcw size={14} /> reset</button></div></header>
-      <section className="score-ribbon"><div><span>initial exposure</span><strong>{formatPct(arena?.initialExposure)}</strong></div><ArrowRight size={16} /><div><span>current exposure</span><strong className={arena?.currentExposure < 50 ? 'good' : ''}>{formatPct(arena?.currentExposure)}</strong></div><div className="ribbon-divider" /><div><span>targets in reach</span><strong>{arena?.reachableTargets?.length || 0}</strong></div><div><span>memory</span><strong>{arena?.memory?.used ? 'used' : arena?.memory?.available ? 'available' : 'local only'}</strong></div></section>
+      <header className="arena-header"><div><div className="section-caption">investigation / {arena?.round || 0} rounds</div><h1>{headerTitle}</h1><p>{headerCopy}</p></div><div className="arena-actions"><span className={`hydra-chip ${snapshot?.hydra?.status === 'persisted' ? 'connected' : ''}`}><Database size={13} /> {snapshot?.hydra?.status || 'local replay'}</span><button className={`quiet-button ${waiting ? 'primary-button' : ''}`} onClick={handleRun} disabled={busy}>{autoRun ? <><Pause size={14} /> pause loop</> : <><Play size={14} /> {waiting ? 'start first round' : terminal ? 'replay stopped' : 'run loop'}</>}</button><button className="quiet-button" onClick={onReset}><RotateCcw size={14} /> reset</button></div></header>
+      <section className="score-ribbon"><div><span>initial exposure</span><strong className={waiting ? 'is-pending' : ''}>{waiting ? '—' : formatPct(arena?.initialExposure)}</strong></div><ArrowRight size={16} /><div><span>current exposure</span><strong className={waiting ? 'is-pending' : arena?.currentExposure < 50 ? 'good' : ''}>{waiting ? '—' : formatPct(arena?.currentExposure)}</strong></div><div className="ribbon-divider" /><div><span>targets in reach</span><strong className={waiting ? 'is-pending' : ''}>{waiting ? '—' : arena?.reachableTargets?.length || 0}</strong></div><div><span>memory</span><strong>{arena?.memory?.used ? 'used' : arena?.memory?.available ? 'available' : waiting ? 'ready' : 'local only'}</strong></div></section>
       {waiting && <section className="start-guide"><div className="start-guide-number">01</div><div><div className="section-caption">your next move</div><h2>Start the investigation</h2><p>Red will choose the first reachable route. Blue will compare controls against it. Pause after every round to inspect why.</p></div><button className="primary-button" onClick={onStep} disabled={busy}><Play size={14} /> run first round</button></section>}
-      <section className="graph-section"><div className="graph-toolbar"><div><div className="section-caption">the propagation map</div><strong>{graphView === 'focus' ? 'Focus view' : 'Full evidence graph'}</strong><span>{graphView === 'focus' ? 'Core trust path and current route' : 'Every collected dependency and evidence node'}</span></div><div className="graph-toggle"><button className={graphView === 'focus' ? 'active' : ''} onClick={() => setGraphView('focus')}>focus</button><button className={graphView === 'full' ? 'active' : ''} onClick={() => setGraphView('full')}>full graph</button></div></div><Graph snapshot={snapshot} selectedNode={selectedNode} setSelectedNode={setSelectedNode} view={graphView} /></section>
+      <section className="graph-section"><div className="graph-toolbar"><div><div className="section-caption">attack path map</div><strong>{graphView === 'focus' ? 'The route, at a glance' : 'All collected evidence'}</strong><span>{graphView === 'focus' ? 'The few nodes that matter for the next decision' : 'Open this only when you need the full graph'}</span></div><div className="graph-toggle"><button className={graphView === 'focus' ? 'active' : ''} onClick={() => setGraphView('focus')}>route view</button><button className={graphView === 'full' ? 'active' : ''} onClick={() => setGraphView('full')}>all evidence</button></div></div><Graph snapshot={snapshot} selectedNode={selectedNode} setSelectedNode={setSelectedNode} view={graphView} /></section>
       <section className="episode-section"><div className="episode-head"><div><div className="section-caption">what happened</div><strong>{arena?.history?.length ? `${arena.history.length} computed rounds` : 'waiting for the first round'}</strong></div><button className="step-button" onClick={onStep} disabled={busy || terminal}><Zap size={14} /> {waiting ? 'run first round' : 'step one round'}</button></div><RoundFeed arena={arena} graph={graph} /></section>
       {terminal && <section className={`final-report ${arena.winner === 'defender' ? 'won' : 'lost'}`}><div className="final-icon">{arena.winner === 'defender' ? <ShieldCheck size={20} /> : <Target size={20} />}</div><div><div className="section-caption">episode result</div><h2>{arena.winner === 'defender' ? 'Defender contained the modeled blast radius.' : 'The attacker survived the response budget.'}</h2><p>{arena.winner === 'defender' ? `The red agent found ${arena.metrics.attackMoves} route${arena.metrics.attackMoves === 1 ? '' : 's'}, and blue cut them in ${arena.metrics.containedRound} rounds.` : 'The graph still contains a reachable high-value path. Re-run with a different target or response budget.'}</p></div><div className="final-score"><strong>{formatPct(arena.currentExposure)}</strong><span>final exposure</span></div></section>}
       {terminal && (report ? <ReportDossier report={report} /> : <div className="report-loading">Preparing the evidence-backed case report…</div>)}
@@ -354,7 +368,7 @@ function App() {
   }
 
   return <div className="app-shell">
-    <header className="topbar"><div className="brand-mini"><span className="brand-square" /> RECOIL <small>adaptive supply-chain defense</small></div><div className="topbar-center"><span className="live-mark" /> red / blue arena <span className="slash">/</span> graph-native incident response</div><div className="topbar-right"><span className={`connection ${backend}`}><span /> {backend === 'connected' ? 'HydraDB connected' : backend === 'local' ? 'local replay' : backend}</span><button className="help-button" aria-label="About Recoil"><CircleHelp size={15} /></button></div></header>
+    <header className="topbar"><div className="brand-mini"><span className="brand-square" /> RECOIL <small>adaptive supply-chain defense</small></div><div className="topbar-center"><span className="live-mark" /> trace a dependency · test a defense</div><div className="topbar-right"><span className={`connection ${backend}`}><span /> {backend === 'connected' ? 'HydraDB connected' : backend === 'local' ? 'local replay' : backend}</span><button className="help-button" aria-label="About Recoil"><CircleHelp size={15} /></button></div></header>
     {hasCase ? <CaseWorkspace snapshot={snapshot} report={report} query={query} setQuery={setQuery} onStart={startCase} onStep={stepArena} onPause={() => setAutoRun(false)} onReset={resetCase} busy={busy} autoRun={autoRun} setAutoRun={setAutoRun} selectedNode={selectedNode} setSelectedNode={setSelectedNode} graphView={graphView} setGraphView={setGraphView} error={error} /> : <Landing query={query} setQuery={setQuery} onStart={startCase} busy={busy} error={error} />}
   </div>
 }
