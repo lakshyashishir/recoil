@@ -230,14 +230,19 @@ export function buildObservedGraph({ advisoryId, packageName, repositoryFindings
   const edges = []
   for (const finding of repositoryFindings) {
     const repoId = `repo:${finding.repository}`
-    const packageId = `package:${finding.packageName}@${finding.resolvedVersion || 'unresolved'}`
     const lockId = `lock:${finding.repository}:${finding.path[3] || 'unknown'}`
+    const resolvedVersions = [...new Set(finding.resolvedVersions || [finding.resolvedVersion].filter(Boolean))]
+    const packageVersions = resolvedVersions.length ? resolvedVersions : ['unresolved']
     nodes.push(
-      { id: packageId, label: packageId.replace('package:', ''), type: 'package' },
       { id: repoId, label: finding.repository || 'unknown repository', type: 'repository', sourceUrl: finding.repositoryUrl },
       { id: lockId, label: finding.path[3] || 'lockfile', type: 'lockfile' },
     )
-    edges.push([`advisory:${advisoryId}`, packageId], [packageId, repoId], [repoId, lockId])
+    for (const version of packageVersions) {
+      const packageId = `package:${finding.packageName}@${version}`
+      nodes.push({ id: packageId, label: packageId.replace('package:', ''), type: 'package', meta: { verdict: finding.verdict, resolvedVersions } })
+      edges.push([`advisory:${advisoryId}`, packageId], [packageId, repoId])
+    }
+    edges.push([repoId, lockId])
     for (const item of finding.imports || []) {
       const codeId = `code:${finding.repository}:${item.path}`
       nodes.push({ id: codeId, label: item.path, type: 'code', sourceUrl: item.sourceUrl })

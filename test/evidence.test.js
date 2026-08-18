@@ -107,6 +107,17 @@ test('mixed affected and safe lockfile versions remain unknown instead of collap
   assert.deepEqual(finding.resolvedVersions, ['1.2.5', '1.2.6'])
 })
 
+test('observed graph retains every resolved package version', () => {
+  const repositoryWithDuplicateVersions = repository()
+  repositoryWithDuplicateVersions.manifest.resolvedVersions = { minimist: ['1.2.5', '1.2.6'] }
+  const finding = classifyRepository({ repository: repositoryWithDuplicateVersions, packageName: 'minimist', advisory, advisoryId: advisory.id })
+  const graph = buildObservedGraph({ advisoryId: advisory.id, packageName: 'minimist', repositoryFindings: [finding] })
+  assert.ok(graph.nodes.some((node) => node.id === 'package:minimist@1.2.5'))
+  assert.ok(graph.nodes.some((node) => node.id === 'package:minimist@1.2.6'))
+  assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.5' && to === 'repo:example/app'))
+  assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.6' && to === 'repo:example/app'))
+})
+
 test('advisory symbol suggestions are attached only after exact source validation', () => {
   const finding = classifyRepository({ repository: repository(), packageName: 'minimist', advisory, advisoryId: advisory.id })
   const ingestion = {
