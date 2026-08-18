@@ -20,6 +20,7 @@ import { createArenaState, stepArena } from '../src/core/arena.js'
 import { hydraStatus, persistArenaRound, persistDecision, persistEvaluation, persistIngestion, pollIngestion, recall } from './hydra.js'
 import { getAgentStatus, runAgentRound } from './agents.js'
 import { applySandboxControl, createSandboxState, runRegressionSuite, sandboxSummary } from '../sandbox/fixture.js'
+import { rewindInvestigation, startInvestigation } from './investigation.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const scenarios = new Map()
@@ -268,6 +269,7 @@ function snapshot(record) {
     hydra: record.hydra,
     arena: record.arena,
     sandbox: sandboxSummary(record.sandbox),
+    investigation: record.investigation,
     sources: [
       { id: 'osv', label: 'OSV advisory', type: 'advisory', status: sourceStatus('advisory-resolver') },
       { id: 'registry', label: registryLabel, type: 'registry', status: sourceStatus('registry-resolver') },
@@ -292,6 +294,7 @@ function getOrCreate(id = '0017', body = {}) {
       hydra: { status: 'not_started', memoryCount: 0, recall: null },
       arena: null,
       sandbox: createSandboxState(),
+      investigation: null,
     })
   }
   return scenarios.get(id)
@@ -324,6 +327,29 @@ async function route(req, res) {
     const operation = subaction ? `${action}/${subaction}` : action
     const record = getOrCreate(id)
     if (req.method === 'GET' && !action) return json(res, 200, snapshot(record))
+    if (req.method === 'GET' && action === 'investigation') return json(res, 200, { scenarioId: record.id, investigation: record.investigation })
+    if (req.method === 'POST' && action === 'investigate') {
+      return body(req).then((payload) => {
+        if (typeof payload.query !== 'string' || !payload.query.trim()) return json(res, 422, { error: 'Provide an advisory, package, or public GitHub repositories' })
+        record.mode = 'evidence'
+        record.state = createInitialState()
+        record.graph = { nodes: [], edges: [] }
+        record.events = []
+        record.round = 0
+        record.ingestion = { status: 'not_started', collectors: [] }
+        record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
+        record.arena = null
+        record.sandbox = createSandboxState()
+        startInvestigation(record, payload.query)
+        return json(res, 202, snapshot(record))
+      }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
+    }
+    if (req.method === 'POST' && action === 'rewind') {
+      return body(req).then((payload) => {
+        const asOf = typeof payload.asOf === 'string' ? payload.asOf : new Date().toISOString()
+        return rewindInvestigation(record, asOf).then((result) => json(res, result.error ? 409 : 200, { scenarioId: record.id, ...result }))
+      }).catch((error) => json(res, 400, { error: error.message }))
+    }
     if (req.method === 'GET' && action === 'events') return json(res, 200, { scenarioId: record.id, events: record.events, state: record.state })
     if (req.method === 'GET' && action === 'graph') return json(res, 200, { scenarioId: record.id, graph: snapshot(record).graph })
     if (req.method === 'GET' && action === 'code-graph') {
@@ -340,6 +366,7 @@ async function route(req, res) {
       record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
       record.arena = null
       record.sandbox = createSandboxState()
+      record.investigation = null
       return json(res, 200, snapshot(record))
     }
     if (req.method === 'POST' && action === 'ingest') {
@@ -539,6 +566,7 @@ async function route(req, res) {
         record.hydra = { status: 'not_started', memoryCount: 0, recall: null }
         record.arena = null
         record.sandbox = createSandboxState()
+        record.investigation = null
         return json(res, 202, snapshot(record))
       }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
     }

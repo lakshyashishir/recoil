@@ -163,6 +163,8 @@ export function classifyRepository({ repository, packageName, advisory, advisory
     reason,
     resolvedVersion,
     declaredRange,
+    pathObservedAt: manifest.temporal?.pathObservedAt || null,
+    pathObservationSource: manifest.temporal?.sourceUrl || null,
     imports,
     path,
     fixedVersions: fix.fixedVersions,

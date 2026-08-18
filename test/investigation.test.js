@@ -1,0 +1,54 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { buildInvestigationReport } from '../src/core/investigation.js'
+
+const baseEvidence = {
+  status: 'completed',
+  query: 'GHSA-test',
+  package: 'minimist',
+  target: { advisoryId: 'GHSA-test' },
+  advisory: {
+    id: 'GHSA-test',
+    published: '2022-03-18T00:01:09Z',
+    affected: [{ package: { name: 'minimist' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.2.6' }] }] }],
+    references: [],
+    sourceUrl: 'https://osv.dev/vulnerability/GHSA-test',
+  },
+  findings: [
+    {
+      repository: 'example/reached', repositoryUrl: 'https://github.com/example/reached', packageName: 'minimist', advisoryId: 'GHSA-test', verdict: 'REACHED', reason: 'imported', resolvedVersion: '1.2.5', declaredRange: '^1.2.0', imports: [{ path: 'src/cli.js', line: 1, sourceUrl: 'https://github.com/example/reached/blob/HEAD/src/cli.js' }], path: ['GHSA-test', 'minimist@1.2.5', 'example/reached', 'package-lock.json', 'src/cli.js'], fixedVersions: ['1.2.6'], targetVersion: '1.2.6', rangeAllowsFix: true, allowedVersion: '1.2.6', sourceSampleSize: 4, sourceBound: 'No import found in 4 sampled source files', pathObservedAt: '2021-01-01T00:00:00Z', evidenceSources: ['https://github.com/example/reached/blob/HEAD/package-lock.json'],
+    },
+    {
+      repository: 'example/declared', repositoryUrl: 'https://github.com/example/declared', packageName: 'minimist', advisoryId: 'GHSA-test', verdict: 'DECLARED_ONLY', reason: 'not imported', resolvedVersion: '1.2.5', declaredRange: '1.2.5', imports: [], path: ['GHSA-test', 'minimist@1.2.5', 'example/declared', 'package-lock.json'], fixedVersions: ['1.2.6'], targetVersion: '1.2.6', rangeAllowsFix: false, allowedVersion: null, sourceSampleSize: 3, sourceBound: 'No import found in 3 sampled source files', pathObservedAt: '2021-01-01T00:00:00Z', evidenceSources: [],
+    },
+    {
+      repository: 'example/fixed', repositoryUrl: 'https://github.com/example/fixed', packageName: 'minimist', advisoryId: 'GHSA-test', verdict: 'NOT_AFFECTED', reason: 'fixed', resolvedVersion: '1.2.6', declaredRange: '^1.2.0', imports: [], path: ['GHSA-test', 'minimist@1.2.6', 'example/fixed', 'package-lock.json'], fixedVersions: ['1.2.6'], targetVersion: '1.2.6', rangeAllowsFix: true, allowedVersion: '1.2.6', sourceSampleSize: 2, sourceBound: 'No import found in 2 sampled source files', pathObservedAt: '2022-01-01T00:00:00Z', evidenceSources: [],
+    },
+  ],
+  graph: { nodes: [], edges: [] },
+  sources: ['https://osv.dev/vulnerability/GHSA-test'],
+  temporal: { advisoryPublishedAt: '2022-03-18T00:01:09Z' },
+}
+
+test('investigation report preserves the three-way repository contrast and fix challenge', () => {
+  const report = buildInvestigationReport(baseEvidence)
+
+  assert.deepEqual(report.summary, {
+    totalRepositories: 3,
+    reached: 1,
+    declaredOnly: 1,
+    notAffected: 1,
+    unknown: 0,
+    fixSurvives: 2,
+    residualPaths: 0,
+    exposureDays: 441,
+  })
+  assert.equal(report.challenge.find((item) => item.repository === 'example/reached').status, 'FIX_SURVIVES')
+  assert.equal(report.challenge.find((item) => item.repository === 'example/declared').status, 'NO_REACHABLE_PATH')
+})
+
+test('rewind refuses to claim a path before its evidence existed', () => {
+  const report = buildInvestigationReport(baseEvidence, { asOf: '2020-01-01T00:00:00Z' })
+  assert.equal(report.rewind.advisoryPublic, false)
+  assert.equal(report.rewind.findings[0].verdict, 'NOT_YET_OBSERVED')
+})

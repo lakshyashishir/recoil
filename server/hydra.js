@@ -242,6 +242,73 @@ export async function persistIngestion(ingestion, signal) {
   }
 }
 
+function temporalMemory({ id, title, text, kind, scenarioId, repository, validFrom, validUntil = null, sourceUrls = [] }) {
+  return memory({
+    id,
+    title,
+    text,
+    additionalMetadata: {
+      recoil_kind: kind,
+      recoil_scenario_id: scenarioId,
+      recoil_repository: repository || null,
+      valid_from: validFrom || null,
+      valid_until: validUntil,
+      source_urls: JSON.stringify(sourceUrls),
+    },
+  })
+}
+
+function buildInvestigationMemories(ingestion, report) {
+  const scenarioId = ingestion.scenarioId || '0017'
+  const advisory = report.advisory
+  const memories = []
+  memories.push(temporalMemory({
+    id: `recoil:temporal:advisory:${stableId(`${scenarioId}:${advisory?.id || ingestion.package}`)}`,
+    title: `Recoil advisory fact · ${advisory?.id || ingestion.package || 'unknown'}`,
+    kind: 'temporal_fact',
+    scenarioId,
+    validFrom: advisory?.published,
+    sourceUrls: [advisory?.sourceUrl].filter(Boolean),
+    text: `# Advisory fact\n\n- Advisory: ${advisory?.id || 'unknown'}\n- Package: ${ingestion.package || 'unknown'}\n- Published: ${advisory?.published || 'unknown'}\n- Fixed versions: ${(advisory?.fixedVersions || []).join(', ') || 'not available'}\n- Source: ${advisory?.sourceUrl || 'not available'}`,
+  }))
+  for (const finding of report.repositories || []) {
+    memories.push(temporalMemory({
+      id: `recoil:temporal:path:${stableId(`${scenarioId}:${finding.repository}:${finding.packageName}:${finding.resolvedVersion}`)}`,
+      title: `Recoil reachability fact · ${finding.repository}`,
+      kind: 'temporal_fact',
+      scenarioId,
+      repository: finding.repository,
+      validFrom: finding.pathObservedAt,
+      sourceUrls: finding.evidenceSources,
+      text: `# Reachability fact\n\n- Repository: ${finding.repository}\n- Verdict: ${finding.verdict}\n- Package: ${finding.packageName}@${finding.resolvedVersion || 'unresolved'}\n- Declared range: ${finding.declaredRange || 'not found'}\n- Imports: ${(finding.imports || []).map((item) => `${item.path}:${item.line || '?'}`).join(', ') || 'none in sampled files'}\n- Path observed from: ${finding.pathObservedAt || 'unknown'}\n- Evidence path: ${finding.path.join(' -> ')}\n- Reason: ${finding.reason}\n- Sources: ${(finding.evidenceSources || []).join(', ')}`,
+    }))
+    const challenge = (report.challenge || []).find((item) => item.repository === finding.repository)
+    if (challenge) memories.push(temporalMemory({
+      id: `recoil:temporal:fix:${stableId(`${scenarioId}:${finding.repository}:${challenge.proposedVersion || challenge.status}`)}`,
+      title: `Recoil fix proof · ${finding.repository}`,
+      kind: 'fix_proof',
+      scenarioId,
+      repository: finding.repository,
+      validFrom: new Date().toISOString(),
+      sourceUrls: finding.evidenceSources,
+      text: `# Fix proof\n\n- Repository: ${finding.repository}\n- Proposed version: ${challenge.proposedVersion || 'none'}\n- Status: ${challenge.status}\n- Detail: ${challenge.detail}\n- Residual path: ${(challenge.residualPath || []).join(' -> ') || 'none found by the bounded verifier.'}`,
+    }))
+  }
+  return memories.flatMap((item) => chunkMemory(item))
+}
+
+export async function persistInvestigation(ingestion, report, signal) {
+  if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', memoryCount: 0 }
+  const memories = buildInvestigationMemories(ingestion, report)
+  const result = await ingest(memories, signal)
+  return {
+    status: result.indexingStatus === 'completed' ? 'persisted' : 'queued',
+    memoryCount: memories.length,
+    sourceIds: result.results?.map((item) => item.id).filter(Boolean) || [],
+    result,
+  }
+}
+
 export async function pollIngestion(sourceIds = [], signal) {
   if (!enabled()) return { status: 'skipped', sourceIds: [], statuses: [] }
   const uniqueIds = [...new Set(sourceIds.filter(Boolean))]
@@ -352,6 +419,24 @@ export async function recall(queryText, signal, scenarioId = '0017', { allEpisod
     graphContext: result?.graph_context || result?.graphContext || null,
     raw: result,
   }
+}
+
+export async function recallTemporal(queryText, asOf, signal) {
+  if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', chunks: [], graphContext: null, asOf }
+  const result = await query({
+    database: databaseId(),
+    collection: collectionId(),
+    type: 'all',
+    query: `${String(queryText || '').slice(0, 700)} as of ${asOf}`,
+    queryBy: 'hybrid',
+    mode: 'thinking',
+    maxResults: 24,
+    numRelatedChunks: 3,
+    graphContext: true,
+    metadataFilters: { additionalMetadata: { app: 'recoil' } },
+    additionalContext: `Return only Recoil evidence facts that were valid on or before ${asOf}. Each fact has valid_from and valid_until metadata; preserve dates and source URLs.`,
+  }, signal)
+  return { status: 'recalled', asOf, chunks: result?.chunks || result?.results || [], sources: result?.sources || result?.documents || [], graphContext: result?.graph_context || result?.graphContext || null, raw: result }
 }
 
 export async function persistArenaRound({ scenarioId, queryText, packageName, round, red, blue, before, after, status }, signal) {

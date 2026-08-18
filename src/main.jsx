@@ -1,64 +1,10 @@
 import { Component, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import {
-  Activity,
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  CircleHelp,
-  Database,
-  ExternalLink,
-  GitBranch,
-  LockKeyhole,
-  Pause,
-  Play,
-  RotateCcw,
-  Server,
-  Shield,
-  ShieldCheck,
-  Terminal,
-  Target,
-  Waypoints,
-  Zap,
-} from 'lucide-react'
-import { EDGES, EVENTS, INTERVENTIONS, NODES, SCENARIO } from './core/scenario.js'
+import { ArrowUpRight, Check, ChevronDown, CircleAlert, CircleCheck, Clock3, ExternalLink, LoaderCircle, RotateCcw, Search, ShieldCheck } from 'lucide-react'
 import './style.css'
 
-const DEFAULT_QUERY = 'https://github.com/axios/axios axios'
-const FOCUS_NODE_IDS = new Set([
-  'maintainer',
-  'release',
-  'resolver',
-  'lockfile',
-  'repo',
-  'runner',
-  'ci',
-  'artifact',
-  'payments',
-  'customer-db',
-])
-
-function formatPct(value) {
-  return `${Math.max(0, Math.min(100, value || 0))}%`
-}
-
-function sourceHost(value) {
-  try {
-    return new URL(value).hostname.replace(/^www\./, '')
-  } catch {
-    return value
-  }
-}
-
-function nodeIcon(node) {
-  if (node.type === 'package') return <GitBranch size={13} />
-  if (node.type === 'service') return <Server size={13} />
-  if (node.type === 'data') return <Database size={13} />
-  if (node.type === 'person') return <Shield size={13} />
-  if (node.type === 'infra') return <Waypoints size={13} />
-  return <Activity size={13} />
-}
+const SCENARIO_ID = '0017'
+const DEFAULT_INPUT = 'GHSA-xvch-5gv4-984h\nhttps://github.com/example/repository-a\nhttps://github.com/example/repository-b'
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -70,351 +16,183 @@ async function api(path, options = {}) {
   return payload
 }
 
-function Landing({ query, setQuery, onStart, busy, error }) {
-  return (
-    <main className="landing-shell">
-      <div className="landing-kicker"><span className="signal-dot" /> memory-backed red / blue analysis</div>
-      <h1>Find the route<br /><em>before it spreads.</em></h1>
-      <p className="landing-copy">Recoil turns public package evidence into a live supply-chain attack-defense episode. Red searches. Blue adapts. Every route is computed and remembered.</p>
-      <form className="trace-form" onSubmit={(event) => { event.preventDefault(); onStart() }}>
-        <div className="trace-form-label"><Terminal size={14} /> target to investigate</div>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Package, advisory, or public GitHub repository" aria-label="Target to investigate" />
-        <div className="trace-form-bottom">
-          <span>public evidence only · no code execution</span>
-          <button type="submit" disabled={busy}>{busy ? 'Collecting evidence…' : <>Open arena <ArrowRight size={15} /></>}</button>
-        </div>
+function sourceHost(value) {
+  try { return new URL(value).hostname.replace(/^www\./, '') } catch { return value || 'source' }
+}
+
+function StatusIcon({ status }) {
+  if (status === 'complete' || status === 'persisted') return <Check size={14} strokeWidth={2.5} />
+  if (status === 'failed') return <CircleAlert size={14} />
+  if (status === 'working') return <LoaderCircle className="spin" size={14} />
+  if (status === 'skipped') return <span className="status-dash">—</span>
+  return <span className="status-dot" />
+}
+
+function SourceLink({ href, children }) {
+  if (!href) return <span className="source-link muted-source">source unavailable</span>
+  return <a className="source-link" href={href} target="_blank" rel="noreferrer">{children || sourceHost(href)} <ExternalLink size={11} /></a>
+}
+
+function Landing({ value, setValue, onSubmit, busy, error }) {
+  return <main className="landing-page">
+    <div className="landing-wordmark"><span className="wordmark-mark" /> RECOIL <span>evidence proof</span></div>
+    <section className="landing-content">
+      <p className="eyebrow">PUBLIC SUPPLY-CHAIN EVIDENCE</p>
+      <h1>Which repositories<br /><i>actually reach</i> vulnerable code?</h1>
+      <p className="landing-lede">Give Recoil an advisory and the repositories you care about. It reads the public record, proves the path, rewinds the timeline, and checks the fix.</p>
+      <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
+        <label htmlFor="investigation-input">Advisory, package, or repository URLs</label>
+        <textarea id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="GHSA-… or npm:package@version\nhttps://github.com/org/repository" rows={4} />
+        <div className="form-footer"><span>Nothing is installed or executed.</span><button type="submit" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={14} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button></div>
       </form>
-      <div className="landing-examples"><span>try a live repository</span><button onClick={() => setQuery(DEFAULT_QUERY)}>axios / axios</button><button onClick={() => setQuery('https://github.com/hydra-db/hydradb')}>hydra-db / hydradb</button></div>
-      {error && <div className="error-line"><AlertTriangle size={14} /> {error}</div>}
-    </main>
-  )
+      <div className="example-row"><span>try a real shape</span><button type="button" onClick={() => setValue('GHSA-xvch-5gv4-984h\nhttps://github.com/org/repository-a\nhttps://github.com/org/repository-b')}>advisory + repositories</button><button type="button" onClick={() => setValue('CVE-2021-4229\nhttps://github.com/hydra-db/hydradb')}>CVE + repository</button></div>
+      {error && <div className="error-banner"><CircleAlert size={15} /> {error}</div>}
+    </section>
+    <footer className="landing-footer"><span>OSV · npm · GitHub · HydraDB</span><span>Observed facts are cited. Inference is labeled.</span></footer>
+  </main>
 }
 
-function SourceRail({ snapshot }) {
-  const collectors = snapshot?.ingestion?.collectors || []
-  const repo = collectors.find((item) => item.collector === 'repository-extractor')
-  const registry = repo?.ecosystem === 'cargo' ? 'crates.io registry' : 'npm registry'
-  const status = (name) => collectors.find((item) => item.collector === name)?.status || 'ready'
-  const hydra = snapshot?.hydra?.status || 'not started'
-  return (
-    <div className="source-rail">
-      <div className="section-caption">evidence mesh</div>
-      <div className="source-item"><span className="source-glyph amber"><Activity size={13} /></span><span>OSV advisories</span><b>{status('advisory-resolver')}</b></div>
-      <div className="source-item"><span className="source-glyph blue"><GitBranch size={13} /></span><span>{registry}</span><b>{status('registry-resolver')}</b></div>
-      <div className="source-item"><span className="source-glyph neutral"><Waypoints size={13} /></span><span>repository graph</span><b>{status('repository-extractor')}</b></div>
-      <div className="source-item"><span className="source-glyph green"><Database size={13} /></span><span>HydraDB memory</span><b>{hydra}{snapshot?.hydra?.arenaMemoryCount ? ` · ${snapshot.hydra.arenaMemoryCount}` : ''}</b></div>
-    </div>
-  )
+function InvestigationHeader({ investigation, hydra }) {
+  const report = investigation?.report
+  const id = report?.advisory?.id || investigation?.evidence?.target?.advisoryId || 'investigation'
+  const state = investigation?.status === 'complete' ? 'complete' : investigation?.status === 'failed' ? 'failed' : 'working'
+  return <header className="product-header">
+    <div className="header-brand"><span className="wordmark-mark" /> RECOIL <span>evidence proof</span></div>
+    <div className="header-case"><span>{id}</span><small>{state === 'complete' ? 'case complete' : state === 'failed' ? 'incomplete' : 'investigating'}</small></div>
+    <div className="header-status"><span className={`connection-mark ${hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydra?.status === 'persisted' ? 'HydraDB stored' : hydra?.status === 'queued' ? 'HydraDB indexing' : 'local evidence record'}</div>
+  </header>
 }
 
-function Graph({ snapshot, selectedNode, setSelectedNode, view = 'focus' }) {
-  const graph = snapshot?.graph || { nodes: NODES, edges: EDGES, activeNodeIds: [], blockedNodeIds: [], primaryPath: [] }
-  const active = new Set(graph.activeNodeIds || [])
-  const blocked = new Set(graph.blockedNodeIds || [])
-  const primaryPath = graph.primaryPath || []
-  const route = new Set(primaryPath.map((id, index, path) => index ? `${path[index - 1]}->${id}` : null).filter(Boolean))
-  const focusIds = new Set(FOCUS_NODE_IDS)
-  primaryPath.forEach((id) => focusIds.add(id))
-  if (selectedNode) focusIds.add(selectedNode)
-  const visibleNodes = view === 'full' ? graph.nodes : graph.nodes.filter((node) => focusIds.has(node.id))
-  const visibleIds = new Set(visibleNodes.map((node) => node.id))
-  const visibleEdges = graph.edges.filter(([from, to]) => visibleIds.has(from) && visibleIds.has(to))
-  const omitted = Math.max(0, graph.nodes.length - visibleNodes.length)
-  return (
-    <div className="graph-wrap">
-      <div className="graph-meta"><span><i className="legend attack" /> red route</span><span><i className="legend active" /> reachable</span><span><i className="legend blocked" /> cut by blue</span><span className="graph-note">{view === 'focus' ? `${omitted} evidence nodes hidden · focus view` : 'all collected evidence · full view'}</span></div>
-      <svg className="graph-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {visibleEdges.map(([from, to]) => {
-          const start = visibleNodes.find((node) => node.id === from)
-          const end = visibleNodes.find((node) => node.id === to)
-          if (!start || !end) return null
-          const live = active.has(from) && active.has(to)
-          const isRoute = route.has(`${from}->${to}`)
-          return <line key={`${from}-${to}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={`edge ${live ? 'live' : ''} ${isRoute ? 'route' : ''}`} />
-        })}
-      </svg>
-      <div className="graph-grid" />
-      <div className="graph-label graph-label-left">TRUST ORIGIN</div>
-      <div className="graph-label graph-label-right">CROWN JEWELS</div>
-      {visibleNodes.map((node) => {
-        const isActive = active.has(node.id)
-        const isBlocked = blocked.has(node.id)
-        const isSelected = selectedNode === node.id
-        return <button key={node.id} onClick={() => setSelectedNode(node.id)} className={`entity entity-${node.type} ${isActive ? 'is-active' : ''} ${isBlocked ? 'is-blocked' : ''} ${isSelected ? 'is-selected' : ''}`} style={{ left: `${node.x}%`, top: `${node.y}%` }}>
-          <span className="entity-icon">{isBlocked ? <LockKeyhole size={13} /> : nodeIcon(node)}</span>
-          <span className="entity-text"><strong>{node.label}</strong><small>{node.meta}</small></span>
-          {isActive && <span className="entity-state-dot" />}
-        </button>
-      })}
-      <div className="graph-axis">package → build → service → data</div>
-    </div>
-  )
-}
-
-function AgentPanels({ arena, graph, busy, agentStatus }) {
-  const round = arena?.lastRound
-  const labels = new Map((graph?.nodes || []).map((node) => [node.id, node.label]))
-  const redPath = round?.red?.path?.map((id) => labels.get(id) || id).join(' → ')
-  const blueCandidates = round?.blue?.candidates || []
-  const agentMode = round?.agentMode || arena?.agentMode || (agentStatus?.configured ? 'llm-constrained' : 'deterministic-fallback')
-  const modeLabel = busy ? 'agent loop in progress' : agentMode === 'llm-constrained' ? `LLM policy · ${round?.agents?.red?.model || agentStatus?.model || 'configured'}` : 'deterministic fallback'
-  const redTools = [...new Set((round?.agents?.red?.trace || []).map((item) => item.tool).filter(Boolean))]
-  const blueTools = [...new Set((round?.agents?.blue?.trace || []).map((item) => item.tool).filter(Boolean))]
-  return <section className="agent-panels" aria-label="Current attack and defense decisions">
-    <article className="agent-panel attack-panel">
-      <div className="agent-panel-head"><div><div className="section-caption">red / attack</div><h2>Find a route</h2></div><span className="agent-panel-state">{busy ? 'thinking' : round ? `round ${round.round}` : 'waiting'}</span></div>
-      {busy && <div className="agent-working red-working"><span className="working-dot" /> Red is reading the graph, evidence and fixture state.</div>}
-      {round ? <>
-        <strong className="agent-panel-action">{round.red.label}</strong>
-        <p>{round.red.intent}. Red can only choose edges that exist in the current graph.</p>
-        <div className="agent-route"><span>selected path</span><strong>{redPath || 'No reachable path'}</strong></div>
-        <div className="agent-probe"><span>disposable fixture probe</span><strong>{round.sandbox?.probe?.status || 'not run'}</strong><small>{round.sandbox?.probe?.reason || 'The selected route will be tested inside the local fixture.'}</small></div>
-        <div className="agent-panel-foot"><span>{round.red.candidates?.length || 0} reachable routes evaluated</span><span>{redTools.length ? `tools: ${redTools.join(' · ')}` : modeLabel}</span></div>
-      </> : <div className="agent-panel-empty"><strong>Red is ready.</strong><p>Run the first round and it will select the highest-impact route that the graph actually allows.</p></div>}
-    </article>
-    <article className="agent-panel defense-panel">
-      <div className="agent-panel-head"><div><div className="section-caption">blue / defense</div><h2>Cut the route</h2></div><span className="agent-panel-state">{busy ? 'responding' : round ? `round ${round.round}` : 'next'}</span></div>
-      {busy && <div className="agent-working blue-working"><span className="working-dot" /> Blue will retest the route after Red chooses.</div>}
-      {round ? <>
-        <strong className="agent-panel-action">{round.blue.title || 'No control selected'}</strong>
-        <p>{round.blue.rationale}</p>
-        <div className="agent-result"><span>exposure</span><strong>{round.before.exposure}%</strong><ArrowRight size={13} /><strong className={round.after.exposure < round.before.exposure ? 'good' : ''}>{round.after.exposure}%</strong><small>{round.after.reachableTargets.length ? `${round.after.reachableTargets.length} targets remain` : 'route contained'}</small></div>
-        <div className="agent-regression"><span>fixture regression</span><strong>{round.sandbox?.regression?.filter((check) => check.status === 'passed').length || 0}/{round.sandbox?.regression?.length || 0} checks passed</strong><small>{round.sandbox?.control?.action ? `control applied: ${round.sandbox.control.action}` : 'no fixture control applied'}</small></div>
-        <div className="agent-panel-foot"><span>{blueCandidates.length} controls compared</span><span>{blueTools.length ? `tools: ${blueTools.join(' · ')}` : round.blue.memoryUsed ? 'HydraDB precedent used' : modeLabel}</span></div>
-      </> : <div className="agent-panel-empty"><strong>Blue responds second.</strong><p>It will score available defenses against Red’s exact route, then apply the best valid graph mutation.</p></div>}
-    </article>
+function EventStream({ events = [] }) {
+  return <section className="event-stream" aria-label="Investigation progress">
+    {events.map((event) => <article className={`event-row event-${event.status}`} key={event.id || event.key}>
+      <div className="event-status"><StatusIcon status={event.status} /></div>
+      <div className="event-copy"><div className="event-title"><strong>{event.title}</strong>{event.repository && <span>{event.repository}</span>}</div><p>{event.detail}</p>{event.sourceUrls?.[0] && <SourceLink href={event.sourceUrls[0]} />}</div>
+      {event.status === 'working' && <span className="event-now">now</span>}
+    </article>)}
   </section>
 }
 
-function RoundFeed({ arena, graph }) {
-  const labels = new Map((graph?.nodes || []).map((node) => [node.id, node.label]))
-  if (!arena?.history?.length) return <div className="empty-feed">The arena is ready. Red will search the first reachable route.</div>
-  return <div className="round-feed">{arena.history.map((round) => <article className="round-row" key={round.round}>
-    <div className="round-index">{String(round.round).padStart(2, '0')}</div>
-    <div className="round-body">
-      <div className="round-head"><span className="red-tag">RED</span><strong>{round.red.label}</strong><span className="round-exposure">{round.before.exposure}% → {round.after.exposure}%</span></div>
-      <p>{round.red.path.map((id) => labels.get(id) || id).join(' → ') || 'No reachable path'}</p>
-      {round.red.candidates?.length > 1 && <details className="decision-details"><summary>red evaluated {round.red.candidates.length} reachable routes</summary><div className="decision-candidates">{round.red.candidates.map((candidate, index) => <div className={`decision-candidate ${candidate.selected ? 'selected' : ''}`} key={`${round.round}-route-${index}`}><span>{candidate.selected ? 'chosen' : candidate.fresh ? 'available' : 'repeated'}</span><strong>{candidate.pathLabel}</strong></div>)}</div></details>}
-      <div className="round-defense"><span className="blue-tag">BLUE</span><strong>{round.blue.title || 'No control'}</strong><span>{round.blue.rationale}</span>{round.blue.memoryUsed && <em>HydraDB precedent</em>}</div>
-      {round.blue.candidates?.length > 0 && <details className="decision-details"><summary>blue compared {round.blue.candidates.length} affordable controls</summary><div className="decision-candidates">{round.blue.candidates.map((candidate) => <div className={`decision-candidate ${candidate.selected ? 'selected' : ''}`} key={`${round.round}-${candidate.id}`}><span>{candidate.selected ? 'chosen' : candidate.routeMatch ? 'route match' : 'counterfactual'}</span><strong>{candidate.title}</strong><small>{candidate.predictedExposure}% exposure · {candidate.cost}pt{candidate.memoryMatch ? ' · memory' : ''}</small></div>)}</div></details>}
-    </div>
-    <div className={`round-outcome ${round.status}`}><span>{round.after.reachableTargets.length ? `${round.after.reachableTargets.length} targets` : 'contained'}</span><ChevronRight size={13} /></div>
-  </article>)}</div>
+function Verdict({ value }) {
+  const label = value === 'REACHED' ? 'Reached' : value === 'DECLARED_ONLY' ? 'Declared only' : value === 'NOT_AFFECTED' ? 'Not affected' : value === 'NOT_YET_OBSERVED' ? 'Not observed yet' : 'Unknown'
+  return <span className={`verdict verdict-${value?.toLowerCase()}`}>{value === 'REACHED' ? <CircleAlert size={14} /> : value === 'NOT_AFFECTED' ? <CircleCheck size={14} /> : <span className="verdict-dot" />}{label}</span>
 }
 
-function ReportDossier({ report }) {
-  const observed = report?.observed || {}
-  const modeled = report?.modeled || {}
-  const arena = report?.arena || {}
-  const controls = arena.selectedActions || []
-  const sources = report?.sources || []
-  const uncertainty = report?.uncertainty || []
-  const responsePlans = report?.responsePlans || []
-  const interventionTitles = new Map(INTERVENTIONS.map((action) => [action.id, action.title]))
-  return <section className="report-dossier">
-    <div className="dossier-head"><div><div className="section-caption">case report</div><h2>Evidence, outcome, limits.</h2></div><span className="dossier-boundary">observed facts / modeled response</span></div>
-    <div className="dossier-grid">
-      <section className="dossier-section">
-        <div className="section-caption">observed</div>
-        <dl className="report-facts">
-          <div><dt>package</dt><dd>{observed.package || 'not resolved'}</dd></div>
-          <div><dt>ecosystem</dt><dd>{observed.ecosystem || 'unknown'}</dd></div>
-          <div><dt>advisory</dt><dd>{observed.advisory || 'not specified'}</dd></div>
-          <div><dt>repository</dt><dd>{observed.repository || 'not found'}</dd></div>
-          <div><dt>resolved version</dt><dd>{observed.resolvedVersion || 'range only'}</dd></div>
-          <div><dt>source graph</dt><dd>{observed.codeGraph ? `${observed.codeGraph.files} files · ${observed.codeGraph.imports} imports · ${observed.codeGraph.symbols} symbols · ${observed.codeGraph.surfaces} surfaces` : 'not collected'}</dd></div>
-          <div><dt>latest change</dt><dd>{observed.codeGraph?.recentChange ? `${observed.codeGraph.recentChange.sha.slice(0, 8)} · ${observed.codeGraph.recentChange.sampledFilesChanged} sampled files` : 'not available'}</dd></div>
-        </dl>
-      </section>
-      <section className="dossier-section">
-        <div className="section-caption">computed outcome</div>
-        <dl className="report-facts">
-          <div><dt>graph</dt><dd>{modeled.graphNodes || 0} nodes · {modeled.graphEdges || 0} edges</dd></div>
-          <div><dt>baseline exposure</dt><dd>{formatPct(modeled.baselineExposure)}</dd></div>
-          <div><dt>final exposure</dt><dd className={modeled.reachableExposure < 50 ? 'report-good' : 'report-risk'}>{formatPct(modeled.reachableExposure)}</dd></div>
-          <div><dt>controls used</dt><dd>{controls.length ? controls.join(' · ') : 'none'}</dd></div>
-          <div><dt>arena</dt><dd>{arena.round || 0} rounds · {arena.winner || 'unresolved'}</dd></div>
-        </dl>
-      </section>
-      <section className="dossier-section">
-        <div className="section-caption">limits & provenance</div>
-        <ul className="report-list">{uncertainty.slice(0, 4).map((item) => <li key={item}>{item}</li>)}</ul>
-        <div className="report-sources"><div className="section-caption">sources</div>{sources.slice(0, 4).map((source) => <a href={source} target="_blank" rel="noreferrer" key={source}><span>{sourceHost(source)}</span><ExternalLink size={11} /></a>)}</div>
-      </section>
-    </div>
-    {observed.codeGraph?.impactCandidates?.length > 0 && <div className="impact-strip"><div className="section-caption">inferred code-to-deployment links</div><div className="impact-items">{observed.codeGraph.impactCandidates.slice(0, 6).map((candidate) => <span key={`${candidate.file}-${candidate.surface}`}><strong>{candidate.surface}</strong><i>→</i>{candidate.target}<small>{candidate.changedSymbols?.length ? `changed: ${candidate.changedSymbols.join(' · ')}` : candidate.owners?.length ? `owner: ${candidate.owners.join(' ')}` : candidate.confidence}</small></span>)}</div></div>}
-    {responsePlans.length > 0 && <div className="counterfactual-section"><div className="section-caption">counterfactual response plans</div><p className="counterfactual-note">Top affordable graph mutations, ranked by residual exposure then response cost.</p><div className="plan-table">{responsePlans.map((plan, index) => <div className={`plan-row ${index === 0 ? 'recommended' : ''}`} key={`${plan.actions.join('-')}-${plan.cost}`}><span className="plan-rank">{index === 0 ? 'best' : `0${index + 1}`}</span><strong>{plan.actions.length ? plan.actions.map((action) => interventionTitles.get(action) || action).join(' + ') : 'Observe only'}</strong><span>{formatPct(plan.exposure)}</span><span>{plan.cost}pt</span><small>{plan.activeNodes} active nodes</small></div>)}</div></div>}
-  </section>
-}
-
-function DecisionRail({ snapshot, selectedNode }) {
-  const arena = snapshot?.arena
-  const graph = snapshot?.graph || { nodes: [] }
-  const selected = graph.nodes.find((node) => node.id === selectedNode)
-  const last = arena?.lastRound
-  const used = new Set(arena?.selectedActions || [])
-  const waiting = !last && !['contained', 'breached', 'exhausted'].includes(arena?.status)
-  return <aside className="decision-rail">
-    <div className="rail-heading"><div><div className="section-caption">attack / defense loop</div><h2>What happens next</h2></div><span className={`arena-state ${arena?.status || 'ready'}`}>{arena?.status || 'ready'}</span></div>
-    <section className="agent-block red-block">
-      <div className="agent-title"><span className="agent-mark red-mark">R</span><div><strong>Red · finds a path</strong><small>attacker</small></div><span className="agent-state">{waiting ? 'ready' : arena?.status === 'running' ? 'thinking' : 'complete'}</span></div>
-      <div className="agent-value">{last?.red?.label || 'Choose the first route'}</div>
-      <p>{last?.red?.pathLabel || 'Red searches valid graph edges toward a high-value asset. It cannot invent a route.'}</p>
-    </section>
-    <section className="agent-block blue-block">
-      <div className="agent-title"><span className="agent-mark blue-mark">B</span><div><strong>Blue · blocks the path</strong><small>defender</small></div><span className="agent-state">{waiting ? 'next' : last?.blue?.memoryUsed ? 'memory-assisted' : 'route-aware'}</span></div>
-      <div className="agent-value">{last?.blue?.title || 'Will respond to Red'}</div>
-      <p>{last?.blue?.rationale || 'Blue compares affordable controls against the route Red actually chose, then cuts the best one.'}</p>
-    </section>
-    {waiting ? <section className="waiting-rail"><div className="section-caption">first round</div><strong>Run the round to see a real result.</strong><p>Red picks a reachable route. Blue tests a control against that exact route. The graph and exposure score update after both moves.</p></section> : <>
-      <section className="score-block">
-        <div className="score-line"><span>current exposure</span><strong className={arena?.currentExposure < 50 ? 'good' : ''}>{formatPct(arena?.currentExposure)}</strong></div>
-        <div className="score-bar"><span style={{ width: `${arena?.currentExposure || 0}%` }} /></div>
-        <div className="score-line"><span>high-value targets</span><strong>{arena?.reachableTargets?.length || 0}</strong></div>
-        <div className="score-line"><span>controls committed</span><strong>{arena?.metrics?.controlsUsed || 0} / {arena?.responseBudget || 8}</strong></div>
-        <div className="score-line"><span>episode rounds</span><strong>{arena?.round || 0} / {arena?.maxRounds || 6}</strong></div>
-      </section>
-      <section className="controls-block"><div className="section-caption">available defenses</div>{(snapshot?.interventions || INTERVENTIONS).map((action) => <div className={`control-line ${used.has(action.id) ? 'used' : ''}`} key={action.id}><span>{used.has(action.id) ? <Check size={13} /> : <span className="control-empty" />}</span><span>{action.title}</span><b>{action.cost}pt</b></div>)}</section>
-      <section className="selected-block"><div className="section-caption">selected entity</div><strong>{selected?.label || '—'}</strong><span>{selected?.meta || 'Click a node in the graph to inspect its current state.'}</span></section>
-    </>}
-  </aside>
-}
-
-function CaseWorkspace({ snapshot, report, query, setQuery, onStart, onStep, onPause, onReset, busy, agentStatus, autoRun, setAutoRun, selectedNode, setSelectedNode, graphView, setGraphView, error }) {
-  const arena = snapshot?.arena
-  const terminal = ['contained', 'breached', 'exhausted'].includes(arena?.status)
-  const waiting = !terminal && !arena?.lastRound
-  const repo = snapshot?.ingestion?.collectors?.find((item) => item.collector === 'repository-extractor')
-  const graph = snapshot?.graph || { nodes: NODES, edges: EDGES }
-  const headerTitle = terminal ? (arena.winner === 'defender' ? 'Route contained.' : 'Attacker reached the limit.') : waiting ? 'Ready to run the first round.' : 'Red found a route.'
-  const headerCopy = terminal ? `Blue used ${arena.metrics.controlsUsed} controls. The final route is ${arena.currentPath.length ? 'still reachable' : 'severed'}.` : waiting ? 'Press “run first round”. Red finds a reachable path, then Blue tests a defense against that exact path.' : 'Blue has responded. Run the next round to see whether the attacker finds another way through.'
-  function handleRun() {
-    if (!arena?.lastRound) {
-      onStep()
-      return
-    }
-    setAutoRun(!autoRun)
-  }
-  return <div className="case-layout">
-    <main className="arena-main">
-      <div className="target-strip"><div><div className="section-caption">target under test</div><strong>{repo?.repository || query}</strong><span>{repo?.ecosystem === 'cargo' ? 'Rust workspace evidence' : 'public dependency evidence'} · local fixture execution only</span></div><button className="quiet-button" onClick={onStart} disabled={busy}><RotateCcw size={14} /> re-run evidence</button></div>
-      <header className="arena-header"><div><div className="section-caption">investigation / {arena?.round || 0} rounds</div><h1>{busy ? 'Red and Blue are working.' : headerTitle}</h1><p>{busy ? 'Red is selecting a legal route. Blue will execute a control and retest the owned fixture before this round returns.' : headerCopy}</p></div><div className="arena-actions"><span className="agent-mode-chip">{busy ? 'Red → Blue · working' : arena?.agentMode === 'llm-constrained' || agentStatus?.configured ? 'Red / Blue · model policy' : arena?.agentMode === 'deterministic-fallback' ? 'Red / Blue · graph fallback' : 'Red / Blue · ready'}</span><span className={`hydra-chip ${snapshot?.hydra?.status === 'persisted' ? 'connected' : ''}`}><Database size={13} /> {snapshot?.hydra?.status || 'local replay'}</span><button className={`quiet-button ${waiting ? 'primary-button' : ''}`} onClick={handleRun} disabled={busy}>{autoRun ? <><Pause size={14} /> pause loop</> : <><Play size={14} /> {waiting ? 'start first round' : terminal ? 'replay stopped' : 'run loop'}</>}</button><button className="quiet-button" onClick={onReset}><RotateCcw size={14} /> reset</button></div></header>
-      <section className="score-ribbon"><div><span>initial exposure</span><strong className={waiting ? 'is-pending' : ''}>{waiting ? '—' : formatPct(arena?.initialExposure)}</strong></div><ArrowRight size={16} /><div><span>current exposure</span><strong className={waiting ? 'is-pending' : arena?.currentExposure < 50 ? 'good' : ''}>{waiting ? '—' : formatPct(arena?.currentExposure)}</strong></div><div className="ribbon-divider" /><div><span>targets in reach</span><strong className={waiting ? 'is-pending' : ''}>{waiting ? '—' : arena?.reachableTargets?.length || 0}</strong></div><div><span>memory</span><strong>{arena?.memory?.used ? 'used' : arena?.memory?.available ? 'available' : waiting ? 'ready' : 'local only'}</strong></div></section>
-      {waiting && <section className="start-guide"><div className="start-guide-number">01</div><div><div className="section-caption">your next move</div><h2>Start the investigation</h2><p>Red will choose the first reachable route. Blue will compare controls against it. Pause after every round to inspect why.</p></div><button className="primary-button" onClick={onStep} disabled={busy}><Play size={14} /> run first round</button></section>}
-      <AgentPanels arena={arena} graph={graph} busy={busy} agentStatus={agentStatus} />
-      <section className="graph-section"><div className="graph-toolbar"><div><div className="section-caption">attack path map</div><strong>{graphView === 'focus' ? 'The route, at a glance' : 'All collected evidence'}</strong><span>{graphView === 'focus' ? 'The few nodes that matter for the next decision' : 'Open this only when you need the full graph'}</span></div><div className="graph-toggle"><button className={graphView === 'focus' ? 'active' : ''} onClick={() => setGraphView('focus')}>route view</button><button className={graphView === 'full' ? 'active' : ''} onClick={() => setGraphView('full')}>all evidence</button></div></div><Graph snapshot={snapshot} selectedNode={selectedNode} setSelectedNode={setSelectedNode} view={graphView} /></section>
-      <section className="episode-section"><div className="episode-head"><div><div className="section-caption">what happened</div><strong>{arena?.history?.length ? `${arena.history.length} computed rounds` : 'waiting for the first round'}</strong></div><button className="step-button" onClick={onStep} disabled={busy || terminal}><Zap size={14} /> {waiting ? 'run first round' : 'step one round'}</button></div><RoundFeed arena={arena} graph={graph} /></section>
-      {terminal && <section className={`final-report ${arena.winner === 'defender' ? 'won' : 'lost'}`}><div className="final-icon">{arena.winner === 'defender' ? <ShieldCheck size={20} /> : <Target size={20} />}</div><div><div className="section-caption">episode result</div><h2>{arena.winner === 'defender' ? 'Defender contained the modeled blast radius.' : 'The attacker survived the response budget.'}</h2><p>{arena.winner === 'defender' ? `The red agent found ${arena.metrics.attackMoves} route${arena.metrics.attackMoves === 1 ? '' : 's'}, and blue cut them in ${arena.metrics.containedRound} rounds.` : 'The graph still contains a reachable high-value path. Re-run with a different target or response budget.'}</p></div><div className="final-score"><strong>{formatPct(arena.currentExposure)}</strong><span>final exposure</span></div></section>}
-      {terminal && (report ? <ReportDossier report={report} /> : <div className="report-loading">Preparing the evidence-backed case report…</div>)}
-      {error && <div className="error-line"><AlertTriangle size={14} /> {error}</div>}
-    </main>
+function EvidencePath({ finding, advisorySource }) {
+  const sources = [advisorySource, finding.repositoryUrl, ...(finding.imports || []).map((item) => item.sourceUrl), ...(finding.evidenceSources || [])].filter(Boolean)
+  const uniqueSources = [...new Set(sources)]
+  return <div className="proof-path">
+    <div className="path-line">{(finding.path || []).map((part, index) => <span className="path-hop" key={`${part}-${index}`}><span>{part}</span>{index < finding.path.length - 1 && <b>→</b>}</span>)}</div>
+    <div className="path-sources">{uniqueSources.slice(0, 4).map((source) => <SourceLink href={source} key={source}>{sourceHost(source)}</SourceLink>)}</div>
   </div>
+}
+
+function RepositoryFinding({ finding, advisorySource }) {
+  return <details className={`repository-finding finding-${finding.verdict?.toLowerCase()}`}>
+    <summary><div className="finding-main"><Verdict value={finding.verdict} /><strong>{finding.repository || 'Unknown repository'}</strong></div><div className="finding-version">{finding.packageName}@{finding.resolvedVersion || 'unresolved'} <ChevronDown size={15} /></div></summary>
+    <div className="finding-detail"><p className="finding-reason">{finding.reason}</p><EvidencePath finding={finding} advisorySource={advisorySource} /><dl className="finding-facts"><div><dt>declared range</dt><dd>{finding.declaredRange || 'not found'}</dd></div><div><dt>sampled imports</dt><dd>{finding.imports?.length || 0}</dd></div><div><dt>fix</dt><dd>{finding.targetVersion ? `${finding.targetVersion}${finding.rangeAllowsFix ? ' · range allows it' : ' · manifest change required'}` : 'not available'}</dd></div>{finding.exposureDays !== null && finding.exposureDays !== undefined && <div><dt>exposure window</dt><dd>{finding.exposureDays} days before publication</dd></div>}</dl></div>
+  </details>
+}
+
+function Rewind({ report, activeReport, onSelect }) {
+  const before = report?.rewind?.beforeAdvisory
+  const current = report?.rewind?.asOf || new Date().toISOString()
+  if (!before) return <section className="rewind-section rewind-unavailable"><div><p className="eyebrow">TEMPORAL EVIDENCE</p><h2>Rewind unavailable for this case.</h2><p>No dated lockfile history was collected, so Recoil will not invent an exposure window.</p></div></section>
+  const active = activeReport?.rewind?.asOf === before ? 'before' : 'current'
+  return <section className="rewind-section"><div className="rewind-copy"><p className="eyebrow">TEMPORAL EVIDENCE · HYDRADB</p><h2>What was true when?</h2><p>Same evidence graph, different point in time. The advisory became public on {report.advisory?.published?.slice(0, 10)}.</p></div><div className="rewind-controls"><button className={active === 'before' ? 'active' : ''} onClick={() => onSelect(before)}><Clock3 size={14} /><span>Before advisory</span><small>{before.slice(0, 10)}</small></button><button className={active === 'current' ? 'active' : ''} onClick={() => onSelect(current)}><Search size={14} /><span>Current record</span><small>{current.slice(0, 10)}</small></button></div></section>
+}
+
+function FinalReport({ report, onRewind }) {
+  const summary = report?.summary || {}
+  const reached = report?.repositories?.filter((finding) => finding.verdict === 'REACHED') || []
+  return <main className="report-page">
+    <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{summary.reached || 0} of {summary.totalRepositories || 0} repositories<br /><i>reach vulnerable code.</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div></section>
+    <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
+    <Rewind report={report} activeReport={report} onSelect={onRewind} />
+    <section className="fix-section"><div className="section-heading"><div><p className="eyebrow">ADVERSARIAL FIX CHECK</p><h2>Can the proposed fix survive?</h2></div><span>Red → Blue → Red</span></div><div className="fix-list">{(report?.challenge || []).map((item) => <div className={`fix-row fix-${item.status.toLowerCase()}`} key={item.repository}><div className="fix-icon">{item.status === 'FIX_SURVIVES' ? <Check size={15} /> : <CircleAlert size={15} />}</div><div><strong>{item.repository}</strong><p>{item.detail}</p></div><span>{item.proposedVersion || item.status.replaceAll('_', ' ').toLowerCase()}</span></div>)}</div></section>
+    <details className="graph-proof"><summary><span>Observed graph · {report?.graph?.nodes?.length || 0} nodes · {report?.graph?.edges?.length || 0} edges</span><ChevronDown size={15} /></summary><div className="graph-edge-list">{(report?.graph?.edges || []).slice(0, 32).map(([from, to]) => <div key={`${from}-${to}`}><span>{from}</span><b>→</b><span>{to}</span></div>)}</div></details>
+    <section className="limits-section"><p className="eyebrow">LIMITS & PROVENANCE</p>{(report?.limits || []).map((limit) => <p key={limit}>— {limit}</p>)}<div className="source-footer">{(report?.sources || []).slice(0, 8).map((source) => <SourceLink href={source} key={source}>{sourceHost(source)}</SourceLink>)}</div></section>
+  </main>
+}
+
+function RunningView({ snapshot }) {
+  const investigation = snapshot?.investigation
+  return <main className="running-page"><div className="running-intro"><p className="eyebrow">AUTONOMOUS INVESTIGATION</p><h1>Building the proof.</h1><p>Recoil is reading public records and testing the evidence chain. You do not need to operate the run.</p></div><EventStream events={investigation?.events || []} /><footer className="running-footer"><span>{investigation?.evidence?.sources?.length || 0} sources discovered so far</span><span>Nothing installed or executed</span></footer></main>
 }
 
 function App() {
-  const [query, setQuery] = useState(DEFAULT_QUERY)
+  const [input, setInput] = useState(DEFAULT_INPUT)
   const [snapshot, setSnapshot] = useState(null)
   const [report, setReport] = useState(null)
+  const [hydra, setHydra] = useState(null)
   const [busy, setBusy] = useState(false)
-  const [autoRun, setAutoRun] = useState(false)
-  const [backend, setBackend] = useState('checking')
-  const [agentStatus, setAgentStatus] = useState(null)
-  const [selectedNode, setSelectedNode] = useState('release')
-  const [graphView, setGraphView] = useState('focus')
   const [error, setError] = useState('')
-
-  const hasCase = Boolean(snapshot?.ingestion?.status && snapshot.ingestion.status !== 'not_started')
-  const arena = snapshot?.arena
+  const investigation = snapshot?.investigation
 
   useEffect(() => {
-    api('/api/health').then((payload) => {
-      setBackend(payload.hydra?.status === 'ready' ? 'connected' : 'local')
-      setAgentStatus(payload.agents || null)
-    }).catch(() => setBackend('offline'))
-    api('/api/scenarios/0017').then((payload) => {
-      if (payload.ingestion?.status !== 'not_started') setSnapshot(payload)
-      if (['contained', 'breached', 'exhausted'].includes(payload.arena?.status)) api('/api/scenarios/0017/report').then(setReport).catch(() => {})
-    }).catch(() => {})
+    api('/api/scenarios/0017').then(setSnapshot).catch(() => {})
   }, [])
 
   useEffect(() => {
-    if (!['contained', 'breached', 'exhausted'].includes(arena?.status)) return undefined
-    api('/api/scenarios/0017/report').then(setReport).catch(() => {})
-    return undefined
-  }, [arena?.status, arena?.round])
-
-  useEffect(() => {
-    if (!autoRun || busy || arena?.status !== 'running') return undefined
-    const timer = window.setTimeout(() => {
-      api('/api/scenarios/0017/arena/step', { method: 'POST' }).then((payload) => {
-        setSnapshot(payload)
-        if (['contained', 'breached', 'exhausted'].includes(payload.arena?.status)) setAutoRun(false)
-      }).catch((cause) => { setError(cause.message); setAutoRun(false) })
-    }, 1250)
-    return () => window.clearTimeout(timer)
-  }, [autoRun, busy, arena?.status, arena?.round])
-
-  useEffect(() => {
-    if (!snapshot?.hydra || snapshot.hydra.status !== 'queued') return undefined
-    const timer = window.setTimeout(() => api('/api/scenarios/0017/hydra-status', { method: 'POST' }).then(setSnapshot).catch(() => {}), 2500)
-    return () => window.clearTimeout(timer)
-  }, [snapshot?.hydra?.status, snapshot?.hydra?.sourceIds?.length])
-
-  async function startCase() {
-    if (!query.trim()) return
-    setBusy(true); setError(''); setAutoRun(false); setSnapshot(null); setReport(null)
-    try {
-      await api('/api/scenarios/0017/run', { method: 'POST', body: JSON.stringify({ query: query.trim() }) })
-      await api('/api/scenarios/0017/ingest', { method: 'POST' })
-      const started = await api('/api/scenarios/0017/arena/start', { method: 'POST' })
-      setSnapshot(started)
-      setAutoRun(false)
-    } catch (cause) {
-      setError(cause.message)
-    } finally {
-      setBusy(false)
+    if (!busy) return undefined
+    const poll = async () => {
+      try {
+        const next = await api(`/api/scenarios/${SCENARIO_ID}`)
+        setSnapshot(next)
+        if (next.investigation?.status === 'complete' || next.investigation?.status === 'failed') {
+          setBusy(false)
+          if (next.investigation.status === 'complete') setReport(next.investigation.report)
+          if (next.investigation.status === 'failed') setError(next.investigation.error || 'Investigation incomplete')
+          return
+        }
+      } catch (cause) {
+        setError(cause.message)
+        setBusy(false)
+        return
+      }
+      window.setTimeout(poll, 650)
     }
-  }
+    const timer = window.setTimeout(poll, 100)
+    return () => window.clearTimeout(timer)
+  }, [busy])
 
-  async function stepArena() {
-    if (busy || !arena || ['contained', 'breached', 'exhausted'].includes(arena.status)) return
-    setBusy(true); setError('')
-    try {
-      const next = await api('/api/scenarios/0017/arena/step', { method: 'POST' })
-      setSnapshot(next)
-      if (['contained', 'breached', 'exhausted'].includes(next.arena?.status)) setAutoRun(false)
-    } catch (cause) {
-      setError(cause.message)
-    } finally {
-      setBusy(false)
-    }
-  }
+  const activeReport = report || investigation?.report
+  const hasInvestigation = Boolean(investigation && investigation.status !== 'idle')
+  const isComplete = investigation?.status === 'complete' && activeReport
 
-  async function resetCase() {
-    setAutoRun(false); setError(''); setReport(null)
+  async function investigate() {
+    if (!input.trim() || busy) return
+    setBusy(true); setError(''); setReport(null); setHydra(null)
     try {
-      const next = await api('/api/scenarios/0017/reset', { method: 'POST' })
+      const next = await api(`/api/scenarios/${SCENARIO_ID}/investigate`, { method: 'POST', body: JSON.stringify({ query: input.trim() }) })
       setSnapshot(next)
     } catch (cause) {
-      setError(cause.message)
+      setBusy(false); setError(cause.message)
     }
   }
 
-  return <div className="app-shell">
-    <header className="topbar"><div className="brand-mini"><span className="brand-square" /> RECOIL <small>adaptive supply-chain defense</small></div><div className="topbar-center"><span className="live-mark" /> trace a dependency · test a defense</div><div className="topbar-right"><span className={`connection ${backend}`}><span /> {backend === 'connected' ? 'HydraDB connected' : backend === 'local' ? 'local replay' : backend}</span><button className="help-button" aria-label="About Recoil"><CircleHelp size={15} /></button></div></header>
-    {hasCase ? <CaseWorkspace snapshot={snapshot} report={report} query={query} setQuery={setQuery} onStart={startCase} onStep={stepArena} onPause={() => setAutoRun(false)} onReset={resetCase} busy={busy} agentStatus={agentStatus} autoRun={autoRun} setAutoRun={setAutoRun} selectedNode={selectedNode} setSelectedNode={setSelectedNode} graphView={graphView} setGraphView={setGraphView} error={error} /> : <Landing query={query} setQuery={setQuery} onStart={startCase} busy={busy} error={error} />}
-  </div>
+  async function rewind(asOf) {
+    if (!activeReport) return
+    try {
+      const next = await api(`/api/scenarios/${SCENARIO_ID}/rewind`, { method: 'POST', body: JSON.stringify({ asOf }) })
+      setReport(next.report)
+      setHydra(next.hydra)
+    } catch (cause) { setError(cause.message) }
+  }
+
+  function newInvestigation() {
+    setSnapshot(null); setReport(null); setHydra(null); setError('')
+  }
+
+  if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} />
+  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} />{isComplete ? <><FinalReport report={activeReport} onRewind={rewind} /><div className="new-case-wrap"><button onClick={newInvestigation}><RotateCcw size={14} /> New investigation</button></div></> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
 class AppBoundary extends Component {
   state = { error: null }
-
-  static getDerivedStateFromError(error) {
-    return { error }
-  }
-
+  static getDerivedStateFromError(error) { return { error } }
   render() {
-    if (this.state.error) return <main className="runtime-error"><div><div className="section-caption">recoil / runtime</div><h1>Workspace unavailable.</h1><p>{this.state.error.message}</p><button onClick={() => window.location.reload()}>Reload workspace</button></div></main>
+    if (this.state.error) return <main className="runtime-error"><h1>Recoil could not render this case.</h1><p>{this.state.error.message}</p><button onClick={() => window.location.reload()}>Reload</button></main>
     return this.props.children
   }
 }
