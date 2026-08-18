@@ -122,16 +122,17 @@ function Rewind({ report, activeReport, onSelect }) {
   return <section className="rewind-section"><div className="rewind-copy"><p className="eyebrow">TEMPORAL EVIDENCE · HYDRADB</p><h2>What was true when?</h2><p>Same evidence graph, different point in time. The advisory became public on {report.advisory?.published?.slice(0, 10)}. Showing evidence as of {activeReport?.rewind?.asOf?.slice(0, 10)}.</p>{memory && <p className="rewind-memory">HydraDB temporal read · {memory.status} · {memory.datedChunkCount} dated fact{memory.datedChunkCount === 1 ? '' : 's'} · {memory.relatedCaseCount} related case{memory.relatedCaseCount === 1 ? '' : 's'} · {memory.graphContext?.tripletCount || 0} graph triplet{memory.graphContext?.tripletCount === 1 ? '' : 's'}</p>}<div className="temporal-findings">{(activeReport?.rewind?.findings || []).map((finding) => <div key={finding.repository}><span>{finding.repository}</span><Verdict value={finding.verdict} /></div>)}</div></div><div className="rewind-controls"><button className={active === 'before' ? 'active' : ''} onClick={() => onSelect(before)}><Clock3 size={14} /><span>Before advisory</span><small>{before.slice(0, 10)}</small></button><button className={active === 'current' ? 'active' : ''} onClick={() => onSelect(current)}><Search size={14} /><span>Current record</span><small>{current.slice(0, 10)}</small></button></div></section>
 }
 
-function HydraProof({ hydra }) {
+function HydraProof({ hydra, graphContext }) {
   const status = hydra?.status || 'skipped'
   const recall = hydra?.recall
+  const triplets = graphContext?.triplets || []
   const label = status === 'persisted' ? 'Stored and queried' : status === 'queued' ? 'Stored; indexing is still queued' : status === 'failed' ? 'HydraDB write failed' : 'Local replay only'
   const description = status === 'skipped'
     ? hydra?.reason || 'Configure HydraDB to persist this case.'
     : status === 'failed'
       ? hydra?.error || 'The local evidence report is complete, but HydraDB did not accept the write.'
       : `${hydra?.indexingError ? `${hydra.indexingError} ` : ''}Recoil wrote ${hydra?.memoryCount || 0} evidence memories with dated validity and retrieved ${recall?.datedChunkCount || 0} dated facts from ${recall?.relatedCaseCount || 0} prior case${recall?.relatedCaseCount === 1 ? '' : 's'}.`
-  return <section className={`hydra-proof hydra-${status}`}><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{description}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div></section>
+  return <section className={`hydra-proof hydra-${status}`}><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{description}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div>{triplets.length > 0 && <details className="hydra-graph-receipt"><summary>Graph context · {triplets.length} returned triplet{triplets.length === 1 ? '' : 's'}</summary><div className="hydra-triplets">{triplets.slice(0, 12).map((triplet, index) => <div key={`${triplet.source}-${triplet.predicate}-${triplet.target}-${index}`}><span>{triplet.source}</span><b>{triplet.predicate || 'CONNECTED_TO'}</b><span>{triplet.target}</span></div>)}</div></details>}</section>
 }
 
 function ReceiptLink() {
@@ -149,7 +150,7 @@ function FinalReport({ report, hydra, onRewind }) {
     <EvidenceQuality quality={quality} />
     <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
     <Rewind report={report} activeReport={report} onSelect={onRewind} />
-    <HydraProof hydra={hydra} />
+    <HydraProof hydra={hydra} graphContext={report?.rewind?.memory?.graphContext} />
     <section className="fix-section"><div className="section-heading"><div><p className="eyebrow">ADVERSARIAL FIX CHECK</p><h2>Can the proposed fix survive?</h2></div><span>Red → Blue → Red</span></div><div className="fix-list">{(report?.challenge || []).map((item) => <div className={`fix-row fix-${item.status.toLowerCase()}`} key={item.repository}><div className="fix-icon">{item.status === 'FIX_SURVIVES' ? <Check size={15} /> : <CircleAlert size={15} />}</div><div><strong>{item.repository}</strong><p>{item.detail}</p></div><span>{item.proposedVersion || item.status.replaceAll('_', ' ').toLowerCase()}</span></div>)}</div></section>
     <details className="graph-proof"><summary><span>Observed graph · {report?.graph?.nodes?.length || 0} nodes · {report?.graph?.edges?.length || 0} edges</span><ChevronDown size={15} /></summary><div className="graph-edge-list">{(report?.graph?.edges || []).slice(0, 32).map(([from, to]) => <div key={`${from}-${to}`}><span>{from}</span><b>→</b><span>{to}</span></div>)}</div></details>
     <section className="limits-section"><p className="eyebrow">LIMITS & PROVENANCE</p>{(report?.limits || []).map((limit) => <p key={limit}>— {limit}</p>)}<div className="source-footer">{(report?.sources || []).slice(0, 8).map((source) => <SourceLink href={source} key={source}>{sourceHost(source)}</SourceLink>)}</div></section>
