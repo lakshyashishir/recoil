@@ -10,6 +10,8 @@ test('red agent adapts to the alternate route after promotion is blocked', () =>
 
   assert.equal(first.lastRound.red.label, 'Promote through shared CI')
   assert.equal(first.lastRound.blue.action, 'block-promotion')
+  assert.equal(first.lastRound.red.candidates[0].selected, true)
+  assert.ok(first.lastRound.blue.candidates.some((candidate) => candidate.id === 'block-promotion' && candidate.selected))
   assert.ok(second.lastRound.red.path.includes('resolver'))
   assert.equal(second.lastRound.blue.action, 'upgrade')
   assert.equal(second.status, 'contained')
@@ -76,4 +78,14 @@ test('every recorded red route is a real path in the current graph', () => {
     })
     assert.ok(round.after.exposure <= round.before.exposure)
   }
+})
+
+test('blue records computed counterfactuals for every affordable control', () => {
+  const result = stepArena(createArenaState({ scenarioId: 'counterfactual-test', graphNodes: NODES, graphEdges: EDGES }), NODES, EDGES)
+  const candidates = result.lastRound.blue.candidates
+
+  assert.equal(candidates.length, INTERVENTIONS.length)
+  assert.equal(candidates.filter((candidate) => candidate.selected).length, 1)
+  assert.ok(candidates.every((candidate) => Number.isInteger(candidate.predictedExposure)))
+  assert.ok(candidates.some((candidate) => candidate.predictedExposure < result.lastRound.before.exposure))
 })

@@ -69,6 +69,12 @@ function chooseAttack(state, reachability, graphNodes) {
     pathLabel: routeLabel(path, graphNodes),
     target,
     result: path.length ? 'route found' : 'no route available',
+    candidates: routes.slice(0, 3).map((candidate) => ({
+      path: candidate,
+      pathLabel: routeLabel(candidate, graphNodes),
+      fresh: !usedRoutes.has(routeKey(candidate)),
+      selected: routeKey(candidate) === routeKey(path),
+    })),
   }
 }
 
@@ -90,6 +96,18 @@ function chooseDefense(state, reachability, attack, graphNodes, graphEdges, memo
     route.has('payments') || route.has('checkout') ? 'quarantine' : null,
     'revoke',
   ].filter(Boolean)
+  const evaluations = candidates.map((action) => {
+    const predicted = getReachability({ eventIndex: peakEventIndex(graphNodes), selectedActions: [...state.selectedActions, action.id] }, graphNodes, graphEdges)
+    return {
+      id: action.id,
+      title: action.title,
+      cost: action.cost,
+      predictedExposure: predicted.exposure,
+      reachableTargets: predicted.reachableTargetIds.length,
+      routeMatch: routePriority.includes(action.id),
+      memoryMatch: memorySuggestsAction(memory, action.id, attack.path),
+    }
+  })
   const remembered = candidates.find((action) => memorySuggestsAction(memory, action.id, attack.path))
   const routeAction = routePriority.map((id) => candidates.find((action) => action.id === id)).find(Boolean)
   const selected = remembered || routeAction || [...candidates].sort((left, right) => {
@@ -111,6 +129,10 @@ function chooseDefense(state, reachability, attack, graphNodes, graphEdges, memo
     rationale,
     predictedExposure: predicted.exposure,
     memoryUsed,
+    candidates: evaluations.map((candidate) => ({
+      ...candidate,
+      selected: candidate.id === selected.id,
+    })).sort((left, right) => left.predictedExposure - right.predictedExposure || left.cost - right.cost),
   }
 }
 

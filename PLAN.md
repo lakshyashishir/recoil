@@ -15,7 +15,7 @@ This is a new project for Hack Hydra. The existing ClaimTrace application lives 
 - [x] Adaptive red/blue arena: Red selects a reachable route, Blue responds to that route, and Red searches again after the graph changes.
 - [x] HydraDB persistence for evidence, topology, decisions, and every arena round; prior rounds can influence a route-matched Blue decision.
 - [x] Browser workspace, CLI, and OpenTUI operator console backed by the same arena engine.
-- [x] Nineteen regression tests, a network-free adaptive benchmark, and a production bundle build.
+- [x] Twenty regression tests, a network-free adaptive benchmark, and a production bundle build.
 - [x] Bounded static source graph for public JavaScript/TypeScript/Rust files, including imports, symbols, and unresolved-import uncertainty.
 - [x] Latest public commit impact mapped from changed hunks to sampled source files and indexed symbols.
 - [ ] Hosted HydraDB live smoke run against the configured hackathon database.
@@ -48,6 +48,7 @@ This is a bounded defensive simulation. It never executes package code, sends ex
 - Each round records before/after exposure, red route, blue action, rationale, and residual route.
 - HydraDB recall can influence a blue decision, and the episode remains useful without HydraDB in local replay mode.
 - The CLI and browser show the same episode state from the API rather than implementing separate simulations.
+- Each round exposes Red's candidate routes and Blue's computed counterfactual controls, not only the selected actions.
 - The network-free benchmark proves route adaptation and containment from graph state, with no scripted final score.
 
 ### Future Track 2 coverage

@@ -51,6 +51,8 @@ Current controls are:
 
 The control is a counterfactual graph result. Applying it blocks concrete graph nodes, recalculates reachable high-value assets, and exposes the next route to red. Each round writes the red move, blue rationale, before/after exposure, blocked nodes, and residual paths to an `arena_round` memory in HydraDB.
 
+The browser also exposes the decision trace for each round: Red's fresh and repeated route candidates, plus Blue's affordable controls with predicted exposure, cost, route-match, and memory-match signals. The selected action is therefore inspectable as a computed choice among alternatives.
+
 Controls are phase-aware: blocking artifact promotion closes the CI gate for future releases but does not pretend that an artifact already promoted into the incident disappeared. A later upgrade, restore, quarantine, or secret rotation must address that residual state.
 
 ## Reachability model
