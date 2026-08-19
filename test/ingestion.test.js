@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { readRawGitHubFile, runMultiRepositoryIngestion } from '../server/collectors.js'
+import { collectRepository, readRawGitHubFile, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 
 const advisory = {
@@ -74,6 +74,49 @@ test('raw GitHub source reads replay from the bounded cache', async () => {
     if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
     else process.env.RECOIL_CACHE_DIR = previousCache
     rmSync(cacheDir, { recursive: true, force: true })
+  }
+})
+
+test('known repository files prefer raw content and tolerate optional workflow outages', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const requests = []
+  const manifest = JSON.stringify({ name: 'raw-app', version: '1.0.0', dependencies: { minimist: '^1.2.0' } })
+  const source = "import minimist from 'minimist'\nexport function main() { return minimist(process.argv) }"
+
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    requests.push(url)
+    if (url.hostname === 'raw.githubusercontent.com') {
+      if (url.pathname.endsWith('/package.json')) return response(manifest)
+      if (url.pathname.endsWith('/package-lock.json')) return response(packageLock('1.2.5'))
+      if (url.pathname.endsWith('/src/main.js')) return response(source)
+      return response({}, 404)
+    }
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const operation = url.pathname.split('/repos/example/raw-app/')[1] || ''
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'src/main.js' }] })
+    if (operation.startsWith('commits')) {
+      if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/raw-app/commit/oldest', commit: { author: { date: '2024-01-01T00:00:00Z' } } }])
+      return response([])
+    }
+    if (operation === 'contents/.github/workflows') throw new Error('workflow endpoint offline')
+    return response({}, 404)
+  }
+
+  try {
+    const repository = await collectRepository({ owner: 'example', name: 'raw-app', slug: 'example/raw-app' }, 'minimist')
+    assert.equal(repository.sourceUrl, 'https://raw.githubusercontent.com/example/raw-app/HEAD/package.json')
+    assert.ok(repository.sources.some((source) => source.url === 'https://raw.githubusercontent.com/example/raw-app/HEAD/package-lock.json'))
+    assert.equal(repository.manifest.ciSignals.status, 'unavailable')
+    assert.match(repository.manifest.ciSignals.error, /contents\/\.github\/workflows.*workflow endpoint offline/)
+    assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/package.json')), false)
+    assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/package-lock.json')), false)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
   }
 })
 

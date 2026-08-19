@@ -197,7 +197,6 @@ async function readGitHubDirectory(repository, path) {
     if (Array.isArray(payload)) return { entries: payload.filter((entry) => entry.type === 'file').slice(0, 12), status: 'collected' }
     if (payload) return { entries: [], status: 'not_found' }
   } catch (error) {
-    if (!error.message.includes('403') && !error.message.includes('rate limit')) throw error
     return { entries: [], status: 'unavailable', error: error.message }
   }
   return { entries: [], status: 'not_found' }
@@ -386,8 +385,8 @@ function packageNameFromNodeModulesPath(path = '') {
 }
 
 export async function collectRepository(repository, requestedPackage) {
-  const packageFile = await readGitHubFile(repository, 'package.json')
-  const cargoManifestFile = packageFile ? null : await readGitHubFile(repository, 'Cargo.toml')
+  const packageFile = await readGitHubFile(repository, 'package.json', { preferRaw: true })
+  const cargoManifestFile = packageFile ? null : await readGitHubFile(repository, 'Cargo.toml', { preferRaw: true })
   if (!packageFile && !cargoManifestFile) throw new Error(`package.json or Cargo.toml not found in ${repository.slug}`)
   const ecosystem = cargoManifestFile ? 'cargo' : 'npm'
   const packageJson = packageFile ? JSON.parse(packageFile.text) : null
@@ -395,8 +394,8 @@ export async function collectRepository(repository, requestedPackage) {
   const dependencies = packageJson ? packageDependencies(packageJson) : cargoManifest.dependencies
   const inferredPackage = requestedPackage || packageJson?.name || cargoManifest?.name || (cargoManifest ? repository.name : Object.keys(dependencies)[0]) || null
   const lockFile = cargoManifestFile
-    ? await readGitHubFile(repository, 'Cargo.lock')
-    : await readGitHubFile(repository, 'package-lock.json') || await readGitHubFile(repository, 'npm-shrinkwrap.json')
+    ? await readGitHubFile(repository, 'Cargo.lock', { preferRaw: true })
+    : await readGitHubFile(repository, 'package-lock.json', { preferRaw: true }) || await readGitHubFile(repository, 'npm-shrinkwrap.json', { preferRaw: true })
   const lockfile = lockFile && ecosystem === 'npm' ? JSON.parse(lockFile.text) : null
   const temporal = lockFile
     ? await readGitHubCommitHistory(repository, lockFile.path).catch((error) => ({ error: error.message, sourceUrl: lockFile.sourceUrl }))
@@ -414,8 +413,8 @@ export async function collectRepository(repository, requestedPackage) {
         dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
       }))
   const workflowResult = await readGitHubDirectory(repository, '.github/workflows')
-  const workflowFiles = (await Promise.all(workflowResult.entries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`)))).filter(Boolean)
-  const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path)))).filter(Boolean)
+  const workflowFiles = (await Promise.all(workflowResult.entries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`, { preferRaw: true })))).filter(Boolean)
+  const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path, { preferRaw: true })))).filter(Boolean)
   const sourceResult = await collectSourceFiles(repository)
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)

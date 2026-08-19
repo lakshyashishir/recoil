@@ -101,8 +101,10 @@ Repository source sampling reads the GitHub tree once, then prefers `raw.githubu
 bounded source files so a three-repository recording does not spend one API request per source file. Raw
 source responses are cached under the same bounded TTL as GitHub JSON, making a second run replayable
 without re-reading every source file from the public endpoint.
-Manifests, lockfiles, history, workflows, and ownership metadata still use the GitHub API with cache and
-explicit rate-limit errors.
+Known manifests, lockfiles, workflow files, container files, and ownership metadata prefer raw GitHub
+content, then fall back to the Contents API with cache and explicit rate-limit errors. Directory listings,
+repository trees, and commit history still use the API; optional workflow metadata degrades to an explicit
+`unavailable` signal when that API is unreachable.
 
 For separate processes:
 

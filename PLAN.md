@@ -80,6 +80,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Render the safe Red → Blue → Red proof loop consistently in browser, CLI, and TUI clients.
 - [x] Persist cross-repository shared-resolution correlations as explicit HydraDB graph edges.
 - [x] Isolate mocked test responses from the live GitHub evidence cache.
+- [x] Prefer raw GitHub reads for known manifests, lockfiles, workflows, containers, and ownership files; keep optional directory metadata non-fatal during API outages.
 
 ### Still required before calling the hackathon build complete
 
