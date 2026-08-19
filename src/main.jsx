@@ -334,7 +334,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
     </section>
   }
   return <section className="evidence-map" aria-label="Observed evidence map">
-    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : 'Follow the path to code'}</h2><p className="map-heading-detail">{live ? 'Each edge is added from a public record as it is collected.' : 'Click a repository or node to inspect the cited relationship.'}</p></div><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
+    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : 'Follow the path to code'}</h2><p className="map-heading-detail">{live ? 'Each edge is added from a public record as it is collected.' : 'Read left to right: advisory → resolved package → repository → sampled source. Select a node to inspect its cited relationship.'}</p></div><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
     <div className="map-canvas">
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
         <defs><marker id="recoil-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="currentColor" strokeWidth="1.2" /></marker></defs>
@@ -703,6 +703,45 @@ function RemediationBrief({ findings = [], challenges = [], selectedIndex, onSel
   </section>
 }
 
+function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory }) {
+  const reached = findings.filter((finding) => finding.verdict === 'REACHED')
+  const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
+  const notAffected = findings.filter((finding) => finding.verdict === 'NOT_AFFECTED')
+  const unknown = findings.filter((finding) => ['UNKNOWN', 'NOT_YET_OBSERVED'].includes(finding.verdict))
+  const primaryFinding = reached[0]
+  const primaryChallenge = challenges.find((item) => item.repository === primaryFinding?.repository)
+  const importer = primaryFinding?.imports?.[0]
+  const repositoryWord = (count) => count === 1 ? 'repository' : 'repositories'
+  const evidenceBasis = `${reached.length} reached · ${declaredOnly.length} declared only · ${notAffected.length} outside range${unknown.length ? ` · ${unknown.length} needs review` : ''}`
+
+  let title = 'No sampled source path reaches the affected package.'
+  let detail = `${declaredOnly.length} ${repositoryWord(declaredOnly.length)} retain an affected resolution without a sampled import, while ${notAffected.length} ${repositoryWord(notAffected.length)} ${notAffected.length === 1 ? 'is' : 'are'} outside the advisory range.`
+  let action = null
+  if (historical) {
+    title = 'This is a dated reconstruction.'
+    detail = 'The report shows what was evidenced at the selected date. Current remediation proof is available from the present-day case.'
+    action = onOpenHistory ? { label: 'Open history', onClick: onOpenHistory } : null
+  } else if (unknown.length) {
+    title = `${unknown.length} ${repositoryWord(unknown.length)} need more evidence.`
+    detail = 'Recoil will not turn an incomplete source sample into a reachability or remediation claim.'
+  } else if (primaryFinding && primaryChallenge?.status === 'FIX_SURVIVES') {
+    const repository = repositoryName(primaryFinding.repository)
+    const location = importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'a sampled source file'
+    title = `Upgrade ${packageName || primaryFinding.packageName || 'the package'} to ${primaryChallenge.proposedVersion} in ${repository}.`
+    detail = `${packageName || primaryFinding.packageName || 'The affected package'}@${primaryFinding.resolvedVersion || 'the observed version'} is imported at ${location}. The proposed version is outside the advisory range.`
+    action = onInspectProof ? { label: 'Inspect fix proof', onClick: onInspectProof } : null
+  } else if (reached.length) {
+    title = `${reached.length} reachable path${reached.length === 1 ? '' : 's'} need review.`
+    detail = 'A sampled source import reaches an affected version, but the available records do not prove a surviving fixed-version path yet.'
+  }
+
+  return <section className={`case-decision-callout ${historical ? 'case-decision-callout-historical' : ''}`} aria-label="Case decision">
+    <div className="case-decision-label"><span className="section-kicker">Decision</span><span>from collected evidence</span></div>
+    <div className="case-decision-copy"><h2>{title}</h2><p>{detail}</p></div>
+    <div className="case-decision-meta"><span>Evidence basis</span><strong>{evidenceBasis}</strong>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}</div>
+  </section>
+}
+
 function CaseOutcomeRail({ findings = [], challenges = [], selectedIndex, onSelect, historical = false }) {
   if (!findings.length) return null
   const outcomeCount = new Set(findings.map((finding) => finding.verdict || 'UNKNOWN')).size
@@ -875,10 +914,21 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} ${reachedPhrase} sampled code.` : total ? 'No repository reaches sampled code.' : 'No repository was checked.'
   const summaryLine = report?.advisory?.summary ? `${report.advisory.summary} · ${report.package || 'package identity unavailable'}` : `The report compares ${report.package || 'the affected package'} across the collected repositories.`
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
+  const primaryReachIndex = findings.findIndex((finding) => finding.verdict === 'REACHED')
+  const inspectProof = (index = primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex) => {
+    if (index >= 0) setSelectedIndex(index)
+    setActiveTab('proof')
+    window.requestAnimationFrame(() => document.getElementById('case-proof')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+  const openHistory = () => {
+    setActiveTab('history')
+    window.requestAnimationFrame(() => document.getElementById('case-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
     <EvidenceLedger report={report} />
+    <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={openHistory} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel">
       {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={() => setActiveTab('history')} /></>}

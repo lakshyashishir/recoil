@@ -875,6 +875,23 @@ body { font-family: var(--sans); line-height: 1.45; }
 .evidence-ledger-item span { color: var(--faint); font-size: 10px; line-height: 1.2; white-space: nowrap; }
 .evidence-ledger p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.35; text-align: right; }
 
+/* Put the operational answer before the graph. This is a flat decision line
+   built from repository findings and fix challenges, not a decorative card. */
+.case-decision-callout { display: grid; grid-template-columns: minmax(135px, .36fr) minmax(0, 1.5fr) minmax(210px, .72fr); gap: 22px; align-items: start; margin: 0 0 16px; padding: 14px 0 16px; border-bottom: 1px solid var(--line); }
+.case-decision-label { display: grid; align-content: start; gap: 5px; }
+.case-decision-label .section-kicker { margin: 0; color: var(--accent); }
+.case-decision-label > span:last-child { color: var(--faint); font-size: 10px; line-height: 1.35; }
+.case-decision-copy { min-width: 0; }
+.case-decision-copy h2 { max-width: 680px; margin: 0 0 6px; color: var(--text); font-size: 18px; font-weight: 600; letter-spacing: -.025em; line-height: 1.2; text-wrap: balance; }
+.case-decision-copy p { max-width: 700px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.case-decision-meta { display: grid; align-content: start; gap: 5px; min-width: 0; padding-left: 15px; border-left: 2px solid var(--accent); }
+.case-decision-meta > span { color: var(--faint); font-size: 10px; }
+.case-decision-meta strong { color: var(--text); font: 600 11px/1.35 var(--sans); }
+.case-decision-meta button { display: inline-flex; align-items: center; gap: 5px; width: max-content; margin-top: 4px; padding: 0; color: var(--accent); background: transparent; font-size: 11px; }
+.case-decision-meta button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.case-decision-callout-historical .case-decision-label .section-kicker { color: var(--muted); }
+.case-decision-callout-historical .case-decision-meta { border-left-color: var(--faint); }
+
 @media (max-width: 720px) {
   .remediation-brief-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
   .remediation-row { grid-template-columns: 9px minmax(0, 1fr) 16px; gap: 9px; padding: 12px 0; }
@@ -885,4 +902,7 @@ body { font-family: var(--sans); line-height: 1.45; }
   .evidence-ledger-item { flex: 0 0 auto; padding-left: 12px; padding-right: 12px; }
   .evidence-ledger-item:first-child { padding-left: 0; }
   .evidence-ledger p { max-width: 360px; text-align: left; }
+  .case-decision-callout { grid-template-columns: 1fr; gap: 9px; padding-top: 13px; }
+  .case-decision-meta { padding-top: 10px; padding-left: 0; border-top: 2px solid var(--accent); border-left: 0; }
+  .case-decision-callout-historical .case-decision-meta { border-top-color: var(--faint); }
 }
