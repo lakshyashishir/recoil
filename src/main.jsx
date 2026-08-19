@@ -133,7 +133,8 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
   const hydraReadFailed = hydra?.recall?.status === 'failed'
   const hydraRecalled = hydra?.recall?.status === 'recalled'
   const hydraPending = hydra?.status === 'queued' || hydra?.indexingPending
-  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? `HydraDB context recalled${hydraPending ? ' · indexing' : ''}` : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
+  const hydraInFlight = hydraPending || investigation?.status === 'finalizing'
+  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? `HydraDB context recalled${hydraInFlight ? ' · indexing' : ''}` : hydraInFlight ? 'HydraDB indexing' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
   const hydraLive = hydra?.status === 'persisted' || (hydraRecalled && !hydraPending)
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
@@ -630,11 +631,12 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
 function RunningView({ snapshot }) {
   const investigation = snapshot?.investigation
   const events = investigation?.events || []
+  const finalizing = investigation?.status === 'finalizing'
   const graph = snapshot?.graph?.nodes?.length ? snapshot.graph : investigation?.graph || investigation?.evidence?.graph || { nodes: [], edges: [] }
   const graphReport = { graph, repositories: investigation?.report?.repositories || [] }
   const progress = snapshot?.graphProgress || investigation?.graphProgress
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>Building the proof.</h1><p>{progressLabel}. Recoil adds only relationships supported by public evidence.</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>{finalizing ? 'Storing the case.' : 'Building the proof.'}</h1><p>{finalizing ? `${progressLabel}. The observed graph is complete; Recoil is writing dated history and recalling related context.` : `${progressLabel}. Recoil adds only relationships supported by public evidence.`}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function App() {
