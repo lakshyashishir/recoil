@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { hasIncompleteEvidence } from '../src/core/validation.js'
 import { parseGitHubRepositories } from '../server/collectors.js'
+import { startInvestigation } from '../server/investigation.js'
+import { getOrCreate, snapshot as getScenarioSnapshot } from '../server/index.js'
 import { recordingBlockers as buildRecordingBlockers, recordingPreflight as buildRecordingPreflight } from '../src/core/recording.js'
-import { verifyEvidenceReceipt } from '../src/core/receipt.js'
+import { buildEvidenceReceipt, verifyEvidenceReceipt } from '../src/core/receipt.js'
 
 const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
 const args = process.argv.slice(2)
@@ -11,6 +13,7 @@ const jsonOutput = args.includes('--json')
 const fast = args.includes('--fast')
 const proofOutput = args.includes('--proof')
 const recordingMode = args.includes('--recording')
+const directMode = args.includes('--direct')
 const verifyReceiptIndex = args.findIndex((arg) => arg === '--verify-receipt' || arg.startsWith('--verify-receipt='))
 const verifyReceiptPath = verifyReceiptIndex >= 0
   ? (args[verifyReceiptIndex].includes('=') ? args[verifyReceiptIndex].slice(args[verifyReceiptIndex].indexOf('=') + 1) : args[verifyReceiptIndex + 1])
@@ -22,6 +25,7 @@ const maxWaitMs = 180000
 function usage() {
   console.log('Usage: npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository"')
   console.log('       npm run cli -- "CVE-2021-4229 https://github.com/org/repo-a https://github.com/org/repo-b" [--fast] [--proof] [--recording] [--json]')
+  console.log('       npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository" --direct')
   console.log('       npm run cli -- --verify-receipt .recoil-recordings/<scenario-id>.json')
 }
 
@@ -73,7 +77,7 @@ function printEvents(events, seen) {
   }
 }
 
-function finalResult(id, queryText, snapshot) {
+function finalResult(id, queryText, snapshot, receiptPath = `/api/scenarios/${id}/receipt`) {
   const investigation = snapshot.investigation || {}
   const report = investigation.report || {}
   return {
@@ -84,7 +88,7 @@ function finalResult(id, queryText, snapshot) {
     report,
     hydra: investigation.hydra,
     events: investigation.events || [],
-    receiptPath: `/api/scenarios/${id}/receipt`,
+    receiptPath,
     recording: { requested: recordingMode, ready: false, blockers: [] },
   }
 }
@@ -125,13 +129,19 @@ async function main() {
   line(`RECOIL  ${id}`)
   line(`target  ${query}`)
   line('scope   public evidence only · no install · no execution')
-  await request(`/api/scenarios/${id}/investigate`, { method: 'POST', body: JSON.stringify({ query }) })
+  const directRecord = directMode ? getOrCreate(id) : null
+  if (directRecord) {
+    line('transport direct · in-process state machine · no API server required')
+    startInvestigation(directRecord, query)
+  } else {
+    await request(`/api/scenarios/${id}/investigate`, { method: 'POST', body: JSON.stringify({ query }) })
+  }
 
   const seen = new Set()
   const startedAt = Date.now()
   let snapshot
   while (true) {
-    snapshot = await request(`/api/scenarios/${id}`)
+    snapshot = directRecord ? getScenarioSnapshot(directRecord) : await request(`/api/scenarios/${id}`)
     printEvents(snapshot.investigation?.events, seen)
     const status = snapshot.investigation?.status
     if (status === 'complete' || status === 'failed') break
@@ -139,9 +149,17 @@ async function main() {
     await sleep(pollDelay)
   }
 
-  const result = finalResult(id, query, snapshot)
+  const directReceiptPath = `.recoil-recordings/${id}.json`
+  const result = finalResult(id, query, snapshot, directMode ? directReceiptPath : undefined)
   const blockers = recordingMode ? recordingBlockers(result) : []
   result.recording = { requested: recordingMode, ready: recordingMode && blockers.length === 0, blockers }
+  if (directMode && result.status === 'complete') {
+    const receipt = buildEvidenceReceipt({ scenarioId: id, query, report: result.report, hydra: result.hydra })
+    if (receipt) {
+      mkdirSync('.recoil-recordings', { recursive: true })
+      writeFileSync(directReceiptPath, `${JSON.stringify(receipt, null, 2)}\n`)
+    }
+  }
   if (jsonOutput) {
     console.log(JSON.stringify(result, null, 2))
     if (result.status === 'failed' || hasIncompleteEvidence(result) || blockers.length) process.exitCode = 1
@@ -183,7 +201,7 @@ async function main() {
   if (result.hydra?.indexingError) line(`hydra-note ${result.hydra.indexingError}`)
   if (result.hydra?.recall?.error) line(`hydra-read ${result.hydra.recall.error}`)
   line(`sources ${result.report.sources?.length || 0} public sources`)
-  line(`receipt ${apiBase}${result.receiptPath}`)
+  line(`receipt ${directMode ? result.receiptPath : `${apiBase}${result.receiptPath}`}`)
   if (hasIncompleteEvidence(result)) {
     line('warning incomplete evidence · do not treat this run as a verified case')
     process.exitCode = 1

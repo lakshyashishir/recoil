@@ -81,6 +81,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Persist cross-repository shared-resolution correlations as explicit HydraDB graph edges.
 - [x] Isolate mocked test responses from the live GitHub evidence cache.
 - [x] Prefer raw GitHub reads for known manifests, lockfiles, workflows, containers, and ownership files; keep optional directory metadata non-fatal during API outages.
+- [x] Add an explicit in-process CLI transport that reuses the autonomous state machine when an API server is not available.
 
 ### Still required before calling the hackathon build complete
 

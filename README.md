@@ -164,6 +164,11 @@ npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --proof
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository-a https://github.com/owner/repository-b https://github.com/owner/repository-c" --recording
 ```
 
+For terminal agents or environments where the API port is unavailable, add `--direct`. It runs the same
+autonomous investigation state machine in-process, uses the same HydraDB and OpenAI configuration, and
+writes a portable receipt to `.recoil-recordings/<case-id>.json`. The default CLI remains API-backed so it
+can share a live case with the browser.
+
 The CLI exits nonzero when collection is partial or a repository is `UNKNOWN`, including with `--json`, even though it still prints
 the partial report and receipt URL. This makes it safe to use in CI and prevents an incomplete public case
 from being recorded as a successful demo.
