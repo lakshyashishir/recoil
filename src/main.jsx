@@ -348,6 +348,17 @@ function FixProof({ finding, challenge }) {
   </section>
 }
 
+function ChangeProof({ finding }) {
+  const change = finding?.changeEvidence
+  if (!change?.importerFilesChanged?.length) return null
+  const owners = [...new Set(change.importerFilesChanged.flatMap((item) => item.owners || []))]
+  return <div className="change-proof">
+    <div className="change-proof-heading"><div><span className="section-kicker">Recent importer change</span><strong>{change.message || 'A public change touched the imported file'}</strong><small>{change.committedAt?.slice(0, 10) || 'date unavailable'} · {change.totalFilesChanged || change.sampledFilesChanged || 0} files changed</small></div>{change.sourceUrl && <SourceLink href={change.sourceUrl}>Open commit</SourceLink>}</div>
+    <div className="change-proof-meta"><span><b>Importer</b>{change.importerFilesChanged.map((item) => `${item.path}${item.line ? `:${item.line}` : ''}`).join(', ')}</span><span><b>Owners</b>{owners.length ? owners.join(', ') : 'CODEOWNERS not collected'}</span></div>
+    <p>This is change history for the observed importer, not a claim that the commit introduced the advisory.</p>
+  </div>
+}
+
 function RouteProof({ finding, challenge }) {
   if (!finding) return null
   const parts = findingParts(finding)
@@ -357,6 +368,7 @@ function RouteProof({ finding, challenge }) {
     <p className="proof-reason">{finding.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
     <div className="route-steps">{parts.map((part, index) => <div className="route-step" key={`${part}-${index}`}><span>{index + 1}</span><strong>{shorten(routeDisplayPart(part, finding), 38)}</strong><small>{index === 0 ? 'advisory' : index === parts.length - 1 ? 'source' : 'observed hop'}</small></div>)}</div>
     <ImportProof finding={finding} />
+    <ChangeProof finding={finding} />
     <FixProof finding={finding} challenge={challenge} />
     <div className="proof-bottom">
       <div className="proof-sources"><span className="section-kicker">Sources</span><div>{sourceLinks.slice(0, 4).map((source) => <SourceLink key={source} href={source}>{sourceHost(source)}</SourceLink>)}</div></div>

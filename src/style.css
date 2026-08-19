@@ -423,6 +423,16 @@ body { font-family: var(--sans); line-height: 1.45; }
 .fix-proof-boundary svg { flex: 0 0 auto; margin-top: 1px; color: var(--green); }
 .fix-proof-boundary .source-link { flex: 0 0 auto; margin-left: auto; }
 .proof-bottom { grid-template-columns: 1fr; }
+.change-proof { margin-top: 17px; padding: 15px 0 0; border-top: 1px solid var(--line-soft); }
+.change-proof-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.change-proof-heading > div { display: grid; gap: 5px; min-width: 0; }
+.change-proof-heading .section-kicker { margin: 0; }
+.change-proof-heading strong { overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.change-proof-heading small { color: var(--muted); font-size: 11px; }
+.change-proof-meta { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-top: 12px; color: var(--muted); font-size: 11px; }
+.change-proof-meta span { display: grid; gap: 4px; }
+.change-proof-meta b { color: var(--faint); font-size: 10px; font-weight: 500; }
+.change-proof > p { margin: 11px 0 0; color: var(--faint); font-size: 11px; line-height: 1.45; }
 
 @media (max-width: 720px) {
   .phase-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 0; }
@@ -434,6 +444,7 @@ body { font-family: var(--sans); line-height: 1.45; }
   .fix-proof-arrow { transform: rotate(90deg); }
   .fix-proof-boundary { flex-wrap: wrap; }
   .fix-proof-boundary .source-link { margin-left: 23px; }
+  .change-proof-heading { align-items: flex-start; flex-direction: column; gap: 9px; }
 }
 
 /* Case navigation: a quiet way to move through the proof without turning the report into a dashboard. */
