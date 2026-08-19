@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Database, Download, ExternalLink, FileCode2, GitBranch, History, LoaderCircle, PackageCheck, RotateCcw, ShieldCheck, Waypoints } from 'lucide-react'
+import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Database, Download, ExternalLink, FileCode2, LoaderCircle, PackageCheck, RotateCcw, ShieldCheck, Waypoints } from 'lucide-react'
 import './style.css'
 
 const SCENARIO_ID = '0017'
@@ -377,19 +377,6 @@ function TemporalProof({ report, onRewind }) {
   </section>
 }
 
-function ProofOverview({ report }) {
-  const reached = report?.repositories?.find((finding) => finding.verdict === 'REACHED')
-  const challenge = report?.challenge?.find((item) => item.repository === reached?.repository)
-  const importer = reached?.imports?.[0]
-  const items = [
-    { label: 'Affected release', value: reached?.resolvedVersion ? `${reached.packageName}@${reached.resolvedVersion}` : report?.package || 'Not resolved', detail: reached?.resolvedVersion ? 'resolved from a public lockfile' : 'no affected release was resolved', icon: <GitBranch size={16} /> },
-    { label: 'Code path', value: importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'No import observed', detail: importer ? 'an exact sampled source import' : 'source evidence did not show an import', icon: <FileCode2 size={16} /> },
-    { label: 'First observed', value: reached?.pathObservedAt?.slice(0, 10) || 'Undated', detail: reached?.exposureDays != null ? `${reached.exposureDays} days before disclosure` : 'repository history was not dated', icon: <History size={16} /> },
-    { label: 'Remediation', value: challenge?.proposedVersion ? `Upgrade to ${challenge.proposedVersion}` : challenge?.status === 'ALREADY_SAFE' ? 'Already outside range' : 'Review required', detail: challenge?.status === 'FIX_SURVIVES' || challenge?.status === 'ALREADY_SAFE' ? 'the observed path is closed by evidence' : 'no verified change for this path', icon: <PackageCheck size={16} /> },
-  ]
-  return <section className="proof-overview"><div className="proof-overview-heading"><div><span className="section-kicker">What was proved</span><h2>From advisory to source line.</h2></div><p>Every value below comes from the collected report. Nothing here represents a live exploit or production claim.</p></div><div className="proof-overview-grid">{items.map((item) => <div className="proof-overview-item" key={item.label}><span className="proof-overview-icon">{item.icon}</span><div><span>{item.label}</span><strong>{item.value}</strong><small>{item.detail}</small></div></div>)}</div></section>
-}
-
 function IntegrityDetails({ report, hydra, evidenceStatus }) {
   const quality = report?.evidenceQuality || {}
   const sourceCount = report?.sources?.length || 0
@@ -434,7 +421,6 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   return <main className="case-page">
     <section className="case-hero"><div><span className="section-kicker">Evidence report</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{summary.fixSurvives || 0}</strong><span>fixes verified</span></div></section>
-    <ProofOverview report={report} />
     <CaseNavigator finding={selectedFinding} />
     <div className="case-workspace" id="case-graph"><EvidenceMap report={report} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
     <RouteProof finding={selectedFinding} challenge={challenge} />
