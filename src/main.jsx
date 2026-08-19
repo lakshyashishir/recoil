@@ -430,7 +430,7 @@ function FixProof({ finding, challenge }) {
   const currentVersion = finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'
   const proposedVersion = challenge.proposedVersion || 'no fixed version'
   const verified = ['FIX_SURVIVES', 'ALREADY_SAFE'].includes(challenge.status)
-  const lockfileSource = (finding.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source)) || finding.evidenceSources?.[0]
+  const lockfileSource = finding.lockfileSource || (finding.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source)) || finding.evidenceSources?.[0]
   const statusLabel = challenge.status === 'FIX_SURVIVES'
     ? 'Version-level proof'
     : challenge.status === 'ALREADY_SAFE'
@@ -498,6 +498,65 @@ function TemporalProof({ report, onRewind }) {
     <div className="temporal-controls"><button className={beforeActive ? 'active' : ''} onClick={() => onRewind(before)}><Clock3 size={15} /><span>Before disclosure</span><small>{before.slice(0, 10)}</small></button><button className={!beforeActive ? 'active' : ''} onClick={() => onRewind(current)}><ShieldCheck size={15} /><span>Current evidence</span><small>{current?.slice(0, 10) || 'today'}</small></button></div>
     <div className="temporal-stats"><span><strong>{memory?.datedChunkCount || 0}</strong><small>dated facts</small></span><span><strong>{memory?.graphContext?.tripletCount || 0}</strong><small>graph triplets</small></span><span><strong>{memory?.relatedCaseCount || 0}</strong><small>related cases</small></span></div>
     <details className="memory-evidence"><summary>Inspect recalled relationships <span>{triplets.length} returned</span></summary>{triplets.length ? <div className="memory-triplets">{triplets.slice(0, 6).map((triplet, index) => <div className="memory-triplet" key={`${triplet.source}-${triplet.predicate}-${triplet.target}-${index}`}><strong>{triplet.source || 'entity'}</strong><span>{triplet.predicate || 'connected to'}</span><strong>{triplet.target || 'entity'}</strong></div>)}</div> : <p>No graph relationships were returned for this temporal read.</p>}</details>
+  </section>
+}
+
+function dateLabel(value) {
+  if (!value) return 'not dated'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'not dated' : date.toISOString().slice(0, 10)
+}
+
+function CaseChronology({ finding, report, challenge, historical, onOpenHistory }) {
+  if (!finding && !report?.advisory?.published) return null
+  const lockfileSource = finding?.lockfileSource || (finding?.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source)) || finding?.evidenceSources?.[0]
+  const fixLabel = historical
+    ? 'Return to current evidence'
+    : challenge?.status === 'FIX_SURVIVES'
+      ? `${finding?.packageName || 'package'}@${challenge.proposedVersion}`
+      : challenge?.status === 'ALREADY_SAFE'
+        ? 'Already outside range'
+        : challenge?.status === 'MANIFEST_CHANGE_REQUIRED'
+          ? 'Manifest change required'
+          : challenge?.status === 'NO_REACHABLE_PATH'
+            ? `Update to ${challenge.proposedVersion || 'a fixed version'}`
+            : 'Fix not proven'
+  const fixDetail = historical
+    ? 'Remediation is available in the current view.'
+    : challenge?.status === 'FIX_SURVIVES'
+      ? 'The proposed version is outside the affected range and admitted by the declared range.'
+      : challenge?.status === 'ALREADY_SAFE'
+        ? 'No version change is required for this observed resolution.'
+        : challenge?.detail || 'The available evidence does not support a stronger fix claim.'
+  const steps = [
+    {
+      kind: 'observed',
+      label: finding?.verdict === 'REACHED' ? 'Path observed' : 'Repository evidence',
+      date: finding?.pathObservedAt,
+      detail: finding?.exposureDays != null ? `${finding.exposureDays} days before disclosure` : finding?.pathObservedAt ? 'First dated repository evidence' : 'No dated path collected',
+      source: finding?.pathObservationSource || lockfileSource,
+    },
+    {
+      kind: 'published',
+      label: 'Advisory published',
+      date: report?.advisory?.published,
+      detail: report?.advisory?.id ? report.advisory.id : 'Public advisory date',
+      source: report?.advisory?.sourceUrl,
+    },
+    {
+      kind: 'fix',
+      label: 'Fix check',
+      date: null,
+      value: fixLabel,
+      detail: fixDetail,
+      source: lockfileSource,
+    },
+  ]
+  return <section className="case-chronology" aria-label="Evidence chronology">
+    <div className="case-chronology-heading"><div><span className="section-kicker">Evidence chronology</span><h2>What happened, in time.</h2><p>Dates come from public advisory and repository history. The fix is a version check, not a code change.</p></div>{report?.rewind?.beforeAdvisory && <button className="chronology-action" type="button" onClick={onOpenHistory}>{historical ? 'Compare current evidence' : 'Open history'} <ArrowUpRight size={13} /></button>}</div>
+    <div className="case-chronology-track">
+      {steps.map((step, index) => <article className={`chronology-step chronology-step-${step.kind}`} key={step.label}><span className="chronology-index">0{index + 1}</span><span className="chronology-label">{step.label}</span><strong>{step.value || dateLabel(step.date)}</strong><small>{step.detail}</small>{step.source ? <SourceLink href={step.source}>source</SourceLink> : <span className="chronology-source-missing">source unavailable</span>}</article>)}
+    </div>
   </section>
 }
 
@@ -729,7 +788,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} hydra={hydra} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel">
-      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /></>}
+      {activeTab === 'graph' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={() => setActiveTab('history')} /><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <TemporalProof report={report} onRewind={onRewind} />}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}

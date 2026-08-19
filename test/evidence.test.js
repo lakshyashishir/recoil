@@ -68,6 +68,7 @@ test('advisory ranges classify reached, declared-only, and fixed repositories', 
   assert.equal(fixed.verdict, 'NOT_AFFECTED')
   assert.equal(reached.targetVersion, '1.2.6')
   assert.equal(reached.rangeAllowsFix, true)
+  assert.equal(reached.lockfileSource, 'https://github.com/example/app/blob/HEAD/package-lock.json')
 })
 
 test('reachability can attach latest importer change evidence without changing the verdict', () => {

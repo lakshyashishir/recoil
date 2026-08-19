@@ -605,6 +605,27 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-tab-panel { min-height: 420px; }
 .case-tab-panel > .route-proof, .case-tab-panel > .temporal-proof, .case-tab-panel > .integrity-details { margin-top: 0; }
 
+.case-chronology { margin: 0 0 22px; padding: 17px 0 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.case-chronology-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.case-chronology-heading > div { min-width: 0; }
+.case-chronology-heading .section-kicker { margin-bottom: 6px; }
+.case-chronology-heading h2 { margin: 0 0 6px; color: var(--text); font-size: 19px; font-weight: 600; letter-spacing: -.025em; }
+.case-chronology-heading p { max-width: 680px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.chronology-action { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 0; color: var(--accent); background: transparent; font-size: 11px; }
+.chronology-action:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.case-chronology-track { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 17px; }
+.chronology-step { display: grid; grid-template-columns: 26px minmax(0, 1fr); grid-template-rows: auto auto auto auto; gap: 4px 10px; min-width: 0; padding: 11px 18px 5px 0; border-top: 2px solid var(--line); }
+.chronology-step + .chronology-step { padding-left: 18px; border-left: 1px solid var(--line-soft); }
+.chronology-step-observed { border-top-color: var(--red); }
+.chronology-step-published { border-top-color: var(--accent); }
+.chronology-step-fix { border-top-color: var(--green); }
+.chronology-index { grid-row: span 4; color: var(--faint); font: 10px/1 var(--mono); }
+.chronology-label { color: var(--muted); font-size: 10px; }
+.chronology-step strong { overflow: hidden; color: var(--text); font: 600 12px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.chronology-step small { overflow: hidden; color: var(--muted); font-size: 10px; line-height: 1.4; text-overflow: ellipsis; }
+.chronology-step .source-link, .chronology-source-missing { width: max-content; font-size: 9px; }
+.chronology-source-missing { color: var(--faint); font: 9px/1.4 var(--mono); }
+
 /* The graph is the evidence surface; this strip gives the viewer the decision
    loop before they have to decode the graph. Every sentence comes from the
    selected finding and its computed fix challenge. */
@@ -638,6 +659,11 @@ body { font-family: var(--sans); line-height: 1.45; }
   .case-navigator-selection { width: 100%; }
   .case-navigator-links { width: 100%; justify-content: space-between; }
   .case-navigator-links button { padding-left: 3px; padding-right: 3px; }
+  .case-chronology-heading { align-items: flex-start; flex-direction: column; gap: 11px; }
+  .chronology-action { align-self: flex-start; }
+  .case-chronology-track { grid-template-columns: 1fr; gap: 0; }
+  .chronology-step, .chronology-step + .chronology-step { padding: 12px 0; border-left: 0; border-top: 1px solid var(--line-soft); }
+  .chronology-step-observed { border-top-color: var(--red); }
   .proof-loop-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
   .proof-loop-steps { grid-template-columns: 1fr; gap: 0; }
   .proof-loop-step, .proof-loop-step + .proof-loop-step { padding: 13px 0; border-left: 0; border-top: 1px solid var(--line-soft); }

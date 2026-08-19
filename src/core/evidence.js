@@ -306,6 +306,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
     sourceBound: codeGraph.fileCount
       ? `${codeGraph.fileCount} of ${sourceCandidateCount || codeGraph.fileCount} eligible source files analyzed${sourceSampleLimit && sourceCandidateCount > sourceSampleLimit ? ` · sample limit ${sourceSampleLimit}` : ''}${imports.length ? ` · ${imports.length} import${imports.length === 1 ? '' : 's'} found` : ' · no import found'}${sourceEvidenceIncomplete ? ` · collection ${sourceCollection.status}` : ''}`
       : `No source files sampled${sourceEvidenceIncomplete ? ` · collection ${sourceCollection.status}` : ''}`,
+    lockfileSource,
     evidenceSources: [...new Set([
       repository?.sourceUrl,
       manifest.lockfile ? (repository?.sources || []).find((source) => source.path === manifest.lockfile)?.url : null,
@@ -325,7 +326,8 @@ export function buildObservedGraph({ advisoryId, advisorySourceUrl = null, packa
     const lockfileLabel = evidencePath.find((part) => /(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|cargo\.lock)$/i.test(String(part))) || evidencePath[2] || evidencePath[3] || 'unknown'
     const lockId = `lock:${finding.repository}:${lockfileLabel}`
     const lockfileToken = String(lockfileLabel || '').toLowerCase()
-    const lockfileSource = (finding.evidenceSources || []).find((source) => lockfileToken !== 'unknown' && String(source).toLowerCase().includes(lockfileToken))
+    const lockfileSource = finding.lockfileSource
+      || (finding.evidenceSources || []).find((source) => lockfileToken !== 'unknown' && String(source).toLowerCase().includes(lockfileToken))
       || (finding.evidenceSources || []).find((source) => /(?:lock|cargo\.toml|cargo\.lock)/i.test(source))
       || finding.evidenceSources?.[0]
       || null

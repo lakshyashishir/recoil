@@ -82,6 +82,7 @@ observed path → proposed fix → residual re-check
 - [x] Render the safe observed-path → proposed-change → re-check proof consistently in browser, CLI, and TUI clients.
 - [x] Persist cross-repository shared-resolution correlations as explicit HydraDB graph edges.
 - [x] Surface shared-resolution correlations in the browser comparison view and link graph advisory, package, and lockfile nodes to their collected public sources.
+- [x] Add a default report chronology for observed repository evidence, advisory publication, and version-backed fix status with explicit undated/unproven states.
 - [x] Isolate mocked test responses from the live GitHub evidence cache.
 - [x] Prefer raw GitHub reads for known manifests, lockfiles, workflows, containers, and ownership files; keep optional directory metadata non-fatal during API outages.
 - [x] Add an explicit in-process CLI transport that reuses the autonomous state machine when an API server is not available.

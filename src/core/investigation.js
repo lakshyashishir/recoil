@@ -24,7 +24,8 @@ function proofStep({ kind, label, status = 'observed', source = null, detail = n
  * chain is auditable: a reviewer can inspect the exact source for each hop.
  */
 function buildProofChain(finding, advisory) {
-  const lockfileSource = (finding.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source))
+  const lockfileSource = finding.lockfileSource
+    || (finding.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source))
     || finding.evidenceSources?.[0]
     || null
   const dependencyPath = finding.dependencyPath || []
@@ -174,7 +175,7 @@ export function buildCrossRepositoryCorrelations(findings = []) {
         repositoryUrl: finding.repositoryUrl || null,
         verdict: finding.verdict || 'UNKNOWN',
         pathObservedAt: finding.pathObservedAt || null,
-        sourceUrls: [...new Set([finding.repositoryUrl, ...(finding.evidenceSources || [])].filter(Boolean))],
+        sourceUrls: [...new Set([finding.repositoryUrl, finding.lockfileSource, ...(finding.evidenceSources || [])].filter(Boolean))],
       })
     }
     groups.set(key, group)

@@ -14,6 +14,7 @@ function canonicalJson(value) {
 function sourceUrlsForFinding(finding) {
   return [...new Set([
     finding.repositoryUrl,
+    finding.lockfileSource,
     ...(finding.imports || []).map((item) => item.sourceUrl),
     ...(finding.evidenceSources || []),
   ].filter(Boolean))]
@@ -36,6 +37,7 @@ function compactFinding(finding) {
     sourceCandidateCount: finding.sourceCandidateCount ?? null,
     sourceSampleLimit: finding.sourceSampleLimit ?? null,
     sourceBound: finding.sourceBound || null,
+    lockfileSource: finding.lockfileSource || null,
     advisoryScope: finding.advisoryScope || { status: 'not_requested', symbols: [] },
     pathObservedAt: finding.pathObservedAt || null,
     exposureDays: finding.exposureDays ?? null,
