@@ -313,6 +313,60 @@ function packageDependencies(packageJson) {
   }
 }
 
+function parsePnpmWorkspace(text = '') {
+  const patterns = []
+  let inPackages = false
+  for (const rawLine of String(text).split(/\r?\n/)) {
+    const line = rawLine.replace(/\s+#.*$/, '')
+    if (/^packages:\s*$/.test(line.trim())) {
+      inPackages = true
+      continue
+    }
+    if (inPackages && /^\S/.test(line) && line.trim()) break
+    if (!inPackages) continue
+    const pattern = line.match(/^\s*-\s*["']?([^"']+?)["']?\s*$/)?.[1]?.trim()
+    if (pattern) patterns.push(pattern)
+  }
+  return patterns.slice(0, 24)
+}
+
+function workspacePatternRegex(pattern) {
+  const clean = String(pattern || '').trim().replace(/^\.\//, '').replace(/\/$/, '')
+  if (!clean) return null
+  const escaped = clean
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '\u0000')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\u0000/g, '.*')
+  return new RegExp(`^${escaped}$`)
+}
+
+function configuredWorkspacePatterns(packageJson, pnpmWorkspaceText = '') {
+  const declared = Array.isArray(packageJson?.workspaces)
+    ? packageJson.workspaces
+    : Array.isArray(packageJson?.workspaces?.packages)
+      ? packageJson.workspaces.packages
+      : []
+  return [...declared, ...parsePnpmWorkspace(pnpmWorkspaceText)]
+    .map((pattern) => String(pattern).trim())
+    .filter(Boolean)
+    .slice(0, 24)
+}
+
+function workspaceManifestPaths(packageJson, treePaths = [], pnpmWorkspaceText = '') {
+  const patterns = configuredWorkspacePatterns(packageJson, pnpmWorkspaceText)
+  const positive = patterns.filter((pattern) => !pattern.startsWith('!')).map(workspacePatternRegex).filter(Boolean)
+  const negative = patterns.filter((pattern) => pattern.startsWith('!')).map((pattern) => workspacePatternRegex(pattern.slice(1))).filter(Boolean)
+  if (!positive.length) return []
+  return treePaths
+    .filter((path) => path.endsWith('/package.json') && path !== 'package.json')
+    .filter((path) => {
+      const directory = path.slice(0, -'/package.json'.length)
+      return positive.some((pattern) => pattern.test(directory)) && !negative.some((pattern) => pattern.test(directory))
+    })
+    .slice(0, 24)
+}
+
 function parseTomlValue(value) {
   const trimmed = value.trim().replace(/\s+#.*$/, '')
   if (trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed.slice(1, -1)
@@ -593,6 +647,21 @@ export async function collectRepository(repository, requestedPackage) {
     : await readGitHubDirectory(repository, '.github/workflows')
   const workflowFiles = (await Promise.all(workflowResult.entries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`, { preferRaw: true })))).filter(Boolean)
   const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path, { preferRaw: true })))).filter(Boolean)
+  const pnpmWorkspaceFile = ecosystem === 'npm' && Array.isArray(treePaths) && treePaths.includes('pnpm-workspace.yaml')
+    ? await readGitHubFile(repository, 'pnpm-workspace.yaml', { preferRaw: true })
+    : null
+  const workspacePaths = ecosystem === 'npm'
+    ? workspaceManifestPaths(packageJson, treePaths || [], pnpmWorkspaceFile?.text || '')
+    : []
+  const workspacePatterns = ecosystem === 'npm' ? configuredWorkspacePatterns(packageJson, pnpmWorkspaceFile?.text || '') : []
+  const workspaceFiles = (await Promise.all(workspacePaths.map((path) => readGitHubFile(repository, path, { preferRaw: true })))).filter(Boolean)
+  for (const workspaceFile of workspaceFiles) {
+    try {
+      Object.assign(dependencies, packageDependencies(JSON.parse(workspaceFile.text)))
+    } catch {
+      // A malformed optional workspace manifest must not erase the root evidence.
+    }
+  }
   const sourceResult = await collectSourceFiles(repository, treePaths, treeError)
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
@@ -636,7 +705,7 @@ export async function collectRepository(repository, requestedPackage) {
     status: 'completed',
     ecosystem,
     sourceUrl: (packageFile || cargoManifestFile).sourceUrl,
-    entities: Object.keys(dependencies).length + lockPackages.length + workflowFiles.length + containerFiles.length + codeGraph.fileCount + codeGraph.importEdgeCount + codeGraph.symbolCount + (codeGraph.recentChange?.sampledFilesChanged || 0),
+    entities: Object.keys(dependencies).length + workspaceFiles.length + (pnpmWorkspaceFile ? 1 : 0) + lockPackages.length + workflowFiles.length + containerFiles.length + codeGraph.fileCount + codeGraph.importEdgeCount + codeGraph.symbolCount + (codeGraph.recentChange?.sampledFilesChanged || 0),
     repository: repositoryEvidenceId(repository),
     repositoryUrl: repository.url,
     synthetic: false,
@@ -649,6 +718,10 @@ export async function collectRepository(repository, requestedPackage) {
       resolvedVersions: inferredPackage ? { [inferredPackage]: resolvedVersions } : {},
       lockfile: lockFile?.path || null,
       lockPackages,
+      workspaces: {
+        patterns: workspacePatterns,
+        files: workspaceFiles.map((file) => file.path),
+      },
       ciSignals,
       deploymentSignals,
       collection: {
@@ -662,7 +735,7 @@ export async function collectRepository(repository, requestedPackage) {
       },
       codeGraph,
     },
-    sources: [packageFile || cargoManifestFile, lockFile, ...workflowFiles, ...containerFiles, ...sourceFiles, codeownersFile, codeGraph.recentChange?.sourceUrl ? { path: `commit:${codeGraph.recentChange.sha}`, sourceUrl: codeGraph.recentChange.sourceUrl } : null].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
+    sources: [packageFile || cargoManifestFile, lockFile, pnpmWorkspaceFile, ...workspaceFiles, ...workflowFiles, ...containerFiles, ...sourceFiles, codeownersFile, codeGraph.recentChange?.sourceUrl ? { path: `commit:${codeGraph.recentChange.sha}`, sourceUrl: codeGraph.recentChange.sourceUrl } : null].filter(Boolean).map((file) => ({ path: file.path, url: file.sourceUrl })),
     observedAt: new Date().toISOString(),
   }
 }

@@ -95,6 +95,7 @@ observed path → proposed fix → residual re-check
 - [x] Align operator documentation with the advisory/package input contract and strict recording gate.
 - [x] Parse bounded Yarn classic/Berry lock entries, preserve selector provenance, and prove an affected import from an extensionless executable entrypoint.
 - [x] Parse bounded pnpm v6-v9 package records and preserve package-to-package dependency evidence without a YAML runtime dependency.
+- [x] Collect bounded npm/Yarn/pnpm workspace manifests so monorepo importers contribute observed dependency roots and source citations.
 
 ### Still required before calling the hackathon build complete
 

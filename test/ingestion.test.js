@@ -498,6 +498,65 @@ test('npm ingestion follows pnpm v9 snapshot edges into an affected import', asy
   }
 })
 
+test('npm ingestion includes a workspace manifest in the source-backed dependency path', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const workspaceAdvisory = {
+    id: 'GHSA-workspace-1234-5678',
+    summary: 'Test advisory for a workspace dependency',
+    published: '2026-01-01T00:00:00Z',
+    affected: [{ package: { ecosystem: 'npm', name: 'minimist' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.2.6' }] }] }],
+    sourceUrl: 'https://api.osv.dev/v1/vulns/ghsa-workspace-1234-5678',
+  }
+  const rootManifest = JSON.stringify({ name: 'workspace-root', workspaces: ['packages/*'] })
+  const workspaceManifest = JSON.stringify({ name: '@example/worker', dependencies: { minimist: '^1.2.0' } })
+  const lock = packageLock('1.2.5')
+  const source = "import minimist from 'minimist'\nexport function parse(argv) { return minimist(argv) }"
+
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') return response(workspaceAdvisory)
+    if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', versions: { '1.2.5': {}, '1.2.6': {} }, maintainers: [] })
+    if (url.hostname === 'raw.githubusercontent.com') {
+      const path = url.pathname.split('/').slice(4).join('/')
+      if (path === 'package.json') return response(rootManifest)
+      if (path === 'package-lock.json') return response(lock)
+      if (path === 'packages/worker/package.json') return response(workspaceManifest)
+      if (path === 'packages/worker/src/index.js') return response(source)
+      return response({}, 404)
+    }
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
+    if (!match || match[1] !== 'example/workspace-app') return response({}, 404)
+    const operation = match[2]
+    if (operation.startsWith('git/trees/')) return response({ tree: [
+      { type: 'blob', path: 'package.json' },
+      { type: 'blob', path: 'packages/worker/package.json' },
+      { type: 'blob', path: 'packages/worker/src/index.js' },
+    ] })
+    if (operation.startsWith('commits')) {
+      if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/workspace-app/commit/oldest', commit: { author: { date: '2025-01-01T00:00:00Z' } } }])
+      return response([])
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-workspace-1234-5678 https://github.com/example/workspace-app', scenarioId: 'workspace-integration-test' })
+    const repository = ingestion.repositories[0]
+    const finding = ingestion.findings[0]
+    assert.equal(ingestion.status, 'completed')
+    assert.deepEqual(repository.manifest.workspaces, { patterns: ['packages/*'], files: ['packages/worker/package.json'] })
+    assert.equal(repository.manifest.dependencies.minimist, '^1.2.0')
+    assert.equal(finding.verdict, 'REACHED')
+    assert.equal(finding.imports[0].path, 'packages/worker/src/index.js')
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+  }
+})
+
 test('network failures preserve the endpoint and downgrade evidence honestly', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (input) => {
