@@ -136,6 +136,9 @@ h1, h2, p { margin-top: 0; }
 .live-evidence-checkpoint-path code { min-width: 0; overflow: hidden; color: var(--text); font: 600 10px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .live-evidence-checkpoint-path .source-link { width: max-content; font-size: 9px; }
 .live-evidence-checkpoint-path-empty { color: var(--muted); }
+.live-open-report { display: inline-flex; align-items: center; gap: 6px; width: max-content; margin-top: 12px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--accent); background: transparent; font-size: 11px; transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease; }
+.live-open-report:hover { border-color: var(--accent); color: var(--text); background: var(--surface); }
+.live-open-report:active { transform: translateY(1px) scale(.99); }
 .live-workspace { display: grid; grid-template-columns: minmax(300px, .7fr) minmax(0, 1.45fr); gap: 42px; align-items: start; padding-top: 30px; }
 .event-journal { min-width: 0; }
 .journal-heading, .map-heading, .route-panel-heading, .proof-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
@@ -229,6 +232,8 @@ h1, h2, p { margin-top: 0; }
 .case-actions { display: grid; justify-items: end; gap: 16px; }
 .case-state { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); font: 10px/1 var(--mono); }
 .case-state-ready { color: var(--green); }
+.case-state-local { color: var(--green); }
+.case-state-error { color: var(--red); }
 .receipt-link { display: inline-flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); font: 10px/1 var(--mono); text-decoration: none; transition: border-color .2s ease, color .2s ease, background .2s ease; }
 .receipt-link:hover { border-color: var(--accent); color: var(--text); background: var(--surface); }
 .case-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 24px 0 32px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }

@@ -237,7 +237,7 @@ function EventStream({ events = [], investigationStatus, query }) {
   </section>
 }
 
-function LiveEvidenceCheckpoint({ report }) {
+function LiveEvidenceCheckpoint({ report, onOpenReport }) {
   if (!report) return null
   const summary = report.summary || {}
   const reached = report.repositories?.find((finding) => finding.verdict === 'REACHED')
@@ -247,7 +247,7 @@ function LiveEvidenceCheckpoint({ report }) {
     ? `${reached.packageName}@${reached.resolvedVersion || 'unresolved'} → ${importer.path}${importer.line ? `:${importer.line}` : ''}`
     : null
   return <section className="live-evidence-checkpoint" aria-live="polite">
-    <div className="live-evidence-checkpoint-copy"><span className="section-kicker">Local evidence ready</span><strong>{ready ? 'The source paths are classified.' : 'A partial report is available for review.'}</strong><p>{ready ? 'HydraDB is the only remaining step: Recoil is waiting for the dated memory write and recall to settle.' : report.evidenceQuality?.reason || 'The report is not ready for a final recording.'}</p></div>
+    <div className="live-evidence-checkpoint-copy"><span className="section-kicker">Local evidence ready</span><strong>{ready ? 'The source paths are classified.' : 'A partial report is available for review.'}</strong><p>{ready ? 'HydraDB is the only remaining step: Recoil is waiting for the dated memory write and recall to settle.' : report.evidenceQuality?.reason || 'The report is not ready for a final recording.'}</p>{ready && onOpenReport && <button className="live-open-report" type="button" onClick={onOpenReport}>Open local report <ArrowUpRight size={13} /></button>}</div>
     <div className="live-evidence-checkpoint-result"><div className="live-evidence-checkpoint-stats"><span><strong>{summary.reached || 0}</strong><small>source path{summary.reached === 1 ? '' : 's'}</small></span><span><strong>{summary.declaredOnly || 0}</strong><small>listed only</small></span><span><strong>{summary.notAffected || 0}</strong><small>outside range</small></span></div>{path ? <div className="live-evidence-checkpoint-path"><span>Observed route</span><code>{path}</code>{importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div> : <span className="live-evidence-checkpoint-path-empty">No source-backed route was collected.</span>}</div>
   </section>
 }
@@ -1134,6 +1134,17 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const challenge = historical ? null : report?.challenge?.find((item) => item.repository === selectedFinding?.repository)
   const summary = historical ? summarizeFindings(findings) : report?.summary || {}
   const recordingReady = report?.evidenceQuality?.readyForRecording
+  const hydraReady = hydra?.status === 'persisted' && hydra?.recall?.status === 'recalled' && !hydra?.indexingError
+  const hydraSkipped = hydra?.status === 'skipped'
+  const reportState = !recordingReady
+    ? { label: 'Review required', icon: 'working', className: '' }
+    : hydra?.recall?.status === 'failed'
+      ? { label: 'HydraDB read failed', icon: 'failed', className: 'case-state-error' }
+      : hydraReady
+        ? { label: 'Recording-ready', icon: 'complete', className: 'case-state-ready' }
+        : hydraSkipped
+          ? { label: 'Local evidence ready', icon: 'complete', className: 'case-state-local' }
+          : { label: 'HydraDB pending', icon: 'working', className: 'case-state-pending' }
   const total = summary.totalRepositories || findings.length
   const historicalDate = report?.rewind?.asOf?.slice(0, 10)
   const advisorySummary = report?.advisory?.summary
@@ -1170,7 +1181,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
-    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}<CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}<CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>source path found</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>listed, not imported</span></div><div><strong>{summary.notAffected || 0}</strong><span>already outside range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix proof' : 'fix proofs'}</span></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => onRewind(report?.rewind?.currentAsOf) : null} />
     <TemporalHighlight report={report} summary={summary} finding={primaryFinding} challenge={primaryChallenge} earliestReached={earliestReached} onInspectProof={() => inspectProof(primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} />
@@ -1185,7 +1196,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   </main>
 }
 
-function RunningView({ snapshot }) {
+function RunningView({ snapshot, onOpenReport }) {
   const investigation = snapshot?.investigation
   const events = investigation?.events || []
   const finalizing = investigation?.status === 'finalizing'
@@ -1199,7 +1210,7 @@ function RunningView({ snapshot }) {
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} />}<div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} onOpenReport={onOpenReport} />}<div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function FailedView({ snapshot, onNewCase }) {
@@ -1240,6 +1251,7 @@ function App() {
   const [hydra, setHydra] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [showReportEarly, setShowReportEarly] = useState(false)
   const [theme, toggleTheme] = useTheme()
   const investigation = snapshot?.investigation
 
@@ -1283,7 +1295,7 @@ function App() {
 
   async function investigate() {
     if (!input.trim() || busy) return
-    setBusy(true); setError(''); setReport(null); setHydra(null)
+    setBusy(true); setError(''); setReport(null); setHydra(null); setShowReportEarly(false)
     try {
       const next = await api(`/api/scenarios/${SCENARIO_ID}/investigate`, { method: 'POST', body: JSON.stringify({ query: input.trim() }) })
       setSnapshot(next)
@@ -1301,11 +1313,12 @@ function App() {
 
   async function newInvestigation() {
     try { await api(`/api/scenarios/${SCENARIO_ID}/reset`, { method: 'POST' }) } catch (cause) { setError(`Could not reset the case. ${cause.message}`); return }
-    setSnapshot(null); setReport(null); setHydra(null); setError(''); setInput(DEFAULT_INPUT)
+    setSnapshot(null); setReport(null); setHydra(null); setError(''); setInput(DEFAULT_INPUT); setShowReportEarly(false)
   }
 
   if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} theme={theme} onToggleTheme={toggleTheme} />
-  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{isComplete ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /> : investigation?.status === 'failed' ? <FailedView snapshot={snapshot} onNewCase={newInvestigation} /> : <RunningView snapshot={snapshot} />}{error && investigation?.status !== 'failed' && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
+  const showReport = Boolean(activeReport && (isComplete || showReportEarly))
+  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{showReport ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /> : investigation?.status === 'failed' ? <FailedView snapshot={snapshot} onNewCase={newInvestigation} /> : <RunningView snapshot={snapshot} onOpenReport={() => setShowReportEarly(true)} />}{error && investigation?.status !== 'failed' && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
 class AppBoundary extends Component {
