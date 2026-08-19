@@ -989,6 +989,25 @@ function TemporalHighlight({ report, summary = {}, finding, challenge, earliestR
   </section>
 }
 
+function CaseScopeLine({ report, hydra, historical = false }) {
+  const sampledFiles = report?.evidenceQuality?.sourceCoverage?.sampledFiles
+  const entities = report?.graph?.nodes?.length
+  const memory = report?.rewind?.memory || hydra?.recall
+  const datedFacts = memory?.datedChunkCount
+  const memoryLabel = memory?.status === 'recalled'
+    ? `${datedFacts || 0} dated facts recalled`
+    : memory?.status === 'queued'
+      ? 'dated facts indexing'
+      : 'dated facts unavailable'
+  const signals = [
+    Number.isFinite(sampledFiles) ? `${sampledFiles} files sampled` : null,
+    Number.isFinite(entities) ? `${entities} graph entities` : null,
+    historical ? 'historical snapshot' : memoryLabel,
+  ].filter(Boolean)
+  if (!signals.length) return null
+  return <div className="case-scope-line" aria-label="Evidence scope"><span>{signals.join(' · ')}</span><span className="case-scope-boundary">No install · no execution</span></div>
+}
+
 function CaseConclusion({ report, findings, summary, historical, hydra }) {
   const imports = findings.reduce((total, finding) => total + (finding.imports?.length || 0), 0)
   const challenge = report?.challenge || []
@@ -1151,7 +1170,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
-    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}<CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>source path found</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>listed, not imported</span></div><div><strong>{summary.notAffected || 0}</strong><span>already outside range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix proof' : 'fix proofs'}</span></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => onRewind(report?.rewind?.currentAsOf) : null} />
     <TemporalHighlight report={report} summary={summary} finding={primaryFinding} challenge={primaryChallenge} earliestReached={earliestReached} onInspectProof={() => inspectProof(primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} />

@@ -178,7 +178,8 @@ h1, h2, p { margin-top: 0; }
 .map-heading > div { min-width: 0; }
 .map-heading-detail { max-width: 560px; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
 .map-canvas { position: relative; min-width: 0; padding: 10px 12px 0; overflow: hidden; }
-.map-canvas svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; overflow: visible; }
+.map-canvas > svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; overflow: visible; }
+.graph-inspector svg { width: auto; height: auto; }
 .map-layer-label { fill: var(--faint); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
 .map-edge { color: var(--line); stroke: currentColor; stroke-width: 1.4; opacity: .72; }
 .map-edge-selected { color: var(--accent); stroke-width: 2.3; opacity: 1; stroke-dasharray: 7 6; }
@@ -522,6 +523,8 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-temporal-signal > span { display: grid; gap: 3px; }
 .case-temporal-signal strong { color: var(--text); font-size: 12px; font-weight: 600; }
 .case-temporal-signal small { color: var(--muted); font-size: 11px; }
+.case-scope-line { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; margin-top: 14px; color: var(--muted); font: 11px/1.4 var(--mono); }
+.case-scope-boundary { color: var(--green); }
 .case-summary { margin-top: 27px; }
 .case-summary div { padding-top: 18px; padding-bottom: 18px; }
 .case-summary strong { font-size: 24px; }
@@ -757,6 +760,7 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-advisory { margin-bottom: 12px; }
 .case-hero p { font-size: 13px; }
 .case-temporal-signal { margin-top: 8px; }
+.case-scope-line { margin-top: 10px; font-size: 10px; }
 .case-actions { gap: 10px; }
 .case-summary { margin-top: 14px; margin-bottom: 16px; }
 .case-summary div { padding-top: 11px; padding-bottom: 11px; }
