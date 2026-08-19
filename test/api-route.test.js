@@ -129,6 +129,11 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     assert.equal('legacyArenaAgents' in health.body, false)
     const retiredArena = await request('POST', `/api/scenarios/${id}/arena/start`, {})
     assert.equal(retiredArena.statusCode, 404)
+
+    const reset = await request('POST', `/api/scenarios/${id}/reset`)
+    assert.equal(reset.statusCode, 200)
+    assert.equal(reset.body.state.status, 'idle')
+    assert.equal(reset.body.scenario.query, '')
   } finally {
     globalThis.fetch = previousFetch
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY

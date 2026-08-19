@@ -254,12 +254,18 @@ function App() {
     } catch (cause) { setError(cause.message) }
   }
 
-  function newInvestigation() {
-    setSnapshot(null); setReport(null); setHydra(null); setError('')
+  async function newInvestigation() {
+    try {
+      await api(`/api/scenarios/${SCENARIO_ID}/reset`, { method: 'POST' })
+    } catch (cause) {
+      setError(`Could not reset the case on the server. ${cause.message}`)
+      return
+    }
+    setSnapshot(null); setReport(null); setHydra(null); setError(''); setInput(DEFAULT_INPUT)
   }
 
   if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} />
-  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} />{isComplete ? <><FinalReport report={activeReport} hydra={hydra || investigation?.hydra} onRewind={rewind} /><div className="new-case-wrap"><button onClick={newInvestigation}><RotateCcw size={14} /> New investigation</button></div></> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
+  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} />{isComplete ? <><FinalReport report={activeReport} hydra={hydra || investigation?.hydra} onRewind={rewind} /><div className="new-case-wrap"><button type="button" onClick={newInvestigation}><RotateCcw size={14} /> New investigation</button></div></> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
 class AppBoundary extends Component {
