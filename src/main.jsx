@@ -1,4 +1,5 @@
 import { Component, useEffect, useMemo, useState } from 'react'
+import { createRoot } from 'react-dom/client'
 import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Download, ExternalLink, LoaderCircle, RotateCcw, ShieldCheck } from 'lucide-react'
 import './style.css'
 
