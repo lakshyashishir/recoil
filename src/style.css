@@ -292,9 +292,9 @@ h1, h2, p { margin-top: 0; }
   .landing-footer { gap: 7px; }
   .product-header { grid-template-columns: 1fr auto; gap: 12px; padding: 15px 18px; }
   .header-case { grid-row: 2; grid-column: 1 / -1; }
-  .header-actions { gap: 9px; }
-  .header-status { font-size: 9px; }
-  .header-new-case { padding: 6px 7px; font-size: 10px; }
+  .header-actions { min-width: 0; gap: 9px; }
+  .header-status { max-width: 112px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .header-new-case { padding: 6px 7px; font-size: 10px; white-space: nowrap; }
   .live-page, .case-page { width: calc(100% - 36px); }
   .live-page, .case-page { padding-top: 38px; }
   .live-heading h1 { font-size: 44px; }
@@ -307,8 +307,9 @@ h1, h2, p { margin-top: 0; }
   .map-canvas { padding-left: 4px; padding-right: 4px; }
   .graph-inspector { align-items: flex-start; flex-direction: column; gap: 9px; padding: 12px 17px 14px; }
   .graph-inspector-actions { justify-content: flex-start; }
+  .case-hero { grid-template-columns: minmax(0, 1fr); }
   .case-hero h1 { font-size: 48px; }
-  .case-actions { justify-items: start; }
+  .case-actions { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .case-summary { grid-template-columns: repeat(2, 1fr); }
   .case-summary div:nth-child(2) { border-right: 0; }
   .case-summary div:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
