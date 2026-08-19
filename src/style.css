@@ -883,3 +883,50 @@ body { font-family: var(--sans); line-height: 1.45; }
   .case-decision-meta { padding-top: 10px; padding-left: 0; border-top: 2px solid var(--accent); border-left: 0; }
   .case-decision-callout-historical .case-decision-meta { border-top-color: var(--faint); }
 }
+
+/* The completed report leads with cited routes. The full graph remains
+   available for inspection, but it no longer makes the reviewer decode a
+   dense entity map before seeing the repository-level decision. */
+.proof-map-list { display: grid; }
+.proof-map-lane { min-width: 0; padding: 15px 20px 16px; border-bottom: 1px solid var(--line-soft); }
+.proof-map-lane:last-child { border-bottom: 0; }
+.proof-map-lane-selected { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); box-shadow: inset 2px 0 0 var(--accent); }
+.proof-map-repository { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 0; color: var(--text); background: transparent; text-align: left; }
+.proof-map-repository:hover .proof-map-repository-copy strong { color: var(--accent); }
+.proof-map-index { color: var(--faint); font: 11px/1 var(--mono); }
+.proof-map-repository-copy { min-width: 0; display: grid; gap: 4px; }
+.proof-map-repository-copy strong { overflow: hidden; color: var(--text); font: 600 13px/1.25 var(--mono); text-overflow: ellipsis; white-space: nowrap; transition: color .2s ease; }
+.proof-map-repository-copy small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.proof-map-path { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; margin: 13px 0 0 28px; padding-bottom: 3px; scrollbar-width: thin; }
+.proof-map-hop-wrap { display: flex; align-items: center; min-width: 0; }
+.proof-map-hop { width: 148px; min-height: 72px; display: grid; align-content: start; gap: 5px; padding: 10px 11px; border-top: 2px solid var(--line); border-right: 1px solid var(--line-soft); background: var(--surface); }
+.proof-map-hop-advisory { border-top-color: var(--accent); }
+.proof-map-hop-resolved, .proof-map-hop-source, .proof-map-hop-symbol { border-top-color: var(--red); }
+.proof-map-hop-lockfile { border-top-color: var(--accent); }
+.proof-map-hop-repository { border-top-color: var(--green); }
+.proof-map-hop > span { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.proof-map-hop strong { overflow: hidden; color: var(--text); font: 600 11px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.proof-map-hop .source-link, .proof-map-hop-missing { width: max-content; margin-top: auto; font-size: 9px; }
+.proof-map-hop-missing { color: var(--faint); }
+.proof-map-arrow { flex: 0 0 auto; width: 27px; align-self: center; color: var(--faint); font-size: 15px; font-style: normal; text-align: center; }
+.proof-map-no-path { display: grid; gap: 4px; margin: 13px 0 0 28px; padding: 12px; border: 1px dashed var(--line); color: var(--muted); background: var(--surface); }
+.proof-map-no-path span { font-size: 12px; font-weight: 600; }
+.proof-map-no-path small, .proof-map-lane-note { color: var(--faint); font-size: 10px; line-height: 1.4; }
+.proof-map-lane-note { margin: 10px 0 0 28px; }
+.full-graph-disclosure { border-top: 1px solid var(--line); }
+.full-graph-disclosure summary { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 13px 20px; color: var(--text); background: var(--surface); cursor: pointer; font-size: 12px; font-weight: 600; list-style: none; }
+.full-graph-disclosure summary::-webkit-details-marker { display: none; }
+.full-graph-disclosure summary::before { content: '+'; display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 7px; border: 1px solid var(--line); color: var(--muted); font: 14px/1 var(--sans); }
+.full-graph-disclosure[open] summary::before { content: '−'; }
+.full-graph-disclosure summary span { margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 400; }
+.full-graph-disclosure summary:hover { color: var(--accent); }
+.full-graph-disclosure-body { border-top: 1px solid var(--line-soft); }
+.full-graph-disclosure-body > .evidence-map { border: 0; border-radius: 0; }
+
+@media (max-width: 720px) {
+  .proof-map-lane { padding-right: 17px; padding-left: 17px; }
+  .proof-map-path { margin-left: 0; }
+  .proof-map-lane-note, .proof-map-no-path { margin-left: 0; }
+  .full-graph-disclosure summary { align-items: flex-start; flex-wrap: wrap; padding-right: 17px; padding-left: 17px; }
+  .full-graph-disclosure summary span { width: 100%; margin-left: 23px; }
+}
