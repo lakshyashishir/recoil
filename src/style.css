@@ -1317,3 +1317,55 @@ body { font-family: var(--sans); line-height: 1.45; }
   .failure-evidence-heading { align-items: flex-start; flex-direction: column; gap: 9px; }
   .failure-evidence .evidence-map { min-height: 300px; }
 }
+
+/* The path-first report already contains the cited evidence. Its repository
+   list is a decision index, so keep it compact instead of repeating the full
+   comparison matrix underneath every path. */
+.route-list-compact .route-item-compact {
+  grid-template-columns: 28px minmax(180px, 1.2fr) minmax(180px, 1fr) auto;
+  gap: 16px;
+}
+.route-list-compact .route-item-compact .route-item-repository,
+.route-list-compact .route-item-compact .route-item-action {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.route-list-compact .route-item-compact .route-item-repository strong,
+.route-list-compact .route-item-compact .route-item-action b {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.route-list-compact .route-item-compact .route-item-repository small,
+.route-list-compact .route-item-compact .route-item-action small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.route-list-compact .route-item-compact .route-item-action b { color: var(--accent); }
+.route-list-compact .route-item-compact.route-item-selected .route-item-action b { color: var(--text); }
+
+@media (max-width: 720px) {
+  .route-list-compact .route-item-compact {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 7px 9px;
+    align-items: start;
+  }
+  .route-list-compact .route-item-compact .route-item-repository { grid-column: 2; grid-row: 1; }
+  .route-list-compact .route-item-compact .route-item-action {
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: baseline;
+    gap: 8px;
+  }
+  .route-list-compact .route-item-compact > .verdict { grid-column: 3; grid-row: 1; }
+}
