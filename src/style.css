@@ -208,9 +208,14 @@ h1, h2, p { margin-top: 0; }
 .graph-inspector-evidence strong { overflow: hidden; color: var(--text); font: 600 11px/1.25 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .graph-inspector-evidence code { display: block; max-width: 290px; overflow: hidden; color: var(--muted); font: 10px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .graph-inspector-evidence .source-link { width: max-content; font-size: 9px; }
+.graph-inspector-proof { display: grid; gap: 3px; min-width: 0; padding-left: 12px; border-left: 2px solid var(--accent); }
+.graph-inspector-proof span { color: var(--muted); font-size: 10px; }
+.graph-inspector-proof strong { overflow: hidden; color: var(--text); font: 600 10px/1.3 var(--sans); text-overflow: ellipsis; white-space: nowrap; }
 .graph-inspector-relations { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; color: var(--muted); font: 10px/1.2 var(--mono); }
-.graph-inspector-relations span { display: inline-flex; align-items: center; gap: 5px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.graph-inspector-relations span { display: inline-flex; align-items: baseline; gap: 5px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .graph-inspector-relations i { color: var(--accent); font-style: normal; }
+.graph-inspector-relations strong { overflow: hidden; color: var(--muted); font: 500 9px/1.2 var(--sans); text-overflow: ellipsis; white-space: nowrap; }
+.graph-inspector-relations em { overflow: hidden; color: var(--text); font: 10px/1.2 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .graph-inspector-relations small { color: var(--faint); font: 9px/1 var(--mono); white-space: nowrap; }
 .graph-inspector-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
 .graph-inspector-empty { justify-content: flex-start; color: var(--muted); font-size: 11px; }

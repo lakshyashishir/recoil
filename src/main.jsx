@@ -396,6 +396,7 @@ function GraphInspector({ node, report, graph, selectedFinding }) {
     return []
   }).filter((relation) => relation.node)
   const metadata = node.meta?.resolvedVersions?.length ? `resolved versions: ${node.meta.resolvedVersions.join(', ')}` : nodeDescription(node, report)
+  const selectedRouteNode = Boolean(selectedFinding?.repository && node.id?.includes(selectedFinding.repository))
   const importer = node.type === 'repository'
     ? selectedFinding?.imports?.[0]
     : node.type === 'code'
@@ -422,7 +423,13 @@ function GraphInspector({ node, report, graph, selectedFinding }) {
   const evidenceLabel = routeEvidence ? (importer ? 'Source check' : 'Reachability check') : nodeEvidence?.label
   const evidenceValue = routeEvidence || nodeEvidence?.value
   const evidenceSource = importer?.sourceUrl || node.sourceUrl
-  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div>{evidenceValue && <div className="graph-inspector-evidence"><span>{evidenceLabel}</span><strong>{evidenceValue}</strong>{importer?.snippet && <code>{importer.snippet}</code>}{evidenceSource && <SourceLink href={evidenceSource}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}</div>}<div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i>{shorten(relation.node.label, 25)}</span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}</div></div>
+  const sourceImpact = selectedRouteNode ? selectedFinding?.sourceImpact : null
+  const sourceSummary = selectedRouteNode && selectedFinding
+    ? selectedFinding.verdict === 'REACHED'
+      ? `${selectedFinding.imports?.length || 0} sampled import${selectedFinding.imports?.length === 1 ? '' : 's'} · ${sourceImpact?.sampledFileCount || 0} source files · ${sourceImpact?.observedEdgeCount || 0} local import edges`
+      : routeEvidenceLabel(selectedFinding)
+    : null
+  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div>{evidenceValue && <div className="graph-inspector-evidence"><span>{evidenceLabel}</span><strong>{evidenceValue}</strong>{importer?.snippet && <code>{importer.snippet}</code>}{evidenceSource && <SourceLink href={evidenceSource}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}</div>}{sourceSummary && <div className="graph-inspector-proof"><span>Selected route</span><strong>{sourceSummary}</strong></div>}<div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i><strong>{graphEdgeLabel(relation.direction === 'out' ? node : relation.node, relation.direction === 'out' ? relation.node : node)}</strong><em>{shorten(relation.node.label, 25)}</em></span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}</div></div>
 }
 
 function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historical = false }) {
