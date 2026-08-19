@@ -55,6 +55,26 @@ When that strict smoke passes, it also saves the sanitized portable receipt unde
 `.recoil-recordings/<scenario-id>.json`. Keep that artifact for the recording; the directory is ignored by
 git and does not contain raw HydraDB chunks or credentials.
 
+### Verified reference recording
+
+The current reference case has been run against live OSV, npm, GitHub, and HydraDB services:
+
+```text
+GHSA-xvch-5gv4-984h
+  http-party/http-server@v13.0.2  → REACHED
+  tweenjs/tween.js                → DECLARED_ONLY
+  axios/axios@v1.x                → NOT_AFFECTED
+
+HydraDB: persisted · 8 memories · 1 dated fact · 12 graph triplets
+Sources: 84 public URLs
+Boundary: no install · no repository execution · no exploit payload
+Receipt: .recoil-recordings/real-1787175175601.json
+```
+
+This is a real source-backed contrast, not a fixture: the first repository has a sampled import,
+the second has the affected resolution without a sampled import, and the third resolves outside the
+advisory range. Keep the receipt locally for the presentation; do not commit it.
+
 ## What the judge sees
 
 After one click, the investigation runs automatically:

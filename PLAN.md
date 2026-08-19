@@ -129,6 +129,8 @@ observed path → proposed fix → residual re-check
 - [x] Delete the retired fictional arena, executable fixture, agent loop, and legacy routes from the shipped product path.
 - [x] Render and inspect the browser at common desktop and mobile widths, including 1440×900, 1280×800, and true 390px emulation.
 - [x] Update the final demo runbook and repository instructions after the real smoke run.
+- [x] Batch bounded HydraDB ingestion and poll all acknowledged memory IDs together so the strict
+  recording path can complete without turning an async provider timeout into a false persistence claim.
 
 ## Architecture
 
@@ -335,6 +337,7 @@ Manual checks:
 - `0298623` — surface API startup failures in the browser
 - `2635831` — defer HydraDB writes for incomplete evidence
 - `87f45f8` — expose recording contract in API health
+- `3d955a5` — batch HydraDB evidence ingestion and verify the live persistence gate
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
