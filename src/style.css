@@ -180,6 +180,7 @@ h1, h2, p { margin-top: 0; }
 .map-heading { min-height: 82px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
 .map-heading > div { min-width: 0; }
 .map-heading-detail { max-width: 560px; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.map-heading-context { max-width: 680px; margin: 7px 0 0; color: var(--accent); font-size: 11px; line-height: 1.35; }
 .map-canvas { position: relative; min-width: 0; padding: 10px 12px 0; overflow: hidden; }
 .map-canvas > svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; overflow: visible; }
 .graph-inspector svg { width: auto; height: auto; }
@@ -1221,6 +1222,53 @@ body { font-family: var(--sans); line-height: 1.45; }
 .failure-evidence-heading h2 { margin: 7px 0 0; color: var(--text); font-size: 20px; font-weight: 600; letter-spacing: -.03em; }
 .failure-evidence-heading > span { white-space: nowrap; }
 .failure-evidence .evidence-map { min-height: 380px; }
+
+/* Graph view is the primary completed-case reading. Keep the actual graph
+   beside a compact repository comparison so the reviewer can see both the
+   relationship and the decision without scrolling through two separate
+   screens. The cited-path view keeps its full-width reading layout. */
+@media (min-width: 981px) {
+  .case-workspace-graph { grid-template-columns: minmax(240px, .36fr) minmax(0, 1.64fr); gap: 26px; }
+  .case-workspace-graph > .evidence-map { grid-column: 2; grid-row: 1; }
+  .case-workspace-graph > .route-panel { grid-column: 1; grid-row: 1; }
+  .case-workspace-graph .comparison-matrix-header { display: none; }
+  .case-workspace-graph .comparison-matrix { border-top: 1px solid var(--line); }
+  .case-workspace-graph .comparison-matrix .route-item {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: start;
+    padding: 13px 0;
+  }
+  .case-workspace-graph .comparison-matrix .route-item:hover,
+  .case-workspace-graph .comparison-matrix .route-item-selected { padding-left: 8px; padding-right: 8px; }
+  .case-workspace-graph .route-item-repository { grid-column: 2; grid-row: 1; }
+  .case-workspace-graph .route-item-resolution,
+  .case-workspace-graph .route-item-source,
+  .case-workspace-graph .route-item-action {
+    grid-column: 2;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: baseline;
+    gap: 7px;
+  }
+  .case-workspace-graph .route-item-resolution { grid-row: 2; }
+  .case-workspace-graph .route-item-source { grid-row: 3; }
+  .case-workspace-graph .route-item-action { grid-row: 4; }
+  .case-workspace-graph .route-item > .verdict { grid-column: 3; grid-row: 1; }
+  .case-workspace-graph .route-item-repository strong,
+  .case-workspace-graph .route-item-resolution b,
+  .case-workspace-graph .route-item-source b,
+  .case-workspace-graph .route-item-action b { white-space: normal; }
+  .case-workspace-graph .route-item-repository small,
+  .case-workspace-graph .route-item-resolution small,
+  .case-workspace-graph .route-item-source small,
+  .case-workspace-graph .route-item-action small { white-space: normal; }
+}
+
+@media (max-width: 980px) {
+  .case-workspace-graph { grid-template-columns: 1fr; gap: 18px; }
+  .case-workspace-graph > .evidence-map { order: 0; }
+  .case-workspace-graph > .route-panel { order: 1; }
+}
 
 @media (max-width: 720px) {
   .failure-page { width: calc(100% - 36px); padding-top: 38px; }
