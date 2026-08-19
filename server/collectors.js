@@ -1026,7 +1026,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
     title: 'Public records ready',
     detail: advisory?.id ? `${advisory.id} · ${advisory.published ? `published ${advisory.published.slice(0, 10)}` : 'publication date unavailable'}` : 'No advisory identifier was supplied; repository evidence will be marked accordingly.',
     sourceUrls: [advisory?.sourceUrl].filter(Boolean),
-    graph: buildObservedGraph({ advisoryId: graphAdvisoryId, packageName: graphPackageName, repositoryFindings: [] }),
+    graph: buildObservedGraph({ advisoryId: graphAdvisoryId, advisorySourceUrl: advisory?.sourceUrl, packageName: graphPackageName, repositoryFindings: [] }),
     graphProgress: { completedRepositories: 0, totalRepositories: repositories.length },
   })
   const completedRepositoryResults = []
@@ -1051,7 +1051,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
         detail: `${result.manifest?.lockfile || 'no lockfile'} · ${result.manifest?.codeGraph?.fileCount || 0} sampled source files`,
         repository: repositoryId,
         sourceUrls: [result.sourceUrl].filter(Boolean),
-        graph: buildObservedGraph({ advisoryId: graphAdvisoryId, packageName: partialPackage, repositoryFindings: partialFindings }),
+        graph: buildObservedGraph({ advisoryId: graphAdvisoryId, advisorySourceUrl: advisory?.sourceUrl, packageName: partialPackage, repositoryFindings: partialFindings }),
         graphProgress: { completedRepositories: completedRepositoryResults.length, totalRepositories: repositories.length },
       })
       return result
@@ -1111,7 +1111,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
         sourceBound: 'Repository evidence unavailable',
         evidenceSources: [repository.repositoryUrl].filter(Boolean),
       })
-  const graph = buildObservedGraph({ advisoryId: input.advisoryId || advisory?.id || 'advisory', packageName, repositoryFindings: findings })
+  const graph = buildObservedGraph({ advisoryId: input.advisoryId || advisory?.id || 'advisory', advisorySourceUrl: advisory?.sourceUrl, packageName, repositoryFindings: findings })
   const sources = [...new Set([
     advisoryRecord.sourceUrl,
     registry.sourceUrl,

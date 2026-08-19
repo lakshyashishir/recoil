@@ -316,28 +316,33 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   }
 }
 
-export function buildObservedGraph({ advisoryId, packageName, repositoryFindings = [] }) {
-  const nodes = [{ id: `advisory:${advisoryId}`, label: advisoryId, type: 'advisory' }]
+export function buildObservedGraph({ advisoryId, advisorySourceUrl = null, packageName, repositoryFindings = [] }) {
+  const nodes = [{ id: `advisory:${advisoryId}`, label: advisoryId, type: 'advisory', sourceUrl: advisorySourceUrl }]
   const edges = []
   for (const finding of repositoryFindings) {
     const repoId = `repo:${finding.repository}`
     const evidencePath = finding.path || []
     const lockfileLabel = evidencePath.find((part) => /(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|cargo\.lock)$/i.test(String(part))) || evidencePath[2] || evidencePath[3] || 'unknown'
     const lockId = `lock:${finding.repository}:${lockfileLabel}`
+    const lockfileToken = String(lockfileLabel || '').toLowerCase()
+    const lockfileSource = (finding.evidenceSources || []).find((source) => lockfileToken !== 'unknown' && String(source).toLowerCase().includes(lockfileToken))
+      || (finding.evidenceSources || []).find((source) => /(?:lock|cargo\.toml|cargo\.lock)/i.test(source))
+      || finding.evidenceSources?.[0]
+      || null
     const resolvedVersions = [...new Set(finding.resolvedVersions || [finding.resolvedVersion].filter(Boolean))]
     const packageVersions = resolvedVersions.length
       ? resolvedVersions
       : [finding.verdict === 'NOT_AFFECTED' ? 'not-present' : 'unresolved']
     nodes.push(
       { id: repoId, label: finding.repository || 'unknown repository', type: 'repository', sourceUrl: finding.repositoryUrl },
-      { id: lockId, label: lockfileLabel, type: 'lockfile' },
+      { id: lockId, label: lockfileLabel, type: 'lockfile', sourceUrl: lockfileSource },
     )
     for (const version of packageVersions) {
       const packageId = `package:${finding.packageName}@${version}`
       // A package/version can be shared by repositories with different
       // outcomes. Keep verdict color on repository nodes only; a shared
       // dependency node has no single truthful verdict of its own.
-      nodes.push({ id: packageId, label: packageId.replace('package:', ''), type: 'package', meta: { resolvedVersions } })
+      nodes.push({ id: packageId, label: packageId.replace('package:', ''), type: 'package', sourceUrl: lockfileSource, meta: { resolvedVersions } })
       edges.push([`advisory:${advisoryId}`, packageId], [packageId, lockId])
     }
     const dependencyPath = finding.dependencyPath || []

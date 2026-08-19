@@ -231,6 +231,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
   const rewindFindings = currentFindings.map((finding) => findingAsOf(finding, requestedAsOf))
   const rewindGraph = buildObservedGraph({
     advisoryId: advisory?.id || ingestion?.target?.advisoryId || 'advisory',
+    advisorySourceUrl: advisory?.sourceUrl || null,
     packageName: ingestion?.package || null,
     repositoryFindings: rewindFindings.filter((finding) => finding.verdict !== 'NOT_YET_OBSERVED'),
   })

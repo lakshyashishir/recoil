@@ -514,6 +514,25 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-conclusion-facts div:nth-child(3) { border-left-color: var(--green); }
 .route-item-copy em { overflow: hidden; color: var(--muted); font-size: 11px; font-style: normal; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 
+.shared-resolution { margin-top: 25px; padding-top: 17px; border-top: 1px solid var(--line); }
+.shared-resolution-heading { display: flex; align-items: end; justify-content: space-between; gap: 15px; }
+.shared-resolution-heading > div { display: grid; gap: 4px; min-width: 0; }
+.shared-resolution-heading .section-kicker { margin: 0; }
+.shared-resolution-heading strong { color: var(--text); font-size: 13px; font-weight: 600; }
+.shared-resolution-heading > span { color: var(--faint); font: 10px/1 var(--mono); white-space: nowrap; }
+.shared-resolution-group { display: grid; gap: 9px; margin-top: 13px; padding: 13px 0 14px; border-top: 1px solid var(--line-soft); }
+.shared-resolution-package { display: grid; gap: 4px; min-width: 0; }
+.shared-resolution-package strong { overflow: hidden; color: var(--text); font: 600 12px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.shared-resolution-package span, .shared-resolution-note { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.shared-resolution-repos { display: flex; flex-wrap: wrap; gap: 7px 12px; }
+.shared-resolution-repos span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font: 10px/1.2 var(--mono); }
+.shared-resolution-dot { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: var(--faint); }
+.shared-resolution-reached { background: var(--red); }
+.shared-resolution-declared_only { background: var(--accent); }
+.shared-resolution-not_affected { background: var(--green); }
+.shared-resolution-group .source-link { width: max-content; font-size: 9px; }
+.shared-resolution-note { margin: 2px 0 0; color: var(--faint); font-size: 10px; }
+
 .route-selected {
   display: grid;
   gap: 9px;

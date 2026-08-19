@@ -358,7 +358,21 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
   </section>
 }
 
-function RouteList({ findings, selectedIndex, onSelect, challenges = [], historical = false, onInspectProof }) {
+function SharedResolution({ correlations = [] }) {
+  const visible = correlations.filter((group) => group.repositories?.length > 1).slice(0, 2)
+  if (!visible.length) return null
+  return <section className="shared-resolution" aria-label="Shared dependency resolution">
+    <div className="shared-resolution-heading"><div><span className="section-kicker">Cross-repository signal</span><strong>One resolution, multiple repositories</strong></div><span>{visible.length} shared</span></div>
+    {visible.map((group) => <article className="shared-resolution-group" key={`${group.packageName}@${group.version}`}>
+      <div className="shared-resolution-package"><strong>{group.packageName}@{group.version}</strong><span>{group.repositoryCount} repositories resolve this exact version</span></div>
+      <div className="shared-resolution-repos">{group.repositories.slice(0, 4).map((repository) => <span key={repository.repository}><i className={`shared-resolution-dot shared-resolution-${String(repository.verdict || 'UNKNOWN').toLowerCase()}`} />{repositoryName(repository.repository)}</span>)}</div>
+      {group.sourceUrls?.[0] && <SourceLink href={group.sourceUrls[0]}>Open shared evidence</SourceLink>}
+    </article>)}
+    <p className="shared-resolution-note">This is a resolved-version correlation from the supplied lockfiles, not a claim that the repositories share runtime infrastructure.</p>
+  </section>
+}
+
+function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false, onInspectProof }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   const selected = findings[selectedIndex] || findings[0]
   const selectedChallenge = challenges.find((item) => item.repository === selected?.repository)
@@ -393,6 +407,7 @@ function RouteList({ findings, selectedIndex, onSelect, challenges = [], histori
         <Verdict value={finding.verdict} compact />
       </button>)}
     </div>
+    {!historical && <SharedResolution correlations={correlations} />}
   </aside>
 }
 
@@ -714,7 +729,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} hydra={hydra} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel">
-      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /></>}
+      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <TemporalProof report={report} onRewind={onRewind} />}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}

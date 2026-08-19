@@ -92,10 +92,13 @@ test('reachability can attach latest importer change evidence without changing t
 
 test('observed graph contains only advisory, repository, lockfile, and source evidence nodes', () => {
   const finding = classifyRepository({ repository: repository(), packageName: 'minimist', advisory, advisoryId: advisory.id })
-  const graph = buildObservedGraph({ advisoryId: advisory.id, packageName: 'minimist', repositoryFindings: [finding] })
+  const graph = buildObservedGraph({ advisoryId: advisory.id, advisorySourceUrl: 'https://osv.dev/vulnerability/GHSA-test', packageName: 'minimist', repositoryFindings: [finding] })
 
   assert.equal(graph.nodes.some((node) => node.label === 'customer database'), false)
   assert.equal(graph.nodes.find((node) => node.id === 'package:minimist@1.2.5').meta.verdict, undefined)
+  assert.equal(graph.nodes.find((node) => node.id === 'advisory:GHSA-test').sourceUrl, 'https://osv.dev/vulnerability/GHSA-test')
+  assert.equal(graph.nodes.find((node) => node.id === 'lock:example/app:package-lock.json').sourceUrl, 'https://github.com/example/app/blob/HEAD/package-lock.json')
+  assert.equal(graph.nodes.find((node) => node.id === 'package:minimist@1.2.5').sourceUrl, 'https://github.com/example/app/blob/HEAD/package-lock.json')
   assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.5' && to === 'lock:example/app:package-lock.json'))
   assert.ok(graph.edges.some(([from, to]) => from === 'lock:example/app:package-lock.json' && to === 'repo:example/app'))
   assert.ok(graph.edges.some(([from, to]) => from === 'repo:example/app' && to === 'code:example/app:src/cli.js'))
