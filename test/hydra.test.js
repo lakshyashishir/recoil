@@ -25,6 +25,26 @@ test('HydraDB recall summarizes prior case metadata without exposing chunks', ()
   ])
 })
 
+test('HydraDB recall keeps the latest comparable repository snapshot', () => {
+  const summaries = summarizeRelatedCases([
+    { additional_metadata: { recoil_scenario_id: 'prior-old', recoil_kind: 'temporal_fact', recoil_repository: 'example/app', valid_from: '2023-01-01T00:00:00Z', recoil_observed_at: '2023-01-02T00:00:00Z', recoil_snapshot: JSON.stringify({ repository: 'example/app', packageName: 'minimist', resolvedVersion: '1.2.5', verdict: 'REACHED', importCount: 1 }) } },
+    { additional_metadata: { recoil_scenario_id: 'prior-new', recoil_kind: 'temporal_fact', recoil_repository: 'example/app', valid_from: '2024-01-01T00:00:00Z', recoil_observed_at: '2024-01-02T00:00:00Z', recoil_snapshot: JSON.stringify({ repository: 'example/app', packageName: 'minimist', resolvedVersion: '1.2.6', verdict: 'NOT_AFFECTED', importCount: 0 }) } },
+    { additional_metadata: { recoil_scenario_id: 'current', recoil_kind: 'temporal_fact', recoil_repository: 'example/app' } },
+  ], 'current')
+  assert.deepEqual(summaries.map(({ scenarioId, observedAt, snapshots }) => ({ scenarioId, observedAt, snapshots })), [
+    {
+      scenarioId: 'prior-new',
+      observedAt: '2024-01-02T00:00:00Z',
+      snapshots: [{ repository: 'example/app', packageName: 'minimist', resolvedVersion: '1.2.6', verdict: 'NOT_AFFECTED', importCount: 0, observedAt: '2024-01-02T00:00:00Z' }],
+    },
+    {
+      scenarioId: 'prior-old',
+      observedAt: '2023-01-02T00:00:00Z',
+      snapshots: [{ repository: 'example/app', packageName: 'minimist', resolvedVersion: '1.2.5', verdict: 'REACHED', importCount: 1, observedAt: '2023-01-02T00:00:00Z' }],
+    },
+  ])
+})
+
 test('HydraDB investigation memories preserve graph topology and temporal evidence', () => {
   const ingestion = {
     scenarioId: 'hydra-test',
@@ -79,6 +99,16 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
   assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'CONNECTED_TO')
   const reachabilityMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'temporal_fact' && /Reachability fact/.test(memory.text))
   assert.match(reachabilityMemory.text, /parent@2\.0\.0 -> minimist@1\.2\.5/)
+  assert.deepEqual(JSON.parse(reachabilityMemory.additional_metadata.recoil_snapshot), {
+    repository: 'example/app',
+    packageName: 'minimist',
+    resolvedVersion: '1.2.5',
+    verdict: 'REACHED',
+    importCount: 1,
+    declaredRange: '^1.2.0',
+    fixStatus: 'FIX_SURVIVES',
+    proposedVersion: '1.2.6',
+  })
   const fixMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'fix_proof')
   assert.equal(fixMemory.additional_metadata.valid_from, null)
   assert.equal(memories.every((memory) => memory.metadata.app === 'recoil'), true)

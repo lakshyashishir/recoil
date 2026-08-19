@@ -122,6 +122,18 @@ function sourceMetadata(sourceUrls = []) {
   return JSON.stringify(compactSourceUrls(sourceUrls))
 }
 
+function snapshotMetadata(metadata) {
+  const value = metadata?.recoil_snapshot
+  if (!value) return null
+  if (typeof value === 'object') return value
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Expose useful cross-case memory context without returning raw HydraDB chunks.
  * A summary is only created when the returned chunk identifies its source case.
@@ -138,20 +150,39 @@ export function summarizeRelatedCases(chunks = [], excludeScenarioId = null) {
       repositories: new Set(),
       validFrom: [],
       sourceUrls: new Set(),
+      observedAt: [],
+      snapshots: new Map(),
     }
     if (metadata.recoil_kind) group.kinds.add(metadata.recoil_kind)
     if (metadata.recoil_repository) group.repositories.add(metadata.recoil_repository)
     if (metadata.valid_from) group.validFrom.push(metadata.valid_from)
+    if (metadata.recoil_observed_at) group.observedAt.push(metadata.recoil_observed_at)
+    const snapshot = snapshotMetadata(metadata)
+    if (snapshot?.repository) {
+      group.snapshots.set(snapshot.repository, {
+        ...snapshot,
+        observedAt: snapshot.observedAt || metadata.recoil_observed_at || null,
+      })
+    }
     for (const sourceUrl of metadataSourceUrls(metadata)) group.sourceUrls.add(sourceUrl)
     groups.set(scenarioId, group)
   }
-  return [...groups.values()].map((group) => ({
-    scenarioId: group.scenarioId,
-    kinds: [...group.kinds].sort(),
-    repositories: [...group.repositories].sort(),
-    validFrom: group.validFrom.sort()[0] || null,
-    sourceUrls: [...group.sourceUrls].slice(0, 8),
-  })).sort((left, right) => left.scenarioId.localeCompare(right.scenarioId))
+  return [...groups.values()].map((group) => {
+    const snapshots = [...group.snapshots.values()].sort((left, right) => String(right.observedAt || '').localeCompare(String(left.observedAt || '')))
+    const summary = {
+      scenarioId: group.scenarioId,
+      kinds: [...group.kinds].sort(),
+      repositories: [...group.repositories].sort(),
+      validFrom: group.validFrom.sort()[0] || null,
+      sourceUrls: [...group.sourceUrls].slice(0, 8),
+    }
+    if (group.observedAt.length) summary.observedAt = [...group.observedAt].sort().at(-1) || null
+    if (snapshots.length) summary.snapshots = snapshots
+    return summary
+  }).sort((left, right) => {
+    if (!left.observedAt && !right.observedAt) return left.scenarioId.localeCompare(right.scenarioId)
+    return String(right.observedAt || right.validFrom || right.scenarioId).localeCompare(String(left.observedAt || left.validFrom || left.scenarioId))
+  })
 }
 
 function temporalChunks(chunks, asOf) {
@@ -466,19 +497,22 @@ export function hydraStatus() {
   }
 }
 
-function temporalMemory({ id, title, text, kind, scenarioId, repository, validFrom, validUntil = null, sourceUrls = [], graphPayload = null }) {
+function temporalMemory({ id, title, text, kind, scenarioId, repository, validFrom, validUntil = null, sourceUrls = [], graphPayload = null, observedAt = null, snapshot = null }) {
+  const additionalMetadata = {
+    recoil_kind: kind,
+    recoil_scenario_id: scenarioId,
+    recoil_repository: repository || null,
+    valid_from: validFrom || null,
+    valid_until: validUntil,
+    source_urls: sourceMetadata(sourceUrls),
+  }
+  if (observedAt) additionalMetadata.recoil_observed_at = observedAt
+  if (snapshot) additionalMetadata.recoil_snapshot = JSON.stringify(snapshot)
   return memory({
     id,
     title,
     text,
-    additionalMetadata: {
-      recoil_kind: kind,
-      recoil_scenario_id: scenarioId,
-      recoil_repository: repository || null,
-      valid_from: validFrom || null,
-      valid_until: validUntil,
-      source_urls: sourceMetadata(sourceUrls),
-    },
+    additionalMetadata,
     graphPayload,
   })
 }
@@ -534,6 +568,7 @@ export function buildInvestigationMemories(ingestion, report) {
     }))
   }
   for (const finding of report.repositories || []) {
+    const challenge = (report.challenge || []).find((item) => item.repository === finding.repository)
     memories.push(temporalMemory({
       id: `recoil:temporal:path:${stableId(`${scenarioId}:${finding.repository}:${finding.packageName}:${finding.resolvedVersion}`)}`,
       title: `Recoil reachability fact · ${finding.repository}`,
@@ -541,7 +576,18 @@ export function buildInvestigationMemories(ingestion, report) {
       scenarioId,
       repository: finding.repository,
       validFrom: finding.pathObservedAt,
+      observedAt: report.generatedAt || ingestion.completedAt || null,
       sourceUrls: finding.evidenceSources,
+      snapshot: {
+        repository: finding.repository,
+        packageName: finding.packageName || null,
+        resolvedVersion: finding.resolvedVersion || null,
+        verdict: finding.verdict || 'UNKNOWN',
+        importCount: finding.imports?.length || 0,
+        declaredRange: finding.declaredRange || null,
+        fixStatus: challenge?.status || null,
+        proposedVersion: challenge?.proposedVersion || null,
+      },
       text: `# Reachability fact\n\n- Repository: ${finding.repository}\n- Verdict: ${finding.verdict}\n- Package: ${finding.packageName}@${finding.resolvedVersion || 'unresolved'}\n- Declared range: ${finding.declaredRange || 'not found'}\n- Resolved dependency path: ${(finding.dependencyPath || []).map((item) => `${item.name}@${item.version}`).join(' -> ') || 'direct or not resolved'}\n- Imports: ${(finding.imports || []).map((item) => `${item.path}:${item.line || '?'}`).join(', ') || 'none in sampled files'}\n- Advisory symbol scope: ${finding.advisoryScope?.status || 'not requested'}\n- Validated symbols: ${(finding.advisoryScope?.symbols || []).map((item) => `${item.name} (${item.path}:${item.line})`).join(', ') || 'none'}\n- Path observed from: ${finding.pathObservedAt || 'unknown'}\n- Evidence path: ${finding.path.join(' -> ')}\n- Reason: ${finding.reason}\n- Sources: ${(finding.evidenceSources || []).join(', ')}`,
     }))
     if (finding.changeEvidence?.importerFilesChanged?.length) memories.push(temporalMemory({
@@ -554,7 +600,6 @@ export function buildInvestigationMemories(ingestion, report) {
       sourceUrls: [finding.changeEvidence.sourceUrl, ...finding.changeEvidence.importerFilesChanged.map((item) => item.sourceUrl)].filter(Boolean),
       text: `# Importer change evidence\n\n- Repository: ${finding.repository}\n- Commit: ${finding.changeEvidence.message || 'latest public change'}\n- Committed: ${finding.changeEvidence.committedAt || 'unknown'}\n- Importer files touched: ${finding.changeEvidence.importerFilesChanged.map((item) => `${item.path}${item.symbols?.length ? ` (${item.symbols.join(', ')})` : ''}`).join(', ')}\n- Owners: ${[...new Set(finding.changeEvidence.importerFilesChanged.flatMap((item) => item.owners || []))].join(', ') || 'not collected'}\n- Source: ${finding.changeEvidence.sourceUrl || 'not available'}`,
     }))
-    const challenge = (report.challenge || []).find((item) => item.repository === finding.repository)
     if (challenge) memories.push(temporalMemory({
       id: `recoil:temporal:fix:${stableId(`${scenarioId}:${finding.repository}:${challenge.proposedVersion || challenge.status}`)}`,
       title: `Recoil fix proof · ${finding.repository}`,

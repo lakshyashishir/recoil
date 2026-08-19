@@ -850,6 +850,7 @@ function TemporalProof({ report, onRewind, loading = false, loadingTarget = null
       {changes.length > 0 && <div className="temporal-changes"><span>Changed classifications</span>{changes.slice(0, 4).map((change) => <span className="temporal-change" key={change.repository}><strong>{repositoryName(change.repository)}</strong><small>{change.before.replaceAll('_', ' ').toLowerCase()} → {change.current.replaceAll('_', ' ').toLowerCase()}</small></span>)}</div>}
     </div>
     <div className="temporal-stats"><span><strong>{memory?.datedChunkCount || 0}</strong><small>dated facts</small></span><span><strong>{memory?.graphContext?.tripletCount || 0}</strong><small>graph triplets</small></span><span><strong>{memory?.relatedCaseCount || 0}</strong><small>prior records</small></span></div>
+    <HistoryDelta findings={currentFindings} challenges={report.challenge || []} relatedCases={relatedCases} />
     <details className="memory-evidence"><summary>Inspect recalled relationships <span>{triplets.length} returned</span></summary>{triplets.length ? <div className="memory-triplets">{triplets.slice(0, 6).map((triplet, index) => <div className="memory-triplet" key={`${triplet.source}-${triplet.predicate}-${triplet.target}-${index}`}><strong>{triplet.source || 'entity'}</strong><span>{triplet.predicate || 'connected to'}</span><strong>{triplet.target || 'entity'}</strong></div>)}</div> : <p>No graph relationships were returned for this temporal read.</p>}</details>
     {relatedCases.length > 0 && <section className="related-cases" aria-label="Prior HydraDB records"><div className="related-cases-heading"><div><span className="section-kicker">HydraDB recall</span><strong>Prior evidence records</strong></div><span>{relatedCases.length} found</span></div><div className="related-case-list">{relatedCases.slice(0, 4).map((item) => <article className="related-case" key={item.scenarioId}><div className="related-case-main"><strong>{item.scenarioId}</strong><span>{item.repositories?.length ? item.repositories.join(' · ') : 'repository metadata unavailable'}</span></div><div className="related-case-meta"><span>{item.validFrom ? `dated ${dateLabel(item.validFrom)}` : 'date unavailable'}</span>{item.kinds?.length > 0 && <span>{item.kinds.join(' · ')}</span>}{item.sourceUrls?.[0] && <SourceLink href={item.sourceUrls[0]}>source</SourceLink>}</div></article>)}</div><p className="related-cases-note">HydraDB returned case metadata only. The current verdict is still computed from this investigation’s collected evidence.</p></section>}
   </section>
@@ -868,6 +869,68 @@ function dateLabel(value) {
   if (!value) return 'not dated'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? 'not dated' : date.toISOString().slice(0, 10)
+}
+
+function historyVerdictLabel(value) {
+  return String(value || 'UNKNOWN').replaceAll('_', ' ').toLowerCase()
+}
+
+function latestPriorSnapshots(relatedCases = []) {
+  const latest = new Map()
+  for (const relatedCase of relatedCases) {
+    for (const snapshot of relatedCase.snapshots || []) {
+      if (!snapshot.repository) continue
+      const candidate = { ...snapshot, scenarioId: relatedCase.scenarioId, observedAt: snapshot.observedAt || relatedCase.observedAt || relatedCase.validFrom || null }
+      const previous = latest.get(snapshot.repository)
+      if (!previous || String(candidate.observedAt || '').localeCompare(String(previous.observedAt || '')) > 0) latest.set(snapshot.repository, candidate)
+    }
+  }
+  return [...latest.values()].sort((left, right) => left.repository.localeCompare(right.repository))
+}
+
+function historyDeltaRows(findings = [], challenges = [], relatedCases = []) {
+  const currentByRepository = new Map(findings.map((finding) => {
+    const challenge = challenges.find((item) => item.repository === finding.repository)
+    return [finding.repository, {
+      repository: finding.repository,
+      packageName: finding.packageName || null,
+      resolvedVersion: finding.resolvedVersion || null,
+      verdict: finding.verdict || 'UNKNOWN',
+      importCount: finding.imports?.length || 0,
+      fixStatus: challenge?.status || null,
+      proposedVersion: challenge?.proposedVersion || null,
+    }]
+  }))
+  return latestPriorSnapshots(relatedCases)
+    .map((previous) => {
+      const current = currentByRepository.get(previous.repository)
+      if (!current) return null
+      const changes = []
+      if ((previous.resolvedVersion || null) !== current.resolvedVersion) changes.push('resolution changed')
+      if ((previous.verdict || 'UNKNOWN') !== current.verdict) changes.push('classification changed')
+      if (Number(previous.importCount || 0) !== Number(current.importCount || 0)) changes.push('source use changed')
+      if ((previous.fixStatus || null) !== current.fixStatus || (previous.proposedVersion || null) !== current.proposedVersion) changes.push('fix check changed')
+      return { previous, current, changes }
+    })
+    .filter(Boolean)
+}
+
+function HistoryDelta({ findings = [], challenges = [], relatedCases = [] }) {
+  const rows = historyDeltaRows(findings, challenges, relatedCases)
+  if (!rows.length) return null
+  const changedCount = rows.filter((row) => row.changes.length).length
+  return <section className="history-delta" aria-label="HydraDB scan comparison">
+    <div className="history-delta-heading"><div><span className="section-kicker">HydraDB comparison</span><h2>{changedCount ? `${changedCount} repository${changedCount === 1 ? '' : 'ies'} changed since the latest prior record.` : 'No material change since the latest prior record.'}</h2><p>Compared with the newest dated reachability snapshot returned for each repository. The current verdict still comes from this run’s public evidence.</p></div><span>{rows.length} comparable</span></div>
+    <div className="history-delta-list">
+      {rows.map(({ previous, current, changes }) => <article className="history-delta-row" key={current.repository}>
+        <div className="history-delta-repository"><strong>{repositoryName(current.repository)}</strong><small>{current.packageName || previous.packageName || 'package unavailable'}</small></div>
+        <div className="history-delta-state"><span>Previous</span><strong>{previous.resolvedVersion || 'unresolved'} · {historyVerdictLabel(previous.verdict)}</strong><small>{previous.importCount || 0} sampled import{Number(previous.importCount || 0) === 1 ? '' : 's'}</small></div>
+        <div className="history-delta-arrow" aria-hidden="true">→</div>
+        <div className="history-delta-state history-delta-current"><span>Current</span><strong>{current.resolvedVersion || 'unresolved'} · {historyVerdictLabel(current.verdict)}</strong><small>{current.importCount || 0} sampled import{Number(current.importCount || 0) === 1 ? '' : 's'}</small></div>
+        <span className={`history-delta-result ${changes.length ? 'is-changed' : ''}`}>{changes.length ? changes.join(' · ') : 'unchanged'}</span>
+      </article>)}
+    </div>
+  </section>
 }
 
 function CaseChronology({ finding, report, challenge, historical, onOpenHistory }) {

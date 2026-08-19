@@ -77,6 +77,7 @@ observed path → proposed fix → residual re-check
 - [x] Keep ordinary HydraDB status queued until the complete memory batch is acknowledged across all clients.
 - [x] Cache bounded raw GitHub source reads so repeat recordings reduce public requests without changing evidence semantics.
 - [x] Surface sanitized prior-case summaries from HydraDB recall so memory is inspectable without exposing raw chunks.
+- [x] Persist structured per-repository scan snapshots and show the latest real HydraDB-backed scan delta in the History view.
 - [x] Show the bounded observed import line inside each source-backed proof step for fast human verification.
 - [x] Add offline SHA-256 receipt verification so exported evidence can be checked without the running app.
 - [x] Render the safe observed-path → proposed-change → re-check proof consistently in browser, CLI, and TUI clients.

@@ -89,6 +89,12 @@ Raw retrieved chunks are never copied into the browser report or downloadable re
 cannot change a local verdict. The report keeps this prior-evidence summary collapsed until the reviewer
 chooses to inspect it.
 
+Each reachability memory also carries a small structured scan snapshot: repository, resolved version,
+classification, sampled import count, and fix status. On a later scan, Recoil compares the newest prior
+snapshot for each repository with the current public-evidence result and shows only real changes in the
+History view. This is a durable HydraDB comparison, not a client-side cache or a claim that a deployment
+changed; repositories without comparable prior snapshots are omitted from the delta.
+
 ## Run locally
 
 ```bash
