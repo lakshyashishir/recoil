@@ -46,12 +46,16 @@ export async function executeInvestigation(record) {
     state.evidence = scopedEvidence
     record.ingestion = scopedEvidence
     record.graph = scopedEvidence.graph || { nodes: [], edges: [] }
+    const scopeCompleted = scope.status === 'completed'
     pushEvent(state, {
       type: 'step',
       key: 'advisory-scope',
-      status: scope.status === 'failed' ? 'failed' : 'complete',
-      title: scope.status === 'completed' ? 'Advisory scope checked' : 'Module-level scope retained',
-      detail: scope.status === 'completed'
+      // The model pass is optional. A model outage must not make a valid
+      // deterministic investigation look failed; its limitation remains in
+      // the report so the degradation is still explicit and auditable.
+      status: 'complete',
+      title: scopeCompleted ? 'Advisory scope checked' : 'Module-level scope retained',
+      detail: scopeCompleted
         ? `${scope.affectedSymbols?.length || 0} candidate symbol${scope.affectedSymbols?.length === 1 ? '' : 's'} returned; only exact indexed matches are attached.`
         : scope.reason || scope.error || 'The deterministic package-import proof remains authoritative.',
     })

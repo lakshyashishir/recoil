@@ -65,8 +65,8 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
   const previousFetch = globalThis.fetch
   const previousKey = process.env.OPENAI_API_KEY
   const previousScope = process.env.RECOIL_ADVISORY_AGENT
-  delete process.env.OPENAI_API_KEY
-  process.env.RECOIL_ADVISORY_AGENT = 'off'
+  process.env.OPENAI_API_KEY = 'test-key'
+  process.env.RECOIL_ADVISORY_AGENT = 'on'
   const advisory = {
     id: 'GHSA-route-1234-5678',
     summary: 'Test parser advisory',
@@ -78,6 +78,7 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
   globalThis.fetch = async (input) => {
     const url = new URL(input)
     if (url.hostname === 'api.osv.dev') return response(advisory)
+    if (url.hostname === 'api.openai.com') return response({ error: { message: 'model unavailable in this test' } }, 503)
     if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', versions: { '1.2.5': {}, '1.2.6': {} }, maintainers: [] })
     if (url.hostname !== 'api.github.com') return response({}, 404)
     const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
@@ -111,6 +112,10 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     assert.equal(current.investigation.report.summary.reached, 1)
     assert.equal(current.investigation.report.evidenceQuality.readyForRecording, true)
     assert.equal(current.investigation.report.rewind.memory.status, 'skipped')
+    const scopeEvent = current.investigation.events.find((event) => event.key === 'advisory-scope')
+    assert.equal(scopeEvent.status, 'complete')
+    assert.equal(scopeEvent.title, 'Module-level scope retained')
+    assert.match(current.investigation.report.limits.join(' '), /model unavailable in this test/)
     assert.equal(current.investigation.events.find((event) => event.key === 'complete').title, 'Case complete')
     assert.equal(current.investigation.hydra.status, 'skipped')
 
