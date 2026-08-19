@@ -186,6 +186,7 @@ h1, h2, p { margin-top: 0; }
 .map-layer-label { fill: var(--faint); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
 .map-edge { color: var(--line); stroke: currentColor; stroke-width: 1.4; opacity: .72; }
 .map-edge-selected { color: var(--accent); stroke-width: 2.3; opacity: 1; stroke-dasharray: 7 6; }
+.map-edge-label { fill: var(--accent); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; font: 9px var(--mono); letter-spacing: .02em; }
 .map-node rect { fill: var(--surface-raised); stroke: var(--line); stroke-width: 1; }
 .map-node.node-selected rect { stroke: var(--accent); stroke-width: 1.8; }
 .map-node.node-reached rect { stroke: color-mix(in srgb, var(--red) 72%, var(--line)); }

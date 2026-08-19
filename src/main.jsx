@@ -333,6 +333,19 @@ function graphLayout(graph = {}, finding = null) {
   return { nodes: nodes.slice(0, 48), edges, positions, selected, width, height }
 }
 
+function graphEdgeLabel(from, to) {
+  const pair = `${from?.type || ''}:${to?.type || ''}`
+  if (pair === 'advisory:package') return 'affects'
+  if (pair === 'package:package') return 'depends on'
+  if (pair === 'package:lockfile') return 'resolved in'
+  if (pair === 'lockfile:repository') return 'belongs to'
+  if (pair === 'repository:code') return 'contains'
+  if (pair === 'lockfile:code') return 'imports'
+  if (pair === 'code:code') return 'imports'
+  if (pair === 'code:symbol') return 'indexes'
+  return 'observed'
+}
+
 function nodeVerdict(node, report) {
   if (node.meta?.verdict) return node.meta.verdict
   if (node.type === 'repository') return report?.repositories?.find((finding) => finding.repository === node.label)?.verdict
@@ -491,7 +504,9 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
             if (!start || !end) return null
             const key = `${from}>${to}`
             const isSelected = selectedEdges.has(key)
-            return <line key={key} className={`map-edge ${isSelected ? 'map-edge-selected' : ''}`} x1={start.x + 77} y1={start.y} x2={end.x - 77} y2={end.y} markerEnd="url(#recoil-arrow)" />
+            const fromNode = layout.nodes.find((node) => node.id === from)
+            const toNode = layout.nodes.find((node) => node.id === to)
+            return <g key={key}><line className={`map-edge ${isSelected ? 'map-edge-selected' : ''}`} x1={start.x + 77} y1={start.y} x2={end.x - 77} y2={end.y} markerEnd="url(#recoil-arrow)" />{isSelected && <text className="map-edge-label" x={(start.x + end.x) / 2} y={(start.y + end.y) / 2 - 5} textAnchor="middle">{graphEdgeLabel(fromNode, toNode)}</text>}</g>
           })}
         </g>
         <g className="map-nodes">
