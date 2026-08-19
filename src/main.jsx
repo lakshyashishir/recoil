@@ -5,6 +5,20 @@ import './style.css'
 
 const SCENARIO_ID = '0017'
 const DEFAULT_INPUT = ''
+const INVESTIGATION_EXAMPLES = [
+  {
+    label: 'three-repository case',
+    value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/gitpod-io/openvscode-server/tree/3381c7c\nhttps://github.com/dojo/dojo\nhttps://github.com/axios/axios',
+  },
+  {
+    label: 'package + repositories',
+    value: 'npm:minimist\nhttps://github.com/dojo/dojo\nhttps://github.com/axios/axios',
+  },
+  {
+    label: 'single repository',
+    value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/dojo/dojo',
+  },
+]
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -45,6 +59,10 @@ function Landing({ value, setValue, onSubmit, busy, error }) {
         <textarea id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="GHSA-… or npm:package@version\nhttps://github.com/org/repository" rows={4} />
         <div className="form-footer"><span>Nothing is installed or executed.</span><button type="submit" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={14} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button></div>
       </form>
+      <div className="example-picker" aria-label="Example investigations">
+        <span className="example-picker-label">try a shape</span>
+        {INVESTIGATION_EXAMPLES.map((example) => <button className="example-chip" key={example.label} type="button" onClick={() => setValue(example.value)}>{example.label}</button>)}
+      </div>
       <div className="example-row"><span>input format</span><span>GHSA or CVE + one to four public GitHub repository URLs</span></div>
       {error && <div className="error-banner" role="alert"><CircleAlert size={15} /> {error}</div>}
     </section>

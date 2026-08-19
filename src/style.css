@@ -49,6 +49,10 @@ h1 i, .verdict-block h1 i { color: var(--cream); font-style: normal; }
 .form-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 13px; border-top: 1px solid var(--line-soft); color: var(--faint); font: 10px 'IBM Plex Mono', monospace; }
 .form-footer button, .new-case-wrap button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; color: var(--ink); background: var(--cream); font: 500 11px 'IBM Plex Mono', monospace; }
 .form-footer button:hover, .new-case-wrap button:hover { background: var(--text); }
+.example-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+.example-picker-label { margin-right: 2px; color: var(--faint); font: 9px 'IBM Plex Mono', monospace; letter-spacing: .1em; text-transform: uppercase; }
+.example-chip { padding: 7px 9px; border: 1px solid var(--line); color: var(--muted); background: transparent; font: 10px 'IBM Plex Mono', monospace; }
+.example-chip:hover, .example-chip:focus-visible { border-color: var(--cream); color: var(--text); background: var(--surface); outline: none; }
 .example-row { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 16px; margin-top: 17px; color: var(--faint); font: 10px 'IBM Plex Mono', monospace; }
 .example-row button { padding: 0; color: var(--muted); background: transparent; border-bottom: 1px solid var(--line); }
 .example-row button:hover { color: var(--cream); border-color: var(--cream); }

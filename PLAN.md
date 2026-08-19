@@ -225,6 +225,7 @@ Manual checks:
 
 ## Checkpoint history
 
+- `4313dcd` — surface evidence paths in the OpenTUI report pane
 - `b080e77` — retain verified smoke receipts outside version control
 - `f46817d` — explain resolved dependency paths in HydraDB temporal memories
 - `7370f34` — cite transitive dependency hops in reports and receipts
