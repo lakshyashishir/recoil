@@ -1041,4 +1041,4 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   }
 }
 
-export { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest }
+export { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parsePnpmWorkspace }

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parsePnpmLock, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
+import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parsePnpmLock, parsePnpmWorkspace, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
 
 test('target inference keeps a GitHub repository separate from an optional package selector', () => {
   const target = inferTarget('https://github.com/hydra-db/hydradb hydradb')
@@ -133,6 +133,17 @@ snapshots:
   ])
   assert.deepEqual(entries[1].dependencies, ['minimist'])
   assert.match(entries[0].path, /^pnpm:/)
+})
+
+test('pnpm workspace parser preserves bounded include and exclude patterns', () => {
+  assert.deepEqual(parsePnpmWorkspace(`
+packages:
+  - 'packages/*'
+  - apps/**
+  - '!packages/fixtures'
+catalog:
+  typescript: 5.0.0
+`), ['packages/*', 'apps/**', '!packages/fixtures'])
 })
 
 test('package selection never chooses the first repository when repository-only input is ambiguous', () => {
