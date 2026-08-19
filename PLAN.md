@@ -121,6 +121,8 @@ observed path → proposed fix → residual re-check
 - [x] Retain normalized HydraDB graph triplets in the recording smoke output.
 - [x] Give each browser submission its own case session so reports, receipts, and briefs are not
       overwritten by the next investigation.
+- [x] Make cited repository paths the default completed-case view; keep the full observed graph as
+      an explicit inspection view.
 
 ### Still required before calling the hackathon build complete
 

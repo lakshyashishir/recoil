@@ -1408,7 +1408,10 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
-  const [graphView, setGraphView] = useState(true)
+  // The report opens on cited repository paths. The full entity graph remains
+  // available as an explicit inspection view, but it should not be the first
+  // thing a reviewer has to decode.
+  const [graphView, setGraphView] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyTarget, setHistoryTarget] = useState(null)
   // A freshly built report uses `now` as its requested rewind timestamp while

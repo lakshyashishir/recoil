@@ -61,6 +61,10 @@ The proof sequence is evidence-first:
 - **Proposed change:** chooses an OSV-supported fixed version and checks whether each declared range admits it.
 - **Re-check:** checks whether the proposed change leaves an affected route or requires a manifest change.
 
+The completed browser report opens on one cited path per repository so the decision is readable before
+the reviewer chooses to inspect the denser observed entity graph. The full graph is still available from
+the report, but it is an inspection surface rather than the verdict itself.
+
 This is a bounded defensive analysis. Recoil never installs dependencies, executes public repository code, sends exploit payloads, or probes a live target.
 
 ## Why HydraDB is central
