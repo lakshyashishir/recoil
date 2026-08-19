@@ -222,7 +222,10 @@ function graphLayout(graph = {}, finding = null) {
   const height = Math.max(390, 88 + maxRows * 72)
   const positions = new Map()
   for (const [layer, group] of layers) {
-    const x = 66 + (layer / maxLayer) * (width - 132)
+    // Keep the 154px node frame inside the viewBox so the first/last column
+    // remains readable when the SVG is scaled down by the workspace.
+    const horizontalGutter = 90
+    const x = horizontalGutter + (layer / maxLayer) * (width - horizontalGutter * 2)
     const gap = height / (group.length + 1)
     group.forEach((node, index) => positions.set(node.id, { x, y: gap * (index + 1) }))
   }
@@ -277,7 +280,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
             const findingIndex = node.type === 'repository' ? (report?.repositories || []).findIndex((finding) => finding.repository === node.label) : -1
             const selectable = findingIndex >= 0 && onSelectFinding
             const selectNode = () => { if (selectable) onSelectFinding(findingIndex) }
-            return <g className={`map-node node-${node.type} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
+            return <g className={`map-node node-${node.type} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} aria-label={selectable ? `${node.type}: ${node.label}` : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
               <title>{node.label}</title>
               <rect width="154" height="48" rx="6" />
               <text className="map-node-type" x="10" y="15">{node.type}</text>
