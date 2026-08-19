@@ -559,7 +559,7 @@ function CaseChronology({ finding, report, challenge, historical, onOpenHistory 
   return <section className="case-chronology" aria-label="Evidence chronology">
     <div className="case-chronology-heading"><div><span className="section-kicker">Evidence chronology</span><h2>What happened, in time.</h2><p>Dates come from public advisory and repository history. The fix is a version check, not a code change.</p></div>{report?.rewind?.beforeAdvisory && <button className="chronology-action" type="button" onClick={onOpenHistory}>{historical ? 'Compare current evidence' : 'Open history'} <ArrowUpRight size={13} /></button>}</div>
     <div className="case-chronology-track">
-      {steps.map((step, index) => <article className={`chronology-step chronology-step-${step.kind}`} key={step.label}><span className="chronology-index">0{index + 1}</span><span className="chronology-label">{step.label}</span><strong>{step.value || dateLabel(step.date)}</strong><small>{step.detail}</small>{step.source ? <SourceLink href={step.source}>source</SourceLink> : <span className="chronology-source-missing">source unavailable</span>}</article>)}
+      {steps.map((step, index) => <article className={`chronology-step chronology-step-${step.kind}`} key={step.label}><span className="chronology-index">0{index + 1}</span><span className="chronology-label">{step.label}</span><strong>{step.value || dateLabel(step.date)}</strong><small>{step.detail}</small>{step.source ? <SourceLink href={step.source} /> : <span className="chronology-source-missing">source unavailable</span>}</article>)}
     </div>
   </section>
 }
@@ -684,7 +684,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
             <span className="trace-hop-index">0{index + 1}</span>
             <span className="trace-hop-kind">{kind}</span>
             <strong>{shorten(routeDisplayPart(part, finding), 33)}</strong>
-            {source ? <SourceLink href={source}>source</SourceLink> : <span className="trace-source-missing">not collected</span>}
+            {source ? <SourceLink href={source} /> : <span className="trace-source-missing">not collected</span>}
           </article>
           {index < parts.length - 1 && <span className="trace-arrow" aria-hidden="true">→</span>}
         </div>
