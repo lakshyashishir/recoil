@@ -95,6 +95,7 @@ test('observed graph contains only advisory, repository, lockfile, and source ev
   const graph = buildObservedGraph({ advisoryId: advisory.id, packageName: 'minimist', repositoryFindings: [finding] })
 
   assert.equal(graph.nodes.some((node) => node.label === 'customer database'), false)
+  assert.equal(graph.nodes.find((node) => node.id === 'package:minimist@1.2.5').meta.verdict, undefined)
   assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.5' && to === 'lock:example/app:package-lock.json'))
   assert.ok(graph.edges.some(([from, to]) => from === 'lock:example/app:package-lock.json' && to === 'repo:example/app'))
   assert.ok(graph.edges.some(([from, to]) => from === 'repo:example/app' && to === 'code:example/app:src/cli.js'))

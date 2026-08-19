@@ -334,7 +334,10 @@ export function buildObservedGraph({ advisoryId, packageName, repositoryFindings
     )
     for (const version of packageVersions) {
       const packageId = `package:${finding.packageName}@${version}`
-      nodes.push({ id: packageId, label: packageId.replace('package:', ''), type: 'package', meta: { verdict: finding.verdict, resolvedVersions } })
+      // A package/version can be shared by repositories with different
+      // outcomes. Keep verdict color on repository nodes only; a shared
+      // dependency node has no single truthful verdict of its own.
+      nodes.push({ id: packageId, label: packageId.replace('package:', ''), type: 'package', meta: { resolvedVersions } })
       edges.push([`advisory:${advisoryId}`, packageId], [packageId, lockId])
     }
     const dependencyPath = finding.dependencyPath || []
