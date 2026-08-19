@@ -170,6 +170,9 @@ autonomous investigation state machine in-process, uses the same HydraDB and Ope
 writes a portable receipt to `.recoil-recordings/<case-id>.json`. The default CLI remains API-backed so it
 can share a live case with the browser.
 
+Use `--case 0017` (or `RECOIL_CLI_CASE_ID=0017`) when the CLI should address the browser’s stable API case
+for a repeatable cross-client demo. Without it, the CLI creates an isolated case ID.
+
 The CLI exits nonzero when collection is partial or a repository is `UNKNOWN`, including with `--json`, even though it still prints
 the partial report and receipt URL. This makes it safe to use in CI and prevents an incomplete public case
 from being recorded as a successful demo.

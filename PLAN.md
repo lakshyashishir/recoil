@@ -84,6 +84,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Add an explicit in-process CLI transport that reuses the autonomous state machine when an API server is not available.
 - [x] Make strict recording require an actual HydraDB graph triplet, not only a successful memory write and dated recall.
 - [x] Reuse one recursive GitHub tree for source and workflow discovery, keeping the workflow directory API as a failure fallback.
+- [x] Allow the CLI to target a caller-supplied case ID so browser and terminal clients can inspect the same API-backed investigation.
 
 ### Still required before calling the hackathon build complete
 

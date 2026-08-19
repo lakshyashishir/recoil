@@ -14,11 +14,19 @@ const fast = args.includes('--fast')
 const proofOutput = args.includes('--proof')
 const recordingMode = args.includes('--recording')
 const directMode = args.includes('--direct')
+const caseFlagIndex = args.findIndex((arg) => arg === '--case')
+const caseFlagValue = caseFlagIndex >= 0 ? args[caseFlagIndex + 1] : null
+const caseInlineValue = args.find((arg) => arg.startsWith('--case='))?.slice('--case='.length) || null
+const requestedCaseId = caseInlineValue || caseFlagValue || process.env.RECOIL_CLI_CASE_ID || null
 const verifyReceiptIndex = args.findIndex((arg) => arg === '--verify-receipt' || arg.startsWith('--verify-receipt='))
 const verifyReceiptPath = verifyReceiptIndex >= 0
   ? (args[verifyReceiptIndex].includes('=') ? args[verifyReceiptIndex].slice(args[verifyReceiptIndex].indexOf('=') + 1) : args[verifyReceiptIndex + 1])
   : null
-const query = args.filter((arg) => !arg.startsWith('--')).join(' ').trim()
+const query = args.filter((arg, index) => {
+  if (arg.startsWith('--')) return false
+  if (caseFlagIndex >= 0 && index === caseFlagIndex + 1) return false
+  return true
+}).join(' ').trim()
 const pollDelay = fast ? 100 : 650
 const maxWaitMs = 180000
 
@@ -26,6 +34,7 @@ function usage() {
   console.log('Usage: npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository"')
   console.log('       npm run cli -- "CVE-2021-4229 https://github.com/org/repo-a https://github.com/org/repo-b" [--fast] [--proof] [--recording] [--json]')
   console.log('       npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository" --direct')
+  console.log('       npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository" --case 0017')
   console.log('       npm run cli -- --verify-receipt .recoil-recordings/<scenario-id>.json')
 }
 
@@ -125,7 +134,8 @@ async function main() {
     if (blockers.length) throw new Error(`Recording preflight failed: ${blockers.join(' · ')}`)
   }
 
-  const id = `cli-${randomUUID().slice(0, 8)}`
+  if (caseFlagIndex >= 0 && (!caseFlagValue || caseFlagValue.startsWith('--'))) throw new Error('--case requires a case identifier')
+  const id = requestedCaseId || `cli-${randomUUID().slice(0, 8)}`
   line(`RECOIL  ${id}`)
   line(`target  ${query}`)
   line('scope   public evidence only · no install · no execution')
