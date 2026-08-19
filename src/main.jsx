@@ -8,15 +8,15 @@ const DEFAULT_INPUT = ''
 const INVESTIGATION_EXAMPLES = [
   {
     label: 'three-repository case',
-    value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/gitpod-io/openvscode-server/tree/3381c7c\nhttps://github.com/dojo/dojo\nhttps://github.com/axios/axios',
+    value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/http-party/http-server/tree/v13.0.2\nhttps://github.com/dojo/dojo\nhttps://github.com/axios/axios/tree/v1.x',
   },
   {
     label: 'package + repositories',
-    value: 'npm:minimist\nhttps://github.com/dojo/dojo\nhttps://github.com/axios/axios',
+    value: 'npm:minimist\nhttps://github.com/http-party/http-server/tree/v13.0.2\nhttps://github.com/axios/axios/tree/v1.x',
   },
   {
     label: 'single repository',
-    value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/dojo/dojo',
+    value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/http-party/http-server/tree/v13.0.2',
   },
 ]
 
