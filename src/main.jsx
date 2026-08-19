@@ -445,6 +445,11 @@ function routeEvidenceLabel(finding) {
   return 'evidence needs review'
 }
 
+function routePathLabel(finding) {
+  const parts = findingParts(finding).map((part) => routeDisplayPart(part, finding)).filter(Boolean)
+  return parts.length ? parts.join(' → ') : 'No observed path'
+}
+
 function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false, onInspectProof }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   const selected = findings[selectedIndex] || findings[0]
@@ -476,7 +481,7 @@ function RouteList({ findings, selectedIndex, onSelect, challenges = [], correla
     <div className="route-list">
       {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
         <span className="route-index">0{index + 1}</span>
-        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'}</small><em><b>{routeActionLabel(finding, challenges.find((item) => item.repository === finding.repository), historical)}</b> · {routeEvidenceLabel(finding)}</em></span>
+        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'}</small><em><b>{routeActionLabel(finding, challenges.find((item) => item.repository === finding.repository), historical)}</b> · {routeEvidenceLabel(finding)}</em><code title={routePathLabel(finding)}>{routePathLabel(finding)}</code></span>
         <Verdict value={finding.verdict} compact />
       </button>)}
     </div>

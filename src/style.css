@@ -558,6 +558,7 @@ body { font-family: var(--sans); line-height: 1.45; }
 .route-item-copy em { overflow: hidden; color: var(--muted); font-size: 11px; font-style: normal; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 .route-item-copy em b { color: var(--accent); font-weight: 600; }
 .route-item-selected .route-item-copy em b { color: var(--text); }
+.route-item-copy code { overflow: hidden; color: var(--faint); font: 10px/1.35 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 
 .shared-resolution { margin-top: 25px; padding-top: 17px; border-top: 1px solid var(--line); }
 .shared-resolution-heading { display: flex; align-items: end; justify-content: space-between; gap: 15px; }
