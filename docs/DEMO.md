@@ -104,10 +104,12 @@ The TUI has the same transport choices:
 ```bash
 npm run tui -- "<verified advisory> https://github.com/<owner>/<repository>"
 npm run tui -- --direct "<verified advisory> https://github.com/<owner>/<repository>"
+npm run tui -- --recording "<verified advisory> https://github.com/<owner>/<repository-a> https://github.com/<owner>/<repository-b> https://github.com/<owner>/<repository-c>"
 ```
 
 The first shares API state with the browser; the second runs the same in-process state machine as the CLI's
-`--direct` mode and is useful for terminal-agent demonstrations without a local API process.
+`--direct` mode and is useful for terminal-agent demonstrations without a local API process. `--recording`
+shows the same strict three-way and HydraDB blockers used by the final CLI gate.
 
 The CLI exits nonzero when public collection is partial or any repository is `UNKNOWN`; keep the printed
 receipt for diagnosis, but do not record that run as the final demo.

@@ -103,6 +103,7 @@ observed path → proposed fix → residual re-check
 - [x] Add a strict recording network preflight so disconnected runs fail before spending collector or HydraDB requests.
 - [x] Keep optional model outages visibly degraded without failing deterministic evidence investigations.
 - [x] Give the TUI the same explicit direct transport as the CLI for API-free terminal operation.
+- [x] Surface the strict recording gate and blockers in the TUI as well as the browser and CLI.
 
 ### Still required before calling the hackathon build complete
 

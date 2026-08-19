@@ -231,6 +231,8 @@ The OpenTUI console remains available for local operator use:
 npm run tui
 # Run without an API server; this uses the same in-process investigation state machine as CLI --direct
 npm run tui -- --direct "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository"
+# Apply the final three-way + HydraDB recording gate in the terminal view
+npm run tui -- --recording "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository-a https://github.com/owner/repository-b https://github.com/owner/repository-c"
 ```
 
 The primary browser and CLI flows are autonomous: one investigation request starts collection, classification, temporal proof, HydraDB persistence/recall, and the final report. There are no run-loop or step buttons in this path.
