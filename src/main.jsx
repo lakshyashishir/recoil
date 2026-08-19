@@ -363,7 +363,21 @@ function GraphInspector({ node, report, graph, selectedFinding }) {
       ? `${importer.path}${importer.line ? `:${importer.line}` : ''}`
       : selectedFinding.verdict === 'DECLARED_ONLY' ? 'No sampled import' : 'Source evidence needs review'
     : null
-  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div>{routeEvidence && <div className="graph-inspector-evidence"><span>{importer ? 'Source check' : 'Reachability check'}</span><strong>{routeEvidence}</strong>{importer?.snippet && <code>{importer.snippet}</code>}{importer?.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div>}<div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i>{shorten(relation.node.label, 25)}</span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}{node.sourceUrl && <SourceLink href={node.sourceUrl}>Open source</SourceLink>}</div></div>
+  const nodeEvidence = node.type === 'code'
+    ? { label: 'Source file', value: node.label }
+    : node.type === 'symbol'
+      ? { label: 'Validated symbol', value: node.label }
+      : node.type === 'lockfile'
+        ? { label: 'Lockfile record', value: node.label }
+        : node.type === 'package'
+          ? { label: 'Resolution record', value: node.label }
+          : node.type === 'advisory'
+            ? { label: 'Advisory record', value: node.label }
+            : null
+  const evidenceLabel = routeEvidence ? (importer ? 'Source check' : 'Reachability check') : nodeEvidence?.label
+  const evidenceValue = routeEvidence || nodeEvidence?.value
+  const evidenceSource = importer?.sourceUrl || node.sourceUrl
+  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div>{evidenceValue && <div className="graph-inspector-evidence"><span>{evidenceLabel}</span><strong>{evidenceValue}</strong>{importer?.snippet && <code>{importer.snippet}</code>}{evidenceSource && <SourceLink href={evidenceSource}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}</div>}<div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i>{shorten(relation.node.label, 25)}</span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}</div></div>
 }
 
 function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, selectedNodeId, events = [], live = false, graphProgress = null }) {
