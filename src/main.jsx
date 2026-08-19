@@ -295,9 +295,22 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
   </section>
 }
 
-function RouteList({ findings, selectedIndex, onSelect }) {
+function RouteList({ findings, selectedIndex, onSelect, challenges = [], historical = false }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   const selected = findings[selectedIndex] || findings[0]
+  const selectedChallenge = challenges.find((item) => item.repository === selected?.repository)
+  const importer = selected?.imports?.[0]
+  const challengeLabel = historical
+    ? 'Current view only'
+    : selectedChallenge?.status === 'FIX_SURVIVES'
+    ? 'Fixed version verified'
+    : selectedChallenge?.status === 'ALREADY_SAFE'
+      ? 'Already outside range'
+      : selectedChallenge?.status === 'NO_REACHABLE_PATH'
+        ? 'No reachable path'
+        : selectedChallenge?.status === 'MANIFEST_CHANGE_REQUIRED'
+          ? 'Manifest change required'
+          : 'Review required'
   return <aside className="route-panel">
     <div className="route-panel-heading"><div><span className="section-kicker">Repository comparison</span><h2>What the evidence says</h2></div><span>{findings.length} checked</span></div>
     <p className="route-panel-note">Select a repository to inspect the exact path behind its decision.</p>
@@ -307,6 +320,7 @@ function RouteList({ findings, selectedIndex, onSelect }) {
       <strong>{repositoryName(selected.repository)}</strong>
       <p>{selected.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
       <dl><div><dt>Resolved</dt><dd>{selected.resolvedVersions?.length > 1 ? selected.resolvedVersions.join(', ') : selected.resolvedVersion || 'not resolved'}</dd></div><div><dt>Source imports</dt><dd>{selected.imports?.length || 0}</dd></div></dl>
+      <div className="route-selected-proof"><div><span>Source check</span><strong>{importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'No sampled import'}</strong></div><div><span>Fix check</span><strong>{challengeLabel}</strong></div></div>
       <button className="route-selected-action" type="button" onClick={() => document.getElementById('case-proof')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })}>Inspect proof <ArrowUpRight size={13} /></button>
     </div>}
     <div className="route-list">
@@ -488,7 +502,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : 'fixes verified'}</span></div></section>
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} />
     <CaseNavigator finding={selectedFinding} />
-    <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
+    <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} challenges={historical ? [] : report?.challenge || []} historical={historical} /></div>
     <RouteProof finding={selectedFinding} challenge={challenge} />
     <TemporalProof report={report} onRewind={onRewind} />
     <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />
