@@ -862,6 +862,7 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-decision-meta button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 .case-decision-meta .case-history-action { color: var(--muted); }
 .case-decision-meta .case-history-action:hover { color: var(--text); }
+.case-decision-meta .case-history-action:disabled { color: var(--faint); cursor: wait; text-decoration: none; }
 .case-decision-callout-historical .case-decision-label .section-kicker { color: var(--muted); }
 .case-decision-callout-historical .case-decision-meta { border-left-color: var(--faint); }
 
