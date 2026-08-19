@@ -4,7 +4,9 @@ import { createCliRenderer } from '@opentui/core'
 import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
 import { useEffect, useState } from 'react'
 import { startInvestigation } from '../server/investigation.js'
+import { parseGitHubRepositories, parseInvestigationInput } from '../server/collectors.js'
 import { recordingBlockers } from '../src/core/recording.js'
+import { recordingPreflight } from '../src/core/recording.js'
 
 const C = {
   bg: '#0b0e0c',
@@ -25,6 +27,15 @@ const directMode = tuiArgs.includes('--direct') || process.env.RECOIL_TUI_DIRECT
 const recordingMode = tuiArgs.includes('--recording')
 const query = tuiArgs.filter((arg) => !['--direct', '--recording'].includes(arg)).join(' ').trim() || process.env.RECOIL_TUI_QUERY || ''
 const caseId = `tui-${Math.random().toString(16).slice(2, 10)}`
+const recordingPreflightBlockers = recordingMode && query
+  ? recordingPreflight({
+      advisoryId: parseInvestigationInput(query).advisoryId,
+      repositoryCount: parseGitHubRepositories(query).length,
+      hydraConfigured: Boolean(process.env.HYDRA_DB_API_KEY && process.env.HYDRADB_DATABASE_ID),
+      requireContrast: true,
+      requireHydra: true,
+    })
+  : []
 const directRecord = directMode ? {
   id: caseId,
   query: '',
@@ -57,10 +68,10 @@ function verdictColor(verdict) {
 function App() {
   const renderer = useRenderer()
   const compact = renderer.width < 125
-  const [state, setState] = useState({ status: query ? 'starting' : 'idle', evidenceStatus: 'unknown', events: [], report: null, hydra: null, error: null })
+  const [state, setState] = useState({ status: recordingPreflightBlockers.length ? 'failed' : query ? 'starting' : 'idle', evidenceStatus: 'unknown', events: [], report: null, hydra: null, error: recordingPreflightBlockers.length ? recordingPreflightBlockers.join(' · ') : null })
 
   useEffect(() => {
-    if (!query) return undefined
+    if (!query || recordingPreflightBlockers.length) return undefined
     let cancelled = false
     async function run() {
       try {
