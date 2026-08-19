@@ -620,6 +620,74 @@ function outcomeFixLabel(challenge, historical) {
   return 'Review required'
 }
 
+function remediationItem(finding, challenge, historical) {
+  const packageName = finding?.packageName || 'the dependency'
+  const currentVersion = finding?.resolvedVersion || finding?.resolvedVersions?.[0] || 'the observed version'
+  if (historical) {
+    return {
+      tone: 'historical',
+      label: 'Compare current evidence',
+      detail: 'This dated view is for reconstruction. Remediation is available in the current case.',
+    }
+  }
+  if (finding?.verdict === 'REACHED' && challenge?.status === 'FIX_SURVIVES') {
+    return {
+      tone: 'urgent',
+      label: `Upgrade ${packageName} to ${challenge.proposedVersion}`,
+      detail: `${packageName}@${currentVersion} reaches sampled source. The proposed version removes the affected version from the cited path.`,
+    }
+  }
+  if (finding?.verdict === 'DECLARED_ONLY' && challenge?.status === 'NO_REACHABLE_PATH') {
+    return {
+      tone: 'review',
+      label: `Refresh the lockfile to ${packageName}@${challenge.proposedVersion}`,
+      detail: `No sampled import reaches ${packageName}, but the affected resolution remains present and should not be left in the graph.`,
+    }
+  }
+  if (challenge?.status === 'MANIFEST_CHANGE_REQUIRED') {
+    return {
+      tone: 'review',
+      label: `Change the declared range for ${packageName}`,
+      detail: challenge.detail || `The repository's declared range does not admit ${challenge.proposedVersion || 'the fixed version'}.`,
+    }
+  }
+  if (finding?.verdict === 'NOT_AFFECTED' || challenge?.status === 'ALREADY_SAFE') {
+    return {
+      tone: 'clear',
+      label: 'No change required',
+      detail: `${packageName}@${currentVersion} is outside the advisory's affected range.`,
+    }
+  }
+  return {
+    tone: 'review',
+    label: 'Review the evidence path',
+    detail: finding?.reason || 'The available evidence does not support a stronger remediation claim.',
+  }
+}
+
+function RemediationBrief({ findings = [], challenges = [], selectedIndex, onSelect, historical = false }) {
+  if (!findings.length) return null
+  const items = findings.map((finding, index) => ({
+    finding,
+    index,
+    item: remediationItem(finding, challenges.find((challenge) => challenge.repository === finding.repository), historical),
+  }))
+  const openItems = items.filter(({ item }) => item.tone === 'urgent' || item.tone === 'review').length
+  const heading = historical ? 'Return to the current case for remediation.' : openItems ? `${openItems} path${openItems === 1 ? '' : 's'} need attention.` : 'No remediation is required from this evidence.'
+  return <section className="remediation-brief" aria-label="Remediation brief">
+    <div className="remediation-brief-heading"><div><span className="section-kicker">Next actions</span><h2>{heading}</h2></div><span>{historical ? 'dated reconstruction' : `${findings.length} repositories checked`}</span></div>
+    <div className="remediation-list">
+      {items.map(({ finding, index, item }) => <button className={`remediation-row remediation-row-${item.tone} ${selectedIndex === index ? 'is-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
+        <span className="remediation-marker" aria-hidden="true" />
+        <span className="remediation-main"><strong>{item.label}</strong><span>{repositoryName(finding.repository)}</span></span>
+        <span className="remediation-detail">{item.detail}</span>
+        <ArrowUpRight className="remediation-arrow" size={14} aria-hidden="true" />
+      </button>)}
+    </div>
+    <p className="remediation-note">Actions are recommendations from the collected lockfile, source sample, advisory range, and fix proof. Recoil does not modify or execute a repository.</p>
+  </section>
+}
+
 function CaseOutcomeRail({ findings = [], challenges = [], selectedIndex, onSelect, historical = false }) {
   if (!findings.length) return null
   const outcomeCount = new Set(findings.map((finding) => finding.verdict || 'UNKNOWN')).size
@@ -838,6 +906,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
     <CaseOutcomeRail findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null); setActiveTab('graph'); window.requestAnimationFrame(() => document.getElementById('case-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }} />
+    <RemediationBrief findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null); setActiveTab('proof'); window.requestAnimationFrame(() => document.getElementById('case-proof')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }} />
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} hydra={hydra} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel">
