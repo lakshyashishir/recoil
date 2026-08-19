@@ -102,9 +102,10 @@ bounded source files so a three-repository recording does not spend one API requ
 source responses are cached under the same bounded TTL as GitHub JSON, making a second run replayable
 without re-reading every source file from the public endpoint.
 Known manifests, lockfiles, workflow files, container files, and ownership metadata prefer raw GitHub
-content, then fall back to the Contents API with cache and explicit rate-limit errors. Directory listings,
-repository trees, and commit history still use the API; optional workflow metadata degrades to an explicit
-`unavailable` signal when that API is unreachable.
+content, then fall back to the Contents API with cache and explicit rate-limit errors. The recursive
+repository tree is reused for source and workflow discovery, avoiding a second directory request per repo;
+the workflow directory endpoint is retained only as a fallback when tree discovery fails. Commit history
+still uses the API, and optional metadata degrades to an explicit `unavailable` signal when unreachable.
 
 For separate processes:
 

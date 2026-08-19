@@ -244,18 +244,20 @@ async function readGitHubCommitHistory(repository, path) {
   }
 }
 
-async function collectSourceFiles(repository) {
+async function collectSourceFiles(repository, knownPaths = undefined, knownError = null) {
   const configuredLimit = Number.parseInt(process.env.RECOIL_SOURCE_FILE_LIMIT || '24', 10)
   const sourceLimit = Number.isFinite(configuredLimit) ? Math.min(Math.max(configuredLimit, 1), 120) : 24
-  let paths = []
-  let status = 'collected'
-  let error = null
-  try {
-    paths = await readGitHubTree(repository)
-  } catch (cause) {
-    paths = []
-    status = 'unavailable'
-    error = cause.message
+  let paths = Array.isArray(knownPaths) ? knownPaths : []
+  let status = knownPaths !== undefined && knownError ? 'unavailable' : 'collected'
+  let error = knownError || null
+  if (knownPaths === undefined) {
+    try {
+      paths = await readGitHubTree(repository)
+    } catch (cause) {
+      paths = []
+      status = 'unavailable'
+      error = cause.message
+    }
   }
   const eligiblePaths = paths
     .filter((path) => /(?:^|\/)(?:src|lib|app|packages|crates)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
@@ -412,10 +414,25 @@ export async function collectRepository(repository, requestedPackage) {
         resolved: entry.resolved,
         dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
       }))
-  const workflowResult = await readGitHubDirectory(repository, '.github/workflows')
+  let treePaths = null
+  let treeError = null
+  try {
+    treePaths = await readGitHubTree(repository)
+  } catch (error) {
+    treeError = error.message
+  }
+  const workflowPaths = Array.isArray(treePaths)
+    ? treePaths.filter((path) => path.startsWith('.github/workflows/')).slice(0, 12)
+    : null
+  const workflowResult = workflowPaths
+    ? {
+        entries: workflowPaths.map((path) => ({ type: 'file', name: path.slice('.github/workflows/'.length), path })),
+        status: workflowPaths.length ? 'collected' : 'not_found',
+      }
+    : await readGitHubDirectory(repository, '.github/workflows')
   const workflowFiles = (await Promise.all(workflowResult.entries.map((entry) => readGitHubFile(repository, `.github/workflows/${entry.name}`, { preferRaw: true })))).filter(Boolean)
   const containerFiles = (await Promise.all(['Dockerfile', 'docker-compose.yml', 'compose.yml'].map((path) => readGitHubFile(repository, path, { preferRaw: true })))).filter(Boolean)
-  const sourceResult = await collectSourceFiles(repository)
+  const sourceResult = await collectSourceFiles(repository, treePaths, treeError)
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
   let codeGraph = buildCodeGraph(sourceFiles, { maxFiles: sourceResult.limit || sourceFiles.length || 24 })

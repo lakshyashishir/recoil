@@ -77,7 +77,7 @@ test('raw GitHub source reads replay from the bounded cache', async () => {
   }
 })
 
-test('known repository files prefer raw content and tolerate optional workflow outages', async () => {
+test('known repository files prefer raw content and reuse the recursive tree for workflows', async () => {
   const previousFetch = globalThis.fetch
   const previousCache = process.env.RECOIL_CACHE_DIR
   process.env.RECOIL_CACHE_DIR = '/dev/null'
@@ -92,16 +92,16 @@ test('known repository files prefer raw content and tolerate optional workflow o
       if (url.pathname.endsWith('/package.json')) return response(manifest)
       if (url.pathname.endsWith('/package-lock.json')) return response(packageLock('1.2.5'))
       if (url.pathname.endsWith('/src/main.js')) return response(source)
+      if (url.pathname.endsWith('/.github/workflows/ci.yml')) return response('name: ci\nrun-name: test')
       return response({}, 404)
     }
     if (url.hostname !== 'api.github.com') return response({}, 404)
     const operation = url.pathname.split('/repos/example/raw-app/')[1] || ''
-    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'src/main.js' }] })
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'src/main.js' }, { type: 'blob', path: '.github/workflows/ci.yml' }] })
     if (operation.startsWith('commits')) {
       if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/raw-app/commit/oldest', commit: { author: { date: '2024-01-01T00:00:00Z' } } }])
       return response([])
     }
-    if (operation === 'contents/.github/workflows') throw new Error('workflow endpoint offline')
     return response({}, 404)
   }
 
@@ -109,14 +109,56 @@ test('known repository files prefer raw content and tolerate optional workflow o
     const repository = await collectRepository({ owner: 'example', name: 'raw-app', slug: 'example/raw-app' }, 'minimist')
     assert.equal(repository.sourceUrl, 'https://raw.githubusercontent.com/example/raw-app/HEAD/package.json')
     assert.ok(repository.sources.some((source) => source.url === 'https://raw.githubusercontent.com/example/raw-app/HEAD/package-lock.json'))
-    assert.equal(repository.manifest.ciSignals.status, 'unavailable')
-    assert.match(repository.manifest.ciSignals.error, /contents\/\.github\/workflows.*workflow endpoint offline/)
+    assert.equal(repository.manifest.ciSignals.status, 'collected')
+    assert.deepEqual(repository.manifest.ciSignals.workflowFiles, ['.github/workflows/ci.yml'])
     assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/package.json')), false)
     assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/package-lock.json')), false)
+    assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/.github/workflows')), false)
+    assert.equal(requests.filter((url) => url.pathname.includes('/git/trees/')).length, 1)
   } finally {
     globalThis.fetch = previousFetch
     if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
     else process.env.RECOIL_CACHE_DIR = previousCache
+  }
+})
+
+test('workflow directory is the fallback when recursive tree discovery fails', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  const previousRetries = process.env.RECOIL_NETWORK_RETRIES
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  process.env.RECOIL_NETWORK_RETRIES = '1'
+  const requests = []
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    requests.push(url)
+    if (url.hostname === 'raw.githubusercontent.com') {
+      if (url.pathname.endsWith('/package.json')) return response(JSON.stringify({ name: 'fallback-app', dependencies: { minimist: '^1.2.0' } }))
+      if (url.pathname.endsWith('/package-lock.json')) return response(packageLock('1.2.5'))
+      if (url.pathname.endsWith('/.github/workflows/ci.yml')) return response('name: ci')
+      return response({}, 404)
+    }
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const operation = url.pathname.split('/repos/example/fallback-app/')[1] || ''
+    if (operation.startsWith('git/trees/')) throw new Error('tree endpoint offline')
+    if (operation === 'contents/.github/workflows') return response([{ type: 'file', name: 'ci.yml', path: '.github/workflows/ci.yml' }])
+    if (operation.startsWith('commits')) return response([])
+    return response({}, 404)
+  }
+
+  try {
+    const repository = await collectRepository({ owner: 'example', name: 'fallback-app', slug: 'example/fallback-app' }, 'minimist')
+    assert.equal(repository.manifest.ciSignals.status, 'collected')
+    assert.deepEqual(repository.manifest.ciSignals.workflowFiles, ['.github/workflows/ci.yml'])
+    assert.equal(repository.manifest.collection.sourceFiles.status, 'unavailable')
+    assert.equal(requests.filter((url) => url.pathname.includes('/git/trees/')).length, 1)
+    assert.equal(requests.some((url) => url.pathname.endsWith('/contents/.github/workflows')), true)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+    if (previousRetries === undefined) delete process.env.RECOIL_NETWORK_RETRIES
+    else process.env.RECOIL_NETWORK_RETRIES = previousRetries
   }
 })
 

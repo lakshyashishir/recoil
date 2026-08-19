@@ -83,6 +83,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Prefer raw GitHub reads for known manifests, lockfiles, workflows, containers, and ownership files; keep optional directory metadata non-fatal during API outages.
 - [x] Add an explicit in-process CLI transport that reuses the autonomous state machine when an API server is not available.
 - [x] Make strict recording require an actual HydraDB graph triplet, not only a successful memory write and dated recall.
+- [x] Reuse one recursive GitHub tree for source and workflow discovery, keeping the workflow directory API as a failure fallback.
 
 ### Still required before calling the hackathon build complete
 
