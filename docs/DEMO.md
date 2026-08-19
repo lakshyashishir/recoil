@@ -69,23 +69,30 @@ Checking the real fixed version against each declared range
 Writing and recalling dated HydraDB evidence
 ```
 
-The final report shows the exact source-backed path, including the observed import line, repository verdict,
-exposure window, fixed-version result, residual-path status, source links, and limits. The HydraDB section
-also keeps a compact prior-evidence summary available when temporal recall relates the case to an earlier
-investigation; raw retrieved chunks remain hidden. On a Cargo case, the same path begins with a real Rust
-crate import; when the optional scope pass finds a matching symbol in that importing file, the symbol is
-shown as an additional cited hop.
+The final report opens with a plain-language decision derived from the findings—for the prepared case,
+“Upgrade minimist to 1.2.6 in http-party/http-server.” It then presents one Graph view: the observed graph
+and the repository comparison beside it. Select a repository or node to inspect the cited relationship;
+the selected route exposes the exact source-backed hops and fix status. The remaining views have one job
+each: Fix shows the version proof, History shows chronology plus temporal rewind and HydraDB recall, and
+Audit shows the recording boundary. This keeps the report useful without repeating the same repository
+list in multiple rails.
+
+The report still shows the observed import line, repository verdict, exposure window, fixed-version result,
+residual-path status, source links, and limits. Raw HydraDB chunks remain hidden; the interface exposes only
+the bounded temporal and graph summary. On a Cargo case, the same path begins with a real Rust crate import;
+when the optional scope pass finds a matching symbol in that importing file, the symbol is shown as an
+additional cited hop.
 
 ## Spoken demo script
 
 1. “Most tools stop at ‘this dependency is vulnerable’. Recoil asks whether the vulnerable code is actually reached.”
 2. Submit the advisory and three repositories.
-3. “Recoil has found a path only when the lockfile, resolved version, and source import support every hop.” Open the `REACHED` repository and show the links.
-4. “This second repository declares the package but does not import it, so it is `DECLARED_ONLY`, not a fabricated compromise.”
-5. If present, “The latest public commit touched the importing file; Recoil links the commit and owners without turning that into a runtime claim.”
-6. “This is the temporal question: the lockfile path existed before the advisory was public.” Click **Before advisory**.
-7. “The fix check proposes the advisory’s fixed version. Recoil checks the declared semver range instead of assuming an upgrade is safe.”
-8. “The residual re-check evaluates the changed path. The fix is either proven, requires a manifest change, or remains unknown.”
+3. “Recoil has already turned that into a decision: upgrade `minimist` to `1.2.6` in the repository with a real source import.” Point to the decision line and open **Inspect fix proof**.
+4. “The graph is read left to right: advisory, resolved package, repository, then sampled source.” Select the `REACHED` repository and open the source link.
+5. “This second repository declares the package but does not import it, so it is `DECLARED_ONLY`, not a fabricated compromise.” Select it in the repository comparison.
+6. If present, “The latest public commit touched the importing file; Recoil links the commit and owners without turning that into a runtime claim.”
+7. Open **History**: “This is the temporal question: the lockfile path existed before the advisory was public.” Click **Before advisory**.
+8. “The fix check compares the advisory’s fixed version with the declared semver range instead of assuming an upgrade is safe.”
 9. “HydraDB stores the dated evidence and retrieves related facts; it is the investigation memory, not a green connection badge.”
 10. Download the evidence receipt and show that the result is a portable, source-cited artifact with an integrity hash.
 
