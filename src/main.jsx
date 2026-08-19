@@ -618,15 +618,17 @@ function outcomeFixLabel(challenge, historical) {
 
 function CaseOutcomeRail({ findings = [], challenges = [], selectedIndex, onSelect, historical = false }) {
   if (!findings.length) return null
+  const outcomeCount = new Set(findings.map((finding) => finding.verdict || 'UNKNOWN')).size
+  const heading = findings.length > 1 && outcomeCount > 1 ? 'The same advisory, different evidence.' : findings.length === 1 ? 'The evidence for this repository.' : 'Repository outcomes.'
   return <section className="outcome-rail" aria-label="Repository outcomes">
-    <div className="outcome-rail-heading"><div><span className="section-kicker">Repository outcomes</span><h2>The same advisory, three different answers.</h2></div><span>{findings.length} checked</span></div>
+    <div className="outcome-rail-heading"><div><span className="section-kicker">Repository outcomes</span><h2>{heading}</h2></div><span>{findings.length} checked</span></div>
     <div className="outcome-rail-items">
       {findings.map((finding, index) => {
         const challenge = challenges.find((item) => item.repository === finding.repository)
         const label = finding.verdict === 'REACHED' ? 'Reached code' : finding.verdict === 'DECLARED_ONLY' ? 'Declared only' : finding.verdict === 'NOT_AFFECTED' ? 'Outside range' : finding.verdict === 'NOT_YET_OBSERVED' ? 'Not observed' : 'Needs review'
         return <button className={`outcome-item outcome-item-${String(finding.verdict || 'UNKNOWN').toLowerCase()} ${selectedIndex === index ? 'is-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)} aria-label={`Inspect ${repositoryName(finding.repository)}`}>
           <span className="outcome-item-index">0{index + 1}</span>
-          <span className="outcome-item-main"><strong>{repositoryName(finding.repository)}</strong><span>{finding.packageName || 'package unresolved'}{finding.resolvedVersion ? `@${finding.resolvedVersion}` : ''}</span></span>
+          <span className="outcome-item-main"><strong>{repositoryName(finding.repository)}</strong><span>{finding.packageName || 'package unresolved'}{finding.resolvedVersions?.length > 1 ? `@${finding.resolvedVersions.join(', ')}` : finding.resolvedVersion ? `@${finding.resolvedVersion}` : ''}</span></span>
           <span className="outcome-item-status"><Verdict value={finding.verdict} compact /><small>{label}</small></span>
           <span className="outcome-item-detail">{outcomeDetail(finding)}</span>
           <span className="outcome-item-fix">{outcomeFixLabel(challenge, historical)}</span>
