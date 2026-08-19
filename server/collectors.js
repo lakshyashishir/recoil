@@ -59,9 +59,13 @@ async function fetchWithNetworkRetry(url, options = {}) {
 
 function httpError(response, url) {
   if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0') {
-    return new Error(`GitHub API rate limit exhausted while reading ${url}; set GITHUB_TOKEN or retry later`)
+    const error = new Error(`GitHub API rate limit exhausted while reading ${url}; set GITHUB_TOKEN or retry later`)
+    error.status = response.status
+    return error
   }
-  return new Error(`${response.status} ${response.statusText}`)
+  const error = new Error(`${response.status} ${response.statusText}`)
+  error.status = response.status
+  return error
 }
 
 function cachePath(url, options = {}) {
@@ -902,23 +906,31 @@ async function collectAdvisories(packageName, advisoryId, ecosystem = 'npm') {
 
 export function advisoryLookupId(advisoryId) {
   if (!advisoryId) return advisoryId
-  // OSV's /v1/vulns endpoint treats GHSA identifiers as case-sensitive.
-  // Keep the canonical uppercase form produced by parseInvestigationInput
-  // instead of lowercasing the whole identifier and turning a valid advisory
-  // into a misleading 404.
+  // Keep the canonical uppercase form produced by parseInvestigationInput.
+  // OSV currently stores GHSA suffixes in lowercase while retaining the
+  // `GHSA-` prefix, so collectAdvisoryById retries that spelling on a 404.
   return /^GHSA-/i.test(advisoryId) ? advisoryId.toUpperCase() : advisoryId
 }
 
 async function collectAdvisoryById(advisoryId) {
   if (!advisoryId) return null
-  const lookupId = advisoryLookupId(advisoryId)
-  const sourceUrl = `https://api.osv.dev/v1/vulns/${encodeURIComponent(lookupId)}`
-  try {
-    const advisory = await readJson(sourceUrl)
-    return { ...advisory, sourceUrl }
-  } catch (error) {
-    return { id: advisoryId, sourceUrl, error: error.message }
+  const canonicalId = advisoryLookupId(advisoryId)
+  const lookupIds = /^GHSA-/i.test(canonicalId)
+    ? [...new Set([canonicalId, `GHSA-${canonicalId.slice(5).toLowerCase()}`])]
+    : [canonicalId]
+  let lastError = null
+  for (const lookupId of lookupIds) {
+    const sourceUrl = `https://api.osv.dev/v1/vulns/${encodeURIComponent(lookupId)}`
+    try {
+      const advisory = await readJson(sourceUrl)
+      return { ...advisory, sourceUrl }
+    } catch (error) {
+      lastError = error
+      if (error.status !== 404) break
+    }
   }
+  const sourceUrl = `https://api.osv.dev/v1/vulns/${encodeURIComponent(lookupIds.at(-1))}`
+  return { id: advisoryId, sourceUrl, error: lastError?.message || 'Advisory record could not be fetched.' }
 }
 
 function advisoryPackageName(advisory) {

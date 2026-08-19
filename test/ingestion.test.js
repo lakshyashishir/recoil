@@ -679,8 +679,9 @@ test('a failed advisory GET can fall back to the OSV package query', async () =>
     assert.equal(ingestion.advisory.id, advisory.id)
     assert.equal(ingestion.advisory.sourceUrl, 'https://api.osv.dev/v1/query')
     assert.equal(ingestion.collectors.find((item) => item.collector === 'advisory-resolver').status, 'completed')
-    assert.deepEqual(requests.slice(0, 2), [
+    assert.deepEqual(requests.slice(0, 3), [
       { path: '/v1/vulns/GHSA-TEST-1234-5678', method: 'GET' },
+      { path: '/v1/vulns/GHSA-test-1234-5678', method: 'GET' },
       { path: '/v1/query', method: 'POST' },
     ])
   } finally {

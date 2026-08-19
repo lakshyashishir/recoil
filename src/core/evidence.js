@@ -247,8 +247,15 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   let verdict = 'UNKNOWN'
   let reason = 'The available public evidence is insufficient to classify this repository.'
   if (!resolvedVersion) {
-    verdict = 'UNKNOWN'
-    reason = manifest.lockfile ? `The lockfile did not resolve ${packageName} in the sampled record.` : 'No lockfile resolution was found; reachability cannot be proven.'
+    const lockEntry = repositoryLockEntry(manifest, packageName)
+    const packageAbsentFromRecordedTree = Boolean(manifest.lockfile && !declaredRange && !lockEntry && !imports.length && !sourceEvidenceIncomplete && codeGraph.fileCount)
+    if (packageAbsentFromRecordedTree) {
+      verdict = 'NOT_AFFECTED'
+      reason = `${packageName} is not declared or resolved in the collected manifest and lockfile.`
+    } else {
+      verdict = 'UNKNOWN'
+      reason = manifest.lockfile ? `The lockfile did not resolve ${packageName} in the sampled record.` : 'No lockfile resolution was found; reachability cannot be proven.'
+    }
   } else if (ambiguousResolution) {
     verdict = 'UNKNOWN'
     reason = `${packageName} resolves to multiple lockfile versions (${resolvedVersions.join(', ')}), with different advisory states; the collected graph cannot prove which version the importer receives.`
@@ -316,7 +323,9 @@ export function buildObservedGraph({ advisoryId, packageName, repositoryFindings
     const repoId = `repo:${finding.repository}`
     const lockId = `lock:${finding.repository}:${finding.path[3] || 'unknown'}`
     const resolvedVersions = [...new Set(finding.resolvedVersions || [finding.resolvedVersion].filter(Boolean))]
-    const packageVersions = resolvedVersions.length ? resolvedVersions : ['unresolved']
+    const packageVersions = resolvedVersions.length
+      ? resolvedVersions
+      : [finding.verdict === 'NOT_AFFECTED' ? 'not-present' : 'unresolved']
     nodes.push(
       { id: repoId, label: finding.repository || 'unknown repository', type: 'repository', sourceUrl: finding.repositoryUrl },
       { id: lockId, label: finding.path[3] || 'lockfile', type: 'lockfile' },
