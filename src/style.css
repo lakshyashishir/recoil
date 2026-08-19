@@ -857,6 +857,8 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-decision-meta strong { color: var(--text); font: 600 11px/1.35 var(--sans); }
 .case-decision-meta button { display: inline-flex; align-items: center; gap: 5px; width: max-content; margin-top: 4px; padding: 0; color: var(--accent); background: transparent; font-size: 11px; }
 .case-decision-meta button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.case-decision-meta .case-history-action { color: var(--muted); }
+.case-decision-meta .case-history-action:hover { color: var(--text); }
 .case-decision-callout-historical .case-decision-label .section-kicker { color: var(--muted); }
 .case-decision-callout-historical .case-decision-meta { border-left-color: var(--faint); }
 
