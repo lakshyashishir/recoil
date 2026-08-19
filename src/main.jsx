@@ -623,6 +623,29 @@ function TemporalProof({ report, onRewind }) {
   const memory = report?.rewind?.memory
   if (!before) return <section className="temporal-proof temporal-unavailable" id="case-history"><div><span className="section-kicker">HydraDB history</span><h2>No dated history</h2><p>No dated repository evidence was collected, so Recoil cannot claim when this path existed.</p></div></section>
   const beforeActive = report?.rewind?.asOf === before
+  const currentFindings = report?.repositories || []
+  const beforeFindings = beforeActive ? report?.rewind?.findings || [] : []
+  const currentSummary = summarizeFindings(currentFindings)
+  const beforeSummary = summarizeFindings(beforeFindings)
+  const currentLabel = temporalSummaryLabel(currentSummary)
+  const beforeLabel = beforeActive ? temporalSummaryLabel(beforeSummary) : 'Not loaded'
+  const changes = beforeActive
+    ? currentFindings
+      .map((finding) => {
+        const historicalFinding = beforeFindings.find((item) => item.repository === finding.repository)
+        return historicalFinding && historicalFinding.verdict !== finding.verdict
+          ? { repository: finding.repository, before: historicalFinding.verdict, current: finding.verdict }
+          : null
+      })
+      .filter(Boolean)
+    : []
+  const temporalConclusion = beforeActive
+    ? changes.length
+      ? `${changes.length} repository verdict${changes.length === 1 ? '' : 's'} changed across the disclosure boundary.`
+      : currentSummary.reached > 0
+        ? 'The sampled reachable path was already evidenced before disclosure.'
+        : 'The sampled repository classifications stayed the same across the disclosure boundary.'
+    : 'Rewind once to rebuild the graph at the day before disclosure.'
   const triplets = [...new Map((memory?.graphContext?.triplets || []).map((triplet) => {
     const key = [triplet.source, triplet.predicate, triplet.target].map((value) => String(value || '').trim().toLowerCase()).join('|')
     return [key, triplet]
@@ -633,10 +656,36 @@ function TemporalProof({ report, onRewind }) {
   return <section className="temporal-proof" id="case-history">
     <div className="temporal-copy"><span className="section-kicker">HydraDB history</span><h2>See the case at two points in time.</h2><p>The advisory was published {report.advisory?.published?.slice(0, 10) || 'on an unknown date'}. Recoil uses dated lockfile evidence and HydraDB recall to keep the timeline inspectable.</p><div className={`memory-line ${memory?.status === 'recalled' ? '' : 'memory-line-muted'}`}><span className="memory-mark" /> {memory?.status === 'recalled' ? 'Dated context returned from HydraDB.' : memory?.status === 'queued' ? 'Memory is indexing in HydraDB.' : 'HydraDB history is unavailable.'}</div></div>
     <div className="temporal-controls"><button className={beforeActive ? 'active' : ''} onClick={() => onRewind(before)}><Clock3 size={15} /><span>Before disclosure</span><small>{before.slice(0, 10)}</small></button><button className={!beforeActive ? 'active' : ''} onClick={() => onRewind(current)}><ShieldCheck size={15} /><span>Current evidence</span><small>{current?.slice(0, 10) || 'today'}</small></button></div>
+    <div className="temporal-compare" aria-live="polite">
+      <div className="temporal-compare-heading"><span>Disclosure boundary</span><strong>{temporalConclusion}</strong></div>
+      <div className="temporal-compare-points">
+        <div className={`temporal-point ${beforeActive ? 'temporal-point-active' : ''}`}>
+          <span>Before disclosure</span>
+          <strong>{beforeLabel}</strong>
+          <small>{beforeActive ? `${before.slice(0, 10)} · reconstructed from dated evidence` : 'Select the left control to load this snapshot'}</small>
+        </div>
+        <span className="temporal-compare-arrow" aria-hidden="true">→</span>
+        <div className={`temporal-point ${!beforeActive ? 'temporal-point-active' : ''}`}>
+          <span>Current evidence</span>
+          <strong>{currentLabel}</strong>
+          <small>{current?.slice(0, 10) || 'current collection'} · source-backed verdicts</small>
+        </div>
+      </div>
+      {changes.length > 0 && <div className="temporal-changes"><span>Changed classifications</span>{changes.slice(0, 4).map((change) => <span className="temporal-change" key={change.repository}><strong>{repositoryName(change.repository)}</strong><small>{change.before.replaceAll('_', ' ').toLowerCase()} → {change.current.replaceAll('_', ' ').toLowerCase()}</small></span>)}</div>}
+    </div>
     <div className="temporal-stats"><span><strong>{memory?.datedChunkCount || 0}</strong><small>dated facts</small></span><span><strong>{memory?.graphContext?.tripletCount || 0}</strong><small>graph triplets</small></span><span><strong>{memory?.relatedCaseCount || 0}</strong><small>related cases</small></span></div>
     <details className="memory-evidence"><summary>Inspect recalled relationships <span>{triplets.length} returned</span></summary>{triplets.length ? <div className="memory-triplets">{triplets.slice(0, 6).map((triplet, index) => <div className="memory-triplet" key={`${triplet.source}-${triplet.predicate}-${triplet.target}-${index}`}><strong>{triplet.source || 'entity'}</strong><span>{triplet.predicate || 'connected to'}</span><strong>{triplet.target || 'entity'}</strong></div>)}</div> : <p>No graph relationships were returned for this temporal read.</p>}</details>
     {relatedCases.length > 0 && <section className="related-cases" aria-label="Related HydraDB cases"><div className="related-cases-heading"><div><span className="section-kicker">HydraDB recall</span><strong>Related evidence from earlier cases</strong></div><span>{relatedCases.length} found</span></div><div className="related-case-list">{relatedCases.slice(0, 4).map((item) => <article className="related-case" key={item.scenarioId}><div className="related-case-main"><strong>{item.scenarioId}</strong><span>{item.repositories?.length ? item.repositories.join(' · ') : 'repository metadata unavailable'}</span></div><div className="related-case-meta"><span>{item.validFrom ? `dated ${dateLabel(item.validFrom)}` : 'date unavailable'}</span>{item.kinds?.length > 0 && <span>{item.kinds.join(' · ')}</span>}{item.sourceUrls?.[0] && <SourceLink href={item.sourceUrls[0]}>source</SourceLink>}</div></article>)}</div><p className="related-cases-note">HydraDB returned case metadata only. The current verdict is still computed from this investigation’s collected evidence.</p></section>}
   </section>
+}
+
+function temporalSummaryLabel(summary) {
+  const parts = []
+  if (summary.reached) parts.push(`${summary.reached} reached`)
+  if (summary.declaredOnly) parts.push(`${summary.declaredOnly} declared only`)
+  if (summary.notAffected) parts.push(`${summary.notAffected} outside range`)
+  if (summary.unknown) parts.push(`${summary.unknown} unknown`)
+  return parts.length ? parts.join(' · ') : 'No repository evidence'
 }
 
 function dateLabel(value) {
