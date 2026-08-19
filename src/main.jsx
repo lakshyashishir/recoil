@@ -101,7 +101,7 @@ function Landing({ value, setValue, onSubmit, busy, error }) {
   </main>
 }
 
-function InvestigationHeader({ investigation, hydra }) {
+function InvestigationHeader({ investigation, hydra, onNewCase }) {
   const report = investigation?.report
   const id = report?.advisory?.id || investigation?.evidence?.target?.advisoryId || 'investigation'
   const state = investigation?.status === 'complete' ? 'Complete' : investigation?.status === 'failed' ? 'Incomplete' : 'Reading'
@@ -109,8 +109,8 @@ function InvestigationHeader({ investigation, hydra }) {
   const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
-    <div className="header-case"><strong>{id}</strong><span>{state}</span></div>
-    <div className="header-status"><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydraLabel}</div>
+    <div className="header-case"><strong>{id}</strong><span>{report?.package ? `${report.package} · ${state.toLowerCase()}` : state}</span></div>
+    <div className="header-actions"><div className="header-status"><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydraLabel}</div>{onNewCase && <button className="header-new-case" type="button" onClick={onNewCase}>New case <RotateCcw size={13} /></button>}</div>
   </header>
 }
 
@@ -561,7 +561,7 @@ function App() {
   }
 
   if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} />
-  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} />{isComplete ? <><FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /><div className="new-case-wrap"><button type="button" onClick={newInvestigation}><RotateCcw size={14} /> New case</button></div></> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
+  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} />{isComplete ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
 class AppBoundary extends Component {
