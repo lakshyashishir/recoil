@@ -524,6 +524,13 @@ body { font-family: var(--sans); line-height: 1.45; }
 .fix-proof-boundary { display: flex; align-items: flex-start; gap: 8px; margin-top: 13px; color: var(--faint); font-size: 11px; line-height: 1.45; }
 .fix-proof-boundary svg { flex: 0 0 auto; margin-top: 1px; color: var(--green); }
 .fix-proof-boundary .source-link { flex: 0 0 auto; margin-left: auto; }
+.fix-proof-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.fix-proof-actions > span { color: var(--faint); font-size: 10px; line-height: 1.35; }
+.copy-remediation-note { display: inline-flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: transparent; font-size: 11px; transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease; }
+.copy-remediation-note > span { display: inline-flex; align-items: center; gap: 6px; }
+.copy-remediation-note small { color: var(--faint); font: 9px/1 var(--mono); }
+.copy-remediation-note:hover { border-color: var(--accent); color: var(--text); background: var(--surface-raised); }
+.copy-remediation-note:active { transform: translateY(1px) scale(.99); }
 .proof-bottom { grid-template-columns: 1fr; }
 .change-proof { margin-top: 17px; padding: 15px 0 0; border-top: 1px solid var(--line-soft); }
 .change-proof-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }

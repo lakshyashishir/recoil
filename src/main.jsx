@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Database, Download, ExternalLink, FileCode2, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
+import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
 import './style.css'
 
 const SCENARIO_ID = '0017'
@@ -503,6 +503,61 @@ function ImportProof({ finding }) {
   return <div className="import-proof"><FileCode2 size={16} /><div><span className="section-kicker">Observed in source</span><strong>{importer.path}{importer.line ? `:${importer.line}` : ''}</strong><code>{importer.snippet || `imports ${importer.specifier || finding.packageName}`}</code><SourceLink href={importer.sourceUrl}>Open source line</SourceLink></div></div>
 }
 
+function remediationNote(finding, challenge) {
+  const path = findingParts(finding).map((part) => routeDisplayPart(part, finding)).join(' -> ')
+  const sources = [...new Set([
+    finding.repositoryUrl,
+    finding.lockfileSource,
+    ...(finding.imports || []).map((item) => item.sourceUrl),
+  ].filter(Boolean))].slice(0, 4)
+  return [
+    'Recoil remediation review',
+    `Repository: ${repositoryName(finding.repository)}`,
+    `Advisory: ${finding.advisoryId || 'not identified'}`,
+    `Finding: ${finding.verdict}`,
+    `Observed resolution: ${finding.packageName || 'package'}@${finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'}`,
+    `Evidence path: ${path || 'no observed path'}`,
+    `Recommendation: ${challenge.detail || 'Review the available evidence before changing the dependency.'}`,
+    `Proposed resolution: ${finding.packageName || 'package'}@${challenge.proposedVersion || 'not established'}`,
+    'Boundary: static public evidence only; Recoil did not install packages, execute code, or apply a change.',
+    'Sources:',
+    ...sources.map((source) => `- ${source}`),
+  ].join('\n')
+}
+
+function CopyRemediationNote({ finding, challenge }) {
+  const [status, setStatus] = useState('idle')
+  useEffect(() => {
+    if (status !== 'copied') return undefined
+    const timer = window.setTimeout(() => setStatus('idle'), 1800)
+    return () => window.clearTimeout(timer)
+  }, [status])
+  const copy = async () => {
+    const text = remediationNote(finding, challenge)
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const field = document.createElement('textarea')
+        field.value = text
+        field.setAttribute('readonly', '')
+        field.style.position = 'fixed'
+        field.style.opacity = '0'
+        document.body.appendChild(field)
+        field.select()
+        const copied = document.execCommand('copy')
+        field.remove()
+        if (!copied) throw new Error('clipboard unavailable')
+      }
+      setStatus('copied')
+    } catch {
+      setStatus('failed')
+    }
+  }
+  const label = status === 'copied' ? 'Copied' : status === 'failed' ? 'Copy unavailable' : 'Copy review note'
+  return <button className="copy-remediation-note" type="button" onClick={copy} aria-live="polite"><span>{status === 'copied' ? <Check size={13} /> : <Copy size={13} />}{label}</span><small>evidence-derived</small></button>
+}
+
 function FixProof({ finding, challenge }) {
   if (!finding || !challenge) return null
   const currentVersion = finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'
@@ -530,6 +585,7 @@ function FixProof({ finding, challenge }) {
     </div>
     <p className="fix-proof-detail">{challenge.detail}</p>
     <div className="fix-proof-boundary"><PackageCheck size={15} /><span>{boundary}</span>{lockfileSource && <SourceLink href={lockfileSource}>Open lockfile evidence</SourceLink>}</div>
+    <div className="fix-proof-actions"><CopyRemediationNote finding={finding} challenge={challenge} /><span>Copies the finding, proposed resolution, boundary, and source links.</span></div>
   </section>
 }
 
