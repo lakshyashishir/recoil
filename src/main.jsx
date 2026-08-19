@@ -77,9 +77,9 @@ function Landing({ value, setValue, onSubmit, busy, error }) {
     </header>
     <section className="landing-grid">
       <div className="landing-intro">
-        <p className="landing-kicker">Supply-chain evidence</p>
-        <h1>Trace the path to <span>vulnerable code.</span></h1>
-        <p>Recoil follows a real advisory through lockfiles and source imports, then shows what is reached, what is only declared, and what is already safe.</p>
+        <p className="landing-kicker">Public evidence, one answer</p>
+        <h1>Which repositories actually reach <span>affected code?</span></h1>
+        <p>Give Recoil an advisory and real repositories. It follows the lockfile to source, dates the path, and checks the smallest defensible fix.</p>
       </div>
       <div className="landing-form-wrap">
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
@@ -238,7 +238,7 @@ function nodeVerdict(node, report) {
   return null
 }
 
-function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], live = false }) {
+function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], live = false, graphProgress = null }) {
   const graph = report?.graph || { nodes: [], edges: [] }
   const layout = useMemo(() => graphLayout(graph, selectedFinding), [graph, selectedFinding])
   const selected = layout.selected
@@ -247,12 +247,12 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
   if (!layout.nodes.length) {
     const current = events.find((event) => event.status === 'working')
     return <section className="evidence-map map-empty" aria-label="Evidence map">
-      <div className="map-heading"><div><span className="section-kicker">Evidence map</span><h2>{live ? 'Building the route' : 'No graph to show'}</h2></div><span className="map-count">{live ? 'waiting for evidence' : '0 nodes'}</span></div>
+      <div className="map-heading"><div><span className="section-kicker">Evidence map</span><h2>{live ? 'Building the route' : 'No graph to show'}</h2></div><span className="map-count">{live ? `${graphProgress?.completedRepositories || 0}/${graphProgress?.totalRepositories || 0} repositories` : '0 nodes'}</span></div>
       <div className="map-empty-body"><div className="empty-route"><span /><i /><span /><i /><span /></div><strong>{current?.title || 'The evidence map appears here'}</strong><p>{current?.detail || 'Start an investigation to draw the advisory, dependency, repository, and source relationships.'}</p></div>
     </section>
   }
   return <section className="evidence-map" aria-label="Observed evidence map">
-    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? 'Evidence arriving' : 'Follow the path to code'}</h2></div><span className="map-count">{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
+    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? 'Evidence arriving' : 'Follow the path to code'}</h2></div><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
     <div className="map-canvas">
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
         <defs><marker id="recoil-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="currentColor" strokeWidth="1.2" /></marker></defs>
@@ -297,13 +297,13 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
 function RouteList({ findings, selectedIndex, onSelect }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   return <aside className="route-panel">
-    <div className="route-panel-heading"><div><span className="section-kicker">Comparison</span><h2>What the evidence says</h2></div><span>{findings.length} checked</span></div>
-    <p className="route-panel-note">Choose a repository. The graph and proof below follow the same observed path.</p>
+    <div className="route-panel-heading"><div><span className="section-kicker">Repository comparison</span><h2>What the evidence says</h2></div><span>{findings.length} checked</span></div>
+    <p className="route-panel-note">Select a repository to inspect the exact path behind its decision.</p>
     {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} repository{reached === 1 ? '' : 'ies'} reach the affected code in sampled source.</span></div>}
     <div className="route-list">
       {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
         <span className="route-index">0{index + 1}</span>
-        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'}</small></span>
+        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'}</small><em>{finding.verdict === 'REACHED' ? `${finding.imports?.length || 0} sampled import${finding.imports?.length === 1 ? '' : 's'} found` : finding.verdict === 'DECLARED_ONLY' ? 'present in lockfile; no sampled import' : finding.verdict === 'NOT_AFFECTED' ? 'resolved outside affected range' : 'evidence needs review'}</em></span>
         <Verdict value={finding.verdict} compact />
       </button>)}
     </div>
@@ -339,6 +339,9 @@ function FixProof({ finding, challenge }) {
         : challenge.status === 'NO_REACHABLE_PATH'
           ? 'Defense-in-depth update'
           : 'Review required'
+  const boundary = challenge.status === 'ALREADY_SAFE'
+    ? 'No version change is required for this observed resolution. The repository was not modified or executed.'
+    : 'The repository was not modified or executed. Recoil proves the advisory range and declared-range relationship; the lockfile still needs to be updated and reviewed.'
   return <section className={`fix-proof fix-proof-${verified ? 'verified' : 'review'}`}>
     <div className="fix-proof-heading"><div><span className="section-kicker">Remediation</span><h3>{statusLabel}</h3></div><span className="fix-proof-badge">{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : 'not verified'}</span></div>
     <div className="fix-proof-compare">
@@ -347,7 +350,7 @@ function FixProof({ finding, challenge }) {
       <div><span>Proposed</span><strong>{finding.packageName}@{proposedVersion}</strong><small>{challenge.status === 'MANIFEST_CHANGE_REQUIRED' ? `outside ${finding.declaredRange || 'the declared'} range` : verified ? 'outside the affected range' : 'not proven by this case'}</small></div>
     </div>
     <p className="fix-proof-detail">{challenge.detail}</p>
-    <div className="fix-proof-boundary"><PackageCheck size={15} /><span>The repository was not modified or executed. Recoil proves the advisory range and declared-range relationship; the lockfile still needs to be updated and reviewed.</span>{lockfileSource && <SourceLink href={lockfileSource}>Open lockfile evidence</SourceLink>}</div>
+    <div className="fix-proof-boundary"><PackageCheck size={15} /><span>{boundary}</span>{lockfileSource && <SourceLink href={lockfileSource}>Open lockfile evidence</SourceLink>}</div>
   </section>
 }
 
@@ -416,6 +419,25 @@ function summarizeFindings(findings = []) {
   }
 }
 
+function CaseConclusion({ report, findings, summary, historical }) {
+  const total = summary.totalRepositories || findings.length
+  const reached = findings.filter((finding) => finding.verdict === 'REACHED')
+  const unknown = findings.filter((finding) => !['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'].includes(finding.verdict))
+  const fixCount = report?.challenge?.filter((item) => item.status === 'FIX_SURVIVES').length || 0
+  const decision = historical
+    ? unknown.length ? `${unknown.length} of ${total} repositories were not yet evidenced on this date.` : reached.length ? `${reached.length} of ${total} repositories already reached sampled code on this date.` : `No repository reached sampled code on this date.`
+    : unknown.length ? `${unknown.length} of ${total} repositories need more evidence before a decision.` : reached.length ? `${reached.length} of ${total} repositories reach sampled affected code.` : `No repository reaches sampled affected code.`
+  const explanation = historical
+    ? 'This view is a dated reconstruction. Return to current evidence to inspect remediation.'
+    : report?.package ? `Recoil compared ${report.package} across the repositories you supplied. Presence in a lockfile is not treated as source reachability.` : 'The package identity was not resolved well enough to prove a stronger path.'
+  const exposure = historical ? 'historical view' : summary.exposureDays != null ? `${summary.exposureDays} days before disclosure` : 'not dated'
+  const remediation = historical ? 'current view' : fixCount ? `${fixCount} fix${fixCount === 1 ? '' : 'es'} verified` : summary.alreadySafe ? `${summary.alreadySafe} already safe` : 'review required'
+  return <section className="case-conclusion" aria-label="Case decision">
+    <div className="case-conclusion-copy"><span className="section-kicker">Plain-language answer</span><h2>{decision}</h2><p>{explanation}</p></div>
+    <dl className="case-conclusion-facts"><div><dt>Exposure window</dt><dd>{exposure}</dd></div><div><dt>Remediation</dt><dd>{remediation}</dd></div></dl>
+  </section>
+}
+
 function CaseNavigator({ finding }) {
   if (!finding) return null
   const jumpTo = (id) => {
@@ -447,12 +469,13 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const historicalDate = report?.rewind?.asOf?.slice(0, 10)
   const headline = historical
     ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `${summary.reached} of ${total} repositories still reached sampled code by ${historicalDate}.` : 'No repository reached sampled code at this date.'
-    : summary.unknown ? `${summary.unknown} of ${total} repositories need review.` : summary.reached ? `${summary.reached} of ${total} repositories reach sampled code.` : 'No repository reaches sampled code.'
+    : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} repositories reach sampled code.` : total ? 'No repository reaches sampled code.' : 'No repository was checked.'
   const summaryLine = report?.advisory?.summary ? `${report.advisory.summary} · ${report.package || 'package identity unavailable'}` : `The report compares ${report.package || 'the affected package'} across the collected repositories.`
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : 'fixes verified'}</span></div></section>
+    <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} />
     <CaseNavigator finding={selectedFinding} />
     <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
     <RouteProof finding={selectedFinding} challenge={challenge} />
@@ -466,7 +489,9 @@ function RunningView({ snapshot }) {
   const events = investigation?.events || []
   const graph = snapshot?.graph?.nodes?.length ? snapshot.graph : investigation?.graph || investigation?.evidence?.graph || { nodes: [], edges: [] }
   const graphReport = { graph, repositories: investigation?.report?.repositories || [] }
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>Building the proof.</h1><p>Recoil is reading public records and adding only observed relationships to the case.</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live /><div className="live-workspace"><EventStream events={events} /><EvidenceMap report={graphReport} events={events} live /></div></main>
+  const progress = snapshot?.graphProgress || investigation?.graphProgress
+  const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>Building the proof.</h1><p>{progressLabel}. Recoil adds only relationships supported by public evidence.</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live /><div className="live-workspace"><EventStream events={events} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function App() {
