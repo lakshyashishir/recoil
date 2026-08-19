@@ -1140,6 +1140,24 @@ function summarizeFindings(findings = []) {
   }
 }
 
+function CaseContrastBar({ findings = [] }) {
+  const groups = [
+    { key: 'reached', label: 'Reaches source', verdict: 'REACHED', className: 'contrast-reached' },
+    { key: 'declaredOnly', label: 'Listed only', verdict: 'DECLARED_ONLY', className: 'contrast-declared' },
+    { key: 'notAffected', label: 'Outside range', verdict: 'NOT_AFFECTED', className: 'contrast-safe' },
+    { key: 'unknown', label: 'Needs review', verdict: 'UNKNOWN', className: 'contrast-unknown' },
+  ].map((group) => ({ ...group, count: findings.filter((finding) => finding.verdict === group.verdict || group.key === 'unknown' && ['UNKNOWN', 'NOT_YET_OBSERVED'].includes(finding.verdict)).length }))
+  const total = findings.length
+  if (!total) return null
+  return <section className="case-contrast" aria-label="Repository reachability split">
+    <div className="case-contrast-heading"><strong>Repository split</strong><span>{total} checked</span></div>
+    <div className="case-contrast-bar" role="img" aria-label={groups.filter((group) => group.count).map((group) => `${group.count} ${group.label.toLowerCase()}`).join(', ')}>
+      {groups.filter((group) => group.count).map((group) => <span className={`case-contrast-segment ${group.className}`} key={group.key} style={{ width: `${(group.count / total) * 100}%` }} />)}
+    </div>
+    <div className="case-contrast-legend">{groups.filter((group) => group.count).map((group) => <span key={group.key}><i className={`case-contrast-dot ${group.className}`} />{group.count} {group.label}</span>)}</div>
+  </section>
+}
+
 function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
@@ -1401,7 +1419,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
 }
 
 function CaseNavigator({ finding, activeTab, onTabChange }) {
-  const tabs = [{ id: 'graph', label: 'Graph' }, { id: 'proof', label: 'Fix' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Audit' }]
+  const tabs = [{ id: 'graph', label: 'Paths' }, { id: 'proof', label: 'Fix' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Evidence' }]
   return <nav className="case-navigator" aria-label="Case views">
     <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
@@ -1495,6 +1513,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>source path found</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>listed, not imported</span></div><div><strong>{summary.notAffected || 0}</strong><span>already outside range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix proof' : 'fix proofs'}</span></div></section>
+    <CaseContrastBar findings={findings} />
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} />
     <TemporalSummaryStrip report={report} summary={summary} earliestReached={earliestReached} historical={historical} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} loading={historyLoading} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
