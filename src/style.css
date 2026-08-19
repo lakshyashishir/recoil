@@ -88,8 +88,9 @@ h1, h2, p { margin-top: 0; }
 .header-case { display: flex; align-items: baseline; gap: 12px; color: var(--text); font: 500 11px/1 var(--mono); }
 .header-case span { color: var(--faint); font-size: 10px; }
 .header-actions { justify-self: end; display: flex; align-items: center; gap: 18px; }
-.header-status { justify-self: end; display: flex; align-items: center; gap: 8px; color: var(--muted); font: 10px/1 var(--mono); }
-.header-new-case { display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: transparent; font-size: 11px; transition: border-color .2s ease, color .2s ease, background .2s ease; }
+.header-status { justify-self: end; display: flex; align-items: center; gap: 8px; color: var(--muted); font: 10px/1 var(--mono); white-space: nowrap; }
+.header-status-short { display: none; }
+.header-new-case { display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: transparent; font-size: 11px; white-space: nowrap; transition: border-color .2s ease, color .2s ease, background .2s ease; }
 .header-new-case:hover { border-color: var(--accent); color: var(--text); background: var(--surface); }
 .connection-mark { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .connection-mark.is-failed { background: var(--red); }
@@ -376,7 +377,9 @@ h1, h2, p { margin-top: 0; }
   .product-header { grid-template-columns: 1fr auto; gap: 12px; padding: 15px 18px; }
   .header-case { grid-row: 2; grid-column: 1 / -1; }
   .header-actions { min-width: 0; gap: 9px; }
-  .header-status { max-width: 112px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .header-status { max-width: 74px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .header-status-full { display: none; }
+  .header-status-short { display: inline; }
   .header-new-case { padding: 6px 7px; font-size: 10px; white-space: nowrap; }
   .live-page, .case-page { width: calc(100% - 36px); }
   .live-page, .case-page { padding-top: 38px; }
