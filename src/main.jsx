@@ -1,21 +1,21 @@
 import { Component, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Download, ExternalLink, LoaderCircle, RotateCcw, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Database, Download, ExternalLink, FileCode2, GitBranch, History, LoaderCircle, PackageCheck, RotateCcw, ShieldCheck, Waypoints } from 'lucide-react'
 import './style.css'
 
 const SCENARIO_ID = '0017'
 const DEFAULT_INPUT = ''
 const INVESTIGATION_EXAMPLES = [
   {
-    label: 'three-repository contrast',
+    label: 'Verified three-way case',
     value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/http-party/http-server/tree/v13.0.2\nhttps://github.com/tweenjs/tween.js\nhttps://github.com/axios/axios/tree/v1.x',
   },
   {
-    label: 'package plus repositories',
+    label: 'Explore a package',
     value: 'npm:minimist\nhttps://github.com/http-party/http-server/tree/v13.0.2\nhttps://github.com/axios/axios/tree/v1.x',
   },
   {
-    label: 'single repository',
+    label: 'One repository',
     value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/http-party/http-server/tree/v13.0.2',
   },
 ]
@@ -78,12 +78,12 @@ function Landing({ value, setValue, onSubmit, busy, error }) {
     <section className="landing-grid">
       <div className="landing-intro">
         <p className="landing-kicker">Supply-chain evidence</p>
-        <h1>Find the path to <span>vulnerable code.</span></h1>
-        <p>A cited graph of package reachability, repository impact, and the fix that closes the route.</p>
+        <h1>Trace the path to <span>vulnerable code.</span></h1>
+        <p>Recoil follows a real advisory through lockfiles and source imports, then shows what is reached, what is only declared, and what is already safe.</p>
       </div>
       <div className="landing-form-wrap">
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-          <label htmlFor="investigation-input">Case input</label>
+          <label htmlFor="investigation-input">Advisory and repositories</label>
           <textarea id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="GHSA-xvch-5gv4-984h\nhttps://github.com/org/repository" rows={5} />
           <div className="form-footer">
             <span>Public records only</span>
@@ -127,6 +127,37 @@ function EventStream({ events = [] }) {
     </div>
     {!events.length && <div className="journal-empty">The investigation will stream here after you start it.</div>}
   </section>
+}
+
+function eventStatus(events, keys = []) {
+  const matches = events.filter((event) => keys.includes(event.key) || keys.some((key) => event.key?.startsWith(key)))
+  if (matches.some((event) => event.status === 'failed')) return 'failed'
+  if (matches.some((event) => event.status === 'working')) return 'working'
+  if (matches.some((event) => event.status === 'complete' || event.status === 'persisted')) return 'complete'
+  return 'waiting'
+}
+
+function EvidencePhaseRail({ events = [], live = false }) {
+  const phases = [
+    { key: 'records', label: 'Read records', detail: 'OSV, registry, repositories', keys: ['public-records', 'repository:', 'registry'], icon: <SearchIcon /> },
+    { key: 'route', label: 'Trace routes', detail: 'Lockfiles and source imports', keys: ['classification', 'proving-paths'], icon: <Waypoints size={16} /> },
+    { key: 'proof', label: 'Prove the fix', detail: 'Range and residual path', keys: ['fix-plan'], icon: <PackageCheck size={16} /> },
+    { key: 'memory', label: 'Store history', detail: 'HydraDB temporal record', keys: ['hydra'], icon: <Database size={16} /> },
+  ]
+  return <div className={`phase-rail ${live ? 'phase-rail-live' : ''}`} aria-label="Investigation stages">
+    {phases.map((phase, index) => {
+      const status = eventStatus(events, phase.keys)
+      return <div className={`phase ${status}`} key={phase.key}>
+        <div className="phase-icon">{status === 'complete' ? <Check size={15} /> : status === 'working' ? <LoaderCircle className="spin" size={15} /> : phase.icon}</div>
+        <div className="phase-copy"><strong>{phase.label}</strong><span>{phase.detail}</span></div>
+        {index < phases.length - 1 && <i className="phase-connector" aria-hidden="true" />}
+      </div>
+    })}
+  </div>
+}
+
+function SearchIcon() {
+  return <span className="phase-search-icon" aria-hidden="true" />
 }
 
 function findingParts(finding) {
@@ -204,7 +235,7 @@ function nodeVerdict(node, report) {
   return null
 }
 
-function EvidenceMap({ report, selectedFinding, events = [], live = false }) {
+function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], live = false }) {
   const graph = report?.graph || { nodes: [], edges: [] }
   const layout = useMemo(() => graphLayout(graph, selectedFinding), [graph, selectedFinding])
   const selected = layout.selected
@@ -218,7 +249,7 @@ function EvidenceMap({ report, selectedFinding, events = [], live = false }) {
     </section>
   }
   return <section className="evidence-map" aria-label="Observed evidence map">
-    <div className="map-heading"><div><span className="section-kicker">Evidence map</span><h2>{live ? 'Evidence arriving' : 'The route in one view'}</h2></div><span className="map-count">{layout.nodes.length} nodes / {layout.edges.length} edges</span></div>
+    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? 'Evidence arriving' : 'Follow the path to code'}</h2></div><span className="map-count">{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
     <div className="map-canvas">
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
         <defs><marker id="recoil-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="currentColor" strokeWidth="1.2" /></marker></defs>
@@ -243,7 +274,10 @@ function EvidenceMap({ report, selectedFinding, events = [], live = false }) {
             if (!position) return null
             const verdict = nodeVerdict(node, report)
             const isSelected = selected.has(node.id)
-            return <g className={`map-node node-${node.type} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`}>
+            const findingIndex = node.type === 'repository' ? (report?.repositories || []).findIndex((finding) => finding.repository === node.label) : -1
+            const selectable = findingIndex >= 0 && onSelectFinding
+            const selectNode = () => { if (selectable) onSelectFinding(findingIndex) }
+            return <g className={`map-node node-${node.type} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
               <rect width="154" height="48" rx="6" />
               <text className="map-node-type" x="10" y="15">{node.type}</text>
               <text className="map-node-label" x="10" y="33">{shorten(node.label, 23)}</text>
@@ -257,13 +291,15 @@ function EvidenceMap({ report, selectedFinding, events = [], live = false }) {
 }
 
 function RouteList({ findings, selectedIndex, onSelect }) {
+  const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   return <aside className="route-panel">
-    <div className="route-panel-heading"><div><span className="section-kicker">Repositories</span><h2>Repository outcomes</h2></div><span>{findings.length}</span></div>
-    <p className="route-panel-note">Select a repository to inspect its evidence path.</p>
+    <div className="route-panel-heading"><div><span className="section-kicker">Comparison</span><h2>What the evidence says</h2></div><span>{findings.length} checked</span></div>
+    <p className="route-panel-note">Choose a repository. The graph and proof below follow the same observed path.</p>
+    {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} repository{reached === 1 ? '' : 'ies'} expose the affected code path.</span></div>}
     <div className="route-list">
       {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
         <span className="route-index">0{index + 1}</span>
-        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName}@{finding.resolvedVersion || 'unresolved'}</small></span>
+        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'}</small></span>
         <Verdict value={finding.verdict} compact />
       </button>)}
     </div>
@@ -278,6 +314,12 @@ function routeDisplayPart(part, finding) {
   return part
 }
 
+function ImportProof({ finding }) {
+  const importer = finding?.imports?.[0]
+  if (!importer) return <div className="import-proof import-proof-empty"><FileCode2 size={16} /><div><span className="section-kicker">Source check</span><strong>No sampled import</strong><p>{finding?.verdict === 'DECLARED_ONLY' ? 'The package is present in the lockfile, but no sampled source file imports it.' : finding?.sourceBound || 'The source evidence does not support a stronger conclusion.'}</p></div></div>
+  return <div className="import-proof"><FileCode2 size={16} /><div><span className="section-kicker">Observed in source</span><strong>{importer.path}{importer.line ? `:${importer.line}` : ''}</strong><code>{importer.snippet || `imports ${importer.specifier || finding.packageName}`}</code><SourceLink href={importer.sourceUrl}>Open source line</SourceLink></div></div>
+}
+
 function RouteProof({ finding, challenge }) {
   if (!finding) return null
   const parts = findingParts(finding)
@@ -288,6 +330,7 @@ function RouteProof({ finding, challenge }) {
     <div className="proof-heading"><div><span className="section-kicker">Route</span><h2>{finding.verdict === 'REACHED' ? 'Reachable' : finding.verdict === 'DECLARED_ONLY' ? 'Declared only' : finding.verdict === 'NOT_AFFECTED' ? 'Not affected' : 'Unclassified'}</h2></div><Verdict value={finding.verdict} /></div>
     <p className="proof-reason">{finding.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
     <div className="route-steps">{parts.map((part, index) => <div className="route-step" key={`${part}-${index}`}><span>{index + 1}</span><strong>{shorten(routeDisplayPart(part, finding), 38)}</strong><small>{index === 0 ? 'advisory' : index === parts.length - 1 ? 'source' : 'observed hop'}</small></div>)}</div>
+    <ImportProof finding={finding} />
     <div className="proof-bottom">
       <div className={`fix-result fix-result-${fixStatus}`}><span className="fix-icon">{fixStatus === 'verified' ? <Check size={15} /> : <CircleAlert size={15} />}</span><div><span className="section-kicker">Fix</span><strong>{fixLabel}</strong><p>{challenge?.detail || 'No remediation proof was produced for this path.'}</p></div></div>
       <div className="proof-sources"><span className="section-kicker">Sources</span><div>{sourceLinks.slice(0, 4).map((source) => <SourceLink key={source} href={source}>{sourceHost(source)}</SourceLink>)}</div></div>
@@ -299,13 +342,26 @@ function TemporalProof({ report, onRewind }) {
   const before = report?.rewind?.beforeAdvisory
   const current = report?.rewind?.currentAsOf || report?.rewind?.asOf
   const memory = report?.rewind?.memory
-  if (!before) return <section className="temporal-proof temporal-unavailable"><div><span className="section-kicker">History</span><h2>No dated history</h2><p>No dated repository evidence was collected.</p></div></section>
+  if (!before) return <section className="temporal-proof temporal-unavailable"><div><span className="section-kicker">HydraDB history</span><h2>No dated history</h2><p>No dated repository evidence was collected, so Recoil cannot claim when this path existed.</p></div></section>
   const beforeActive = report?.rewind?.asOf === before
   return <section className="temporal-proof">
-    <div className="temporal-copy"><span className="section-kicker">History</span><h2>What was true before disclosure?</h2><p>Advisory published {report.advisory?.published?.slice(0, 10) || 'on an unknown date'}.</p><div className="memory-line"><span className="memory-mark" /> {memory?.status === 'recalled' ? 'HydraDB returned dated context.' : 'HydraDB history is unavailable.'}</div></div>
+    <div className="temporal-copy"><span className="section-kicker">HydraDB history</span><h2>See the case at two points in time.</h2><p>The advisory was published {report.advisory?.published?.slice(0, 10) || 'on an unknown date'}. Recoil uses dated lockfile evidence and HydraDB recall to keep the timeline inspectable.</p><div className={`memory-line ${memory?.status === 'recalled' ? '' : 'memory-line-muted'}`}><span className="memory-mark" /> {memory?.status === 'recalled' ? 'Dated context returned from HydraDB.' : memory?.status === 'queued' ? 'Memory is indexing in HydraDB.' : 'HydraDB history is unavailable.'}</div></div>
     <div className="temporal-controls"><button className={beforeActive ? 'active' : ''} onClick={() => onRewind(before)}><Clock3 size={15} /><span>Before disclosure</span><small>{before.slice(0, 10)}</small></button><button className={!beforeActive ? 'active' : ''} onClick={() => onRewind(current)}><ShieldCheck size={15} /><span>Current evidence</span><small>{current?.slice(0, 10) || 'today'}</small></button></div>
     <div className="temporal-stats"><span><strong>{memory?.datedChunkCount || 0}</strong><small>dated facts</small></span><span><strong>{memory?.graphContext?.tripletCount || 0}</strong><small>graph triplets</small></span><span><strong>{memory?.relatedCaseCount || 0}</strong><small>related cases</small></span></div>
   </section>
+}
+
+function ProofOverview({ report }) {
+  const reached = report?.repositories?.find((finding) => finding.verdict === 'REACHED')
+  const challenge = report?.challenge?.find((item) => item.repository === reached?.repository)
+  const importer = reached?.imports?.[0]
+  const items = [
+    { label: 'Affected release', value: reached?.resolvedVersion ? `${reached.packageName}@${reached.resolvedVersion}` : report?.package || 'Not resolved', detail: reached?.resolvedVersion ? 'resolved from a public lockfile' : 'no affected release was resolved', icon: <GitBranch size={16} /> },
+    { label: 'Code path', value: importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'No import observed', detail: importer ? 'an exact sampled source import' : 'source evidence did not show an import', icon: <FileCode2 size={16} /> },
+    { label: 'First observed', value: reached?.pathObservedAt?.slice(0, 10) || 'Undated', detail: reached?.exposureDays != null ? `${reached.exposureDays} days before disclosure` : 'repository history was not dated', icon: <History size={16} /> },
+    { label: 'Remediation', value: challenge?.proposedVersion ? `Upgrade to ${challenge.proposedVersion}` : challenge?.status === 'ALREADY_SAFE' ? 'Already outside range' : 'Review required', detail: challenge?.status === 'FIX_SURVIVES' || challenge?.status === 'ALREADY_SAFE' ? 'the observed path is closed by evidence' : 'no verified change for this path', icon: <PackageCheck size={16} /> },
+  ]
+  return <section className="proof-overview"><div className="proof-overview-heading"><div><span className="section-kicker">What was proved</span><h2>From advisory to source line.</h2></div><p>Every value below comes from the collected report. Nothing here represents a live exploit or production claim.</p></div><div className="proof-overview-grid">{items.map((item) => <div className="proof-overview-item" key={item.label}><span className="proof-overview-icon">{item.icon}</span><div><span>{item.label}</span><strong>{item.value}</strong><small>{item.detail}</small></div></div>)}</div></section>
 }
 
 function IntegrityDetails({ report, hydra, evidenceStatus }) {
@@ -326,10 +382,14 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const challenge = report?.challenge?.find((item) => item.repository === selectedFinding?.repository)
   const summary = report?.summary || {}
   const recordingReady = report?.evidenceQuality?.readyForRecording
+  const total = summary.totalRepositories || findings.length
+  const headline = summary.unknown ? `${summary.unknown} of ${total} repositories need review.` : summary.reached ? `${summary.reached} of ${total} repositories expose the path.` : 'No repository exposes the path.'
+  const summaryLine = report?.advisory?.summary ? `${report.advisory.summary} · ${report.package || 'package identity unavailable'}` : `The report compares ${report.package || 'the affected package'} across the collected repositories.`
   return <main className="case-page">
-    <section className="case-hero"><div><span className="section-kicker">Case result</span><h1>{summary.reached || 0} of {summary.totalRepositories || findings.length} repositories <span>reach vulnerable code.</span></h1><p>The graph separates reachability from presence.</p></div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
-    <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>not affected</span></div><div><strong>{summary.fixSurvives || 0}</strong><span>fixes verified</span></div></section>
-    <div className="case-workspace"><EvidenceMap report={report} selectedFinding={selectedFinding} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
+    <section className="case-hero"><div><span className="section-kicker">Evidence report</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p></div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
+    <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{summary.fixSurvives || 0}</strong><span>fixes verified</span></div></section>
+    <ProofOverview report={report} />
+    <div className="case-workspace"><EvidenceMap report={report} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
     <RouteProof finding={selectedFinding} challenge={challenge} />
     <TemporalProof report={report} onRewind={onRewind} />
     <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />
@@ -339,7 +399,8 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
 function RunningView({ snapshot }) {
   const investigation = snapshot?.investigation
   const graphReport = { graph: snapshot?.graph || investigation?.evidence?.graph || { nodes: [], edges: [] }, repositories: investigation?.report?.repositories || [] }
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Investigation</span><h1>Reading the case.</h1><p>Live work on the left. Evidence map on the right.</p></div><span className="live-safety">Public records only</span></div><div className="live-workspace"><EventStream events={investigation?.events || []} /><EvidenceMap report={graphReport} events={investigation?.events || []} live /></div></main>
+  const events = investigation?.events || []
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>Building the proof.</h1><p>Recoil is reading public records and adding only observed relationships to the case.</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live /><div className="live-workspace"><EventStream events={events} /><EvidenceMap report={graphReport} events={events} live /></div></main>
 }
 
 function App() {
