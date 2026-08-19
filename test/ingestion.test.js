@@ -232,6 +232,57 @@ test('multi-repository ingestion computes real evidence contrast without synthet
   }
 })
 
+test('repository-only ingestion does not choose a package or spend resolver calls when identities differ', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  const previousRetries = process.env.RECOIL_NETWORK_RETRIES
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  process.env.RECOIL_NETWORK_RETRIES = '1'
+  const repositories = {
+    'example/first-app': { name: 'first-app', source: 'export function first() { return true }' },
+    'example/second-app': { name: 'second-app', source: 'export function second() { return true }' },
+  }
+  const events = []
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev' || url.hostname === 'registry.npmjs.org') throw new Error('unexpected resolver call')
+    if (url.hostname === 'raw.githubusercontent.com') return response({}, 404)
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
+    if (!match || !repositories[match[1]]) return response({}, 404)
+    const repository = repositories[match[1]]
+    const operation = match[2]
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'src/index.js' }] })
+    if (operation.startsWith('commits')) return response([])
+    if (operation.startsWith('contents/')) {
+      const path = decodeURIComponent(operation.slice('contents/'.length))
+      if (path === 'package.json') return response(githubFile(path, JSON.stringify({ name: repository.name, version: '1.0.0' }), match[1]))
+      if (path === 'src/index.js') return response(githubFile(path, repository.source, match[1]))
+      return response({}, 404)
+    }
+    return response({}, 404)
+  }
+
+  try {
+    const ingestion = await runMultiRepositoryIngestion({
+      query: 'https://github.com/example/first-app https://github.com/example/second-app',
+      scenarioId: 'ambiguous-package-test',
+      onProgress: (event) => events.push(event),
+    })
+    assert.equal(ingestion.package, null)
+    assert.equal(ingestion.packageResolution.status, 'ambiguous')
+    assert.deepEqual(ingestion.packageResolution.candidates, ['first-app', 'second-app'])
+    assert.equal(ingestion.findings.every((finding) => finding.packageName === null && finding.verdict === 'UNKNOWN'), true)
+    assert.ok(events.some((event) => event.key === 'registry' && event.detail.includes('provide an advisory or package selector')))
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+    if (previousRetries === undefined) delete process.env.RECOIL_NETWORK_RETRIES
+    else process.env.RECOIL_NETWORK_RETRIES = previousRetries
+  }
+})
+
 test('Cargo ingestion resolves an external crate import and registry fixed version', async () => {
   const previousFetch = globalThis.fetch
   const previousCache = process.env.RECOIL_CACHE_DIR
