@@ -55,6 +55,8 @@ assert.equal(report.summary.notAffected, 1)
 assert.equal(report.summary.unknown, 1)
 assert.equal(report.summary.fixSurvives, 1)
 assert.equal(report.summary.alreadySafe, 1)
+assert.equal(report.summary.sharedResolutions, 1)
+assert.deepEqual(report.crossRepositoryCorrelations[0].repositories.map((item) => `${item.repository}:${item.verdict}`), ['benchmark/reached:REACHED', 'benchmark/declared-only:DECLARED_ONLY', 'benchmark/incomplete:UNKNOWN'])
 assert.equal(report.challenge.find((item) => item.repository === 'benchmark/reached').status, 'FIX_SURVIVES')
 assert.equal(report.challenge.find((item) => item.repository === 'benchmark/not-affected').status, 'ALREADY_SAFE')
 assert.equal(buildInvestigationReport({
@@ -76,6 +78,7 @@ console.log(JSON.stringify({
     unknown: report.summary.unknown,
     fixSurvives: report.summary.fixSurvives,
     alreadySafe: report.summary.alreadySafe,
+    sharedResolutions: report.summary.sharedResolutions,
     temporalRewind: true,
   },
   assertions: {
