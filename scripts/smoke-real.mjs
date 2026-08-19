@@ -12,7 +12,6 @@ const strictMode = process.argv.includes('--strict')
 const requiredContrast = strictMode || process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
 const requiredHydra = strictMode || process.env.RECOIL_SMOKE_REQUIRE_HYDRA === '1' || requiredContrast
 const receiptPath = process.env.RECOIL_SMOKE_RECEIPT || `.recoil-recordings/${scenarioId}.json`
-const skipNetworkPreflight = process.env.RECOIL_SMOKE_SKIP_NETWORK_PREFLIGHT === '1'
 
 function print(label, value) {
   console.log(`${label.padEnd(12)} ${value}`)
@@ -64,7 +63,7 @@ if (preflightBlockers.length) {
   process.exit(2)
 }
 
-if (strictMode && !skipNetworkPreflight) {
+if (strictMode) {
   const networkFailures = await runNetworkPreflight()
   if (networkFailures.length) {
     print('preflight', `network unavailable · ${networkFailures.join(' · ')}`)
