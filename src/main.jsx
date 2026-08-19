@@ -826,6 +826,22 @@ function CaseNavigator({ finding, activeTab, onTabChange }) {
   </nav>
 }
 
+function EvidenceLedger({ report }) {
+  const coverage = report?.evidenceQuality?.sourceCoverage || {}
+  const graph = report?.graph || { nodes: [], edges: [] }
+  const sourceCount = report?.sources?.length || 0
+  const sampled = coverage.sampledFiles != null
+    ? `${coverage.sampledFiles}/${coverage.candidateFiles || coverage.sampledFiles}`
+    : 'not measured'
+  const entries = [
+    { value: sourceCount, label: 'public sources' },
+    { value: sampled, label: 'source files sampled' },
+    { value: graph.edges.length, label: 'observed relationships' },
+    { value: 'static only', label: 'execution boundary' },
+  ]
+  return <section className="evidence-ledger" aria-label="Evidence boundary"><span className="section-kicker">Evidence ledger</span><div className="evidence-ledger-items">{entries.map((entry) => <div className="evidence-ledger-item" key={entry.label}><strong>{entry.value}</strong><span>{entry.label}</span></div>)}</div><p>No package installation, repository execution, or exploit payload was used to produce this case.</p></section>
+}
+
 function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
@@ -853,6 +869,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
+    <EvidenceLedger report={report} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel">
       {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={() => setActiveTab('history')} /></>}
