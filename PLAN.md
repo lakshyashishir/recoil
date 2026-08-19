@@ -98,6 +98,7 @@ observed path → proposed fix → residual re-check
 - [x] Collect bounded npm/Yarn/pnpm workspace manifests so monorepo importers contribute observed dependency roots and source citations.
 - [x] Avoid redundant API/raw retries for known public-file 404s while preserving API fallback for raw transport failures.
 - [x] Normalize legacy npm lockfile v1 dependency trees into source-cited nested package paths and graph edges.
+- [x] Expose the supported lockfile and workspace evidence surfaces through the judge-facing `/api/health` capability contract.
 
 ### Still required before calling the hackathon build complete
 

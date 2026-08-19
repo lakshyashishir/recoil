@@ -118,6 +118,10 @@ async function route(req, res) {
       },
       capabilities: [
         'npm',
+        'legacy-npm-lockfile',
+        'yarn-lockfile',
+        'pnpm-lockfile',
+        'workspace-manifests',
         'cargo',
         'osv',
         'repository-evidence',
