@@ -359,6 +359,89 @@ function parseCargoLock(text) {
   }).filter(Boolean).slice(0, 160)
 }
 
+function splitYarnSelectors(header) {
+  const selectors = []
+  let current = ''
+  let quote = null
+  for (const character of header.replace(/:\s*$/, '')) {
+    if ((character === '"' || character === "'") && (!quote || quote === character)) {
+      quote = quote ? null : character
+      current += character
+      continue
+    }
+    if (character === ',' && !quote) {
+      if (current.trim()) selectors.push(current.trim())
+      current = ''
+      continue
+    }
+    current += character
+  }
+  if (current.trim()) selectors.push(current.trim())
+  return selectors
+}
+
+function packageNameFromYarnSelector(selector = '') {
+  const clean = selector.trim().replace(/^['"]|['"]$/g, '')
+  return clean.match(/^(@[^/]+\/[^@]+|[^@]+)@/)?.[1] || null
+}
+
+/**
+ * Read bounded Yarn classic and Berry lock entries without pretending the
+ * lockfile is an npm install tree. The selectors are retained in the path so
+ * every resolution remains attributable to the exact public lock entry.
+ */
+export function parseYarnLock(text = '') {
+  const lines = String(text).split(/\r?\n/)
+  const entries = []
+  let block = null
+  const flush = () => {
+    if (!block?.version) return
+    const selectors = splitYarnSelectors(block.header)
+    for (const selector of selectors) {
+      const name = packageNameFromYarnSelector(selector)
+      if (!name) continue
+      entries.push({
+        name,
+        version: block.version,
+        path: `yarn:${selector}`,
+        resolved: block.resolved || null,
+        dependencies: [...new Set(block.dependencies)].slice(0, 12),
+      })
+    }
+  }
+  for (const line of lines) {
+    if (!line.trim() || line.trim().startsWith('#')) continue
+    if (!/^\s/.test(line) && /:\s*$/.test(line)) {
+      flush()
+      block = { header: line.trim(), version: null, resolved: null, dependencies: [], inDependencies: false }
+      continue
+    }
+    if (!block) continue
+    const version = line.match(/^\s+version\s*(?::\s*|\s+)["']?([^"'\s]+)["']?\s*$/)?.[1]
+    if (version) {
+      block.version = version
+      block.inDependencies = false
+      continue
+    }
+    const resolved = line.match(/^\s+(?:resolved|resolution)\s*(?::\s*|\s+)["']?([^"']+?)["']?\s*$/)?.[1]
+    if (resolved) {
+      block.resolved = resolved
+      block.inDependencies = false
+      continue
+    }
+    if (/^\s+dependencies\s*:?\s*$/.test(line)) {
+      block.inDependencies = true
+      continue
+    }
+    if (block.inDependencies) {
+      const dependency = line.match(/^\s{2,}((?:@[^/\s]+\/)?[^\s:]+)\s+["']?[^"'\s]+["']?\s*$/)?.[1]
+      if (dependency) block.dependencies.push(dependency)
+    }
+  }
+  flush()
+  return entries.slice(0, 240)
+}
+
 function resolveLockfileEntries(lockfile, packageName) {
   if (!lockfile || !packageName) return []
   const packageEntries = Object.entries(lockfile.packages || {})
@@ -397,14 +480,16 @@ export async function collectRepository(repository, requestedPackage) {
   const inferredPackage = requestedPackage || packageJson?.name || cargoManifest?.name || (cargoManifest ? repository.name : Object.keys(dependencies)[0]) || null
   const lockFile = cargoManifestFile
     ? await readGitHubFile(repository, 'Cargo.lock', { preferRaw: true })
-    : await readGitHubFile(repository, 'package-lock.json', { preferRaw: true }) || await readGitHubFile(repository, 'npm-shrinkwrap.json', { preferRaw: true })
-  const lockfile = lockFile && ecosystem === 'npm' ? JSON.parse(lockFile.text) : null
+    : await readGitHubFile(repository, 'package-lock.json', { preferRaw: true }) || await readGitHubFile(repository, 'npm-shrinkwrap.json', { preferRaw: true }) || await readGitHubFile(repository, 'yarn.lock', { preferRaw: true })
+  const lockfile = lockFile && ecosystem === 'npm' && lockFile.path !== 'yarn.lock' ? JSON.parse(lockFile.text) : null
+  const yarnLockPackages = lockFile?.path === 'yarn.lock' ? parseYarnLock(lockFile.text) : []
   const temporal = lockFile
     ? await readGitHubCommitHistory(repository, lockFile.path).catch((error) => ({ error: error.message, sourceUrl: lockFile.sourceUrl }))
     : null
   const lockPackages = ecosystem === 'cargo'
     ? (lockFile ? parseCargoLock(lockFile.text) : [])
-    : Object.entries(lockfile?.packages || {})
+    : lockfile
+      ? Object.entries(lockfile.packages || {})
       .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
       .slice(0, 120)
       .map(([path, entry]) => ({
@@ -414,6 +499,7 @@ export async function collectRepository(repository, requestedPackage) {
         resolved: entry.resolved,
         dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
       }))
+      : yarnLockPackages
   let treePaths = null
   let treeError = null
   try {
@@ -462,10 +548,14 @@ export async function collectRepository(repository, requestedPackage) {
   const deploymentSignals = containerFiles.map((file) => ({ path: file.path, kind: file.path.toLowerCase().includes('compose') ? 'compose' : 'container' }))
   const resolvedVersion = ecosystem === 'cargo'
     ? lockPackages.find((item) => item.name === inferredPackage)?.version || null
-    : resolveFromLockfile(lockfile, inferredPackage)
+    : lockfile
+      ? resolveFromLockfile(lockfile, inferredPackage)
+      : lockPackages.find((item) => item.name === inferredPackage)?.version || null
   const resolvedVersions = ecosystem === 'cargo'
     ? [...new Set(lockPackages.filter((item) => item.name === inferredPackage).map((item) => item.version))]
-    : [...new Set(resolveLockfileEntries(lockfile, inferredPackage).map((item) => item.version))]
+    : lockfile
+      ? [...new Set(resolveLockfileEntries(lockfile, inferredPackage).map((item) => item.version))]
+      : [...new Set(lockPackages.filter((item) => item.name === inferredPackage).map((item) => item.version))]
   return {
     collector: 'repository-extractor',
     status: 'completed',

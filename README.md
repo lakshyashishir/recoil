@@ -106,6 +106,9 @@ content, then fall back to the Contents API with cache and explicit rate-limit e
 repository tree is reused for source and workflow discovery, avoiding a second directory request per repo;
 the workflow directory endpoint is retained only as a fallback when tree discovery fails. Commit history
 still uses the API, and optional metadata degrades to an explicit `unavailable` signal when unreachable.
+For JavaScript repositories, Recoil accepts npm `package-lock.json`/`npm-shrinkwrap.json` and bounded Yarn
+classic/Berry `yarn.lock` entries. Yarn selectors are retained as lock-entry provenance; multiple resolved
+versions remain ambiguous instead of being collapsed into a confident path.
 
 For separate processes:
 

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, resolvePackageSelection } from '../server/collectors.js'
+import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
 
 test('target inference keeps a GitHub repository separate from an optional package selector', () => {
   const target = inferTarget('https://github.com/hydra-db/hydradb hydradb')
@@ -87,6 +87,29 @@ test('npm lockfile paths normalize nested and scoped package identities', () => 
   assert.equal(packageNameFromNodeModulesPath('node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/@scope/parser'), '@scope/parser')
+})
+
+test('Yarn lock parser preserves classic, Berry, scoped, and dependency entries', () => {
+  const entries = parseYarnLock(`
+minimist@^1.2.5, minimist@^1.2.6:
+  version "1.2.8"
+  resolved "https://registry.npmjs.org/minimist/-/minimist-1.2.8.tgz"
+  dependencies:
+    wordwrap "~1.0.0"
+
+"@scope/parser@npm:^2.0.0":
+  version: 2.1.0
+  resolution: "@scope/parser@npm:2.1.0"
+`)
+
+  assert.deepEqual(entries.map((entry) => [entry.name, entry.version]), [
+    ['minimist', '1.2.8'],
+    ['minimist', '1.2.8'],
+    ['@scope/parser', '2.1.0'],
+  ])
+  assert.equal(entries[0].dependencies[0], 'wordwrap')
+  assert.equal(entries[2].resolved, '@scope/parser@npm:2.1.0')
+  assert.match(entries[2].path, /^yarn:/)
 })
 
 test('package selection never chooses the first repository when repository-only input is ambiguous', () => {

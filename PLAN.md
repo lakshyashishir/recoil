@@ -93,6 +93,7 @@ observed path → proposed fix → residual re-check
 - [x] Reject repository-only client requests before collection; the browser, API, and direct CLI now share a clear advisory/package input contract.
 - [x] Keep Vite alive when the API process cannot bind, so startup failures are visible in the browser instead of appearing as a blank page.
 - [x] Align operator documentation with the advisory/package input contract and strict recording gate.
+- [x] Parse bounded Yarn classic/Berry lock entries, preserve selector provenance, and prove an affected import from an extensionless executable entrypoint.
 
 ### Still required before calling the hackathon build complete
 

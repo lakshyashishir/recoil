@@ -391,6 +391,60 @@ test('npm ingestion resolves a nested transitive package from package-lock paths
   }
 })
 
+test('npm ingestion resolves an affected package from a Yarn lock and extensionless entrypoint', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const yarnAdvisory = {
+    id: 'GHSA-yarn-1234-5678',
+    summary: 'Test advisory for a Yarn-managed package',
+    published: '2026-01-01T00:00:00Z',
+    affected: [{ package: { ecosystem: 'npm', name: 'minimist' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.2.6' }] }] }],
+    sourceUrl: 'https://api.osv.dev/v1/vulns/ghsa-yarn-1234-5678',
+  }
+  const manifest = JSON.stringify({ name: 'yarn-app', dependencies: { minimist: '^1.2.0' } })
+  const yarnLock = `minimist@^1.2.0:\n  version "1.2.5"\n  resolved "https://registry.npmjs.org/minimist/-/minimist-1.2.5.tgz"\n`
+  const source = "#!/usr/bin/env node\nconst minimist = require('minimist')\nmodule.exports = () => minimist(process.argv)"
+
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') return response(yarnAdvisory)
+    if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', versions: { '1.2.5': {}, '1.2.6': {} }, maintainers: [] })
+    if (url.hostname === 'raw.githubusercontent.com') {
+      const path = url.pathname.split('/').slice(4).join('/')
+      if (path === 'package.json') return response(manifest)
+      if (path === 'yarn.lock') return response(yarnLock)
+      if (path === 'bin/http-server') return response(source)
+      return response({}, 404)
+    }
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
+    if (!match || match[1] !== 'example/yarn-app') return response({}, 404)
+    const operation = match[2]
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'bin/http-server' }] })
+    if (operation.startsWith('commits')) {
+      if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/yarn-app/commit/oldest', commit: { author: { date: '2025-01-01T00:00:00Z' } } }])
+      return response([])
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-yarn-1234-5678 https://github.com/example/yarn-app', scenarioId: 'yarn-integration-test' })
+    const repository = ingestion.repositories[0]
+    const finding = ingestion.findings[0]
+    assert.equal(ingestion.status, 'completed')
+    assert.equal(repository.manifest.lockfile, 'yarn.lock')
+    assert.equal(repository.manifest.resolved.minimist, '1.2.5')
+    assert.equal(finding.verdict, 'REACHED')
+    assert.equal(finding.imports[0].path, 'bin/http-server')
+    assert.deepEqual(finding.dependencyPath.map((item) => `${item.name}@${item.version}`), ['minimist@1.2.5'])
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+  }
+})
+
 test('network failures preserve the endpoint and downgrade evidence honestly', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (input) => {
