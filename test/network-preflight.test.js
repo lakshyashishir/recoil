@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { recordingNetworkFailures } from '../src/core/network-preflight.js'
+import { recordingNetworkFailures, recordingNetworkProbe } from '../src/core/network-preflight.js'
 
 test('recording network preflight accepts reachable services regardless of HTTP status', async () => {
   const urls = []
@@ -16,6 +16,18 @@ test('recording network preflight accepts reachable services regardless of HTTP 
     'https://api.osv.dev',
     'https://api.github.com/rate_limit',
     'https://hydra.example.test/health',
+  ])
+})
+
+test('recording network probe returns operator-readable transport results', async () => {
+  const outcomes = await recordingNetworkProbe({
+    hydraApiBase: 'https://hydra.example.test',
+    fetchImpl: async (url) => ({ status: url.includes('github') ? 403 : 200 }),
+  })
+  assert.deepEqual(outcomes.map(({ label, ok, detail }) => ({ label, ok, detail })), [
+    { label: 'osv', ok: true, detail: 'reachable · HTTP 200' },
+    { label: 'github', ok: true, detail: 'reachable · HTTP 403' },
+    { label: 'hydradb', ok: true, detail: 'reachable · HTTP 200' },
   ])
 })
 

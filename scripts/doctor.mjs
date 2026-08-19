@@ -1,6 +1,7 @@
 import { parseInvestigationInput } from '../server/collectors.js'
 import { advisoryAgentStatus } from '../server/advisory-agent.js'
 import { hydraStatus } from '../server/hydra.js'
+import { recordingNetworkProbe } from '../src/core/network-preflight.js'
 
 const args = process.argv.slice(2)
 const recording = args.includes('--recording')
@@ -16,20 +17,6 @@ function usage() {
   print('usage', 'npm run doctor -- [--recording] [--network] "<advisory> <github-url>..."')
   print('env', 'RECOIL_DOCTOR_QUERY may provide the query instead of a positional argument')
   print('modes', '--recording requires 3 public repositories and HydraDB credentials; --network tests endpoints')
-}
-
-function result(ok, detail) {
-  return { ok, detail }
-}
-
-async function probe(label, url, headers = {}) {
-  try {
-    const response = await fetch(url, { headers, signal: AbortSignal.timeout(3500) })
-    return result(true, `reachable · HTTP ${response.status}`)
-  } catch (error) {
-    const code = error?.cause?.code || error?.code
-    return result(false, `${code ? `${code} · ` : ''}${error.message}`)
-  }
 }
 
 if (help) {
@@ -61,15 +48,10 @@ print('cache', process.env.RECOIL_CACHE_DIR || '.recoil-cache')
 print('network', network ? 'probing OSV, GitHub, HydraDB' : 'not probed · pass --network to test endpoints')
 
 if (network) {
-  const probes = [
-    ['osv', 'https://api.osv.dev'],
-    ['github', 'https://api.github.com/rate_limit', { accept: 'application/vnd.github+json', ...(process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}) }],
-    ['hydradb', `${hydra.apiBase}/health`, { 'API-Version': '2' }],
-  ]
-  for (const [label, url, headers] of probes) {
-    const outcome = await probe(label, url, headers)
-    print(label, outcome.detail)
-    if (!outcome.ok) failures.push(`${label} unavailable: ${outcome.detail}`)
+  const outcomes = await recordingNetworkProbe({ hydraApiBase: hydra.apiBase })
+  for (const outcome of outcomes) {
+    print(outcome.label, outcome.detail)
+    if (!outcome.ok) failures.push(`${outcome.label} unavailable: ${outcome.detail}`)
   }
 }
 

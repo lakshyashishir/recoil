@@ -102,6 +102,7 @@ observed path → proposed fix → residual re-check
 - [x] Add a single `npm run smoke:recording` command that enables the complete three-way and HydraDB recording gate.
 - [x] Add a strict recording network preflight so disconnected runs fail before spending collector or HydraDB requests.
 - [x] Share the strict recording network preflight between smoke and CLI transports.
+- [x] Use the same strict recording network probe in the operator doctor and TUI.
 - [x] Keep optional model outages visibly degraded without failing deterministic evidence investigations.
 - [x] Give the TUI the same explicit direct transport as the CLI for API-free terminal operation.
 - [x] Surface the strict recording gate and blockers in the TUI as well as the browser and CLI.

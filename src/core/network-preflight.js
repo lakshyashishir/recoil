@@ -8,7 +8,7 @@ function failureDetail(error) {
  * with any HTTP status proves transport reachability; authentication and
  * schema failures remain the responsibility of the collector/adapter.
  */
-export async function recordingNetworkFailures({
+export async function recordingNetworkProbe({
   hydraApiBase = 'https://api.hydradb.com',
   githubToken = process.env.GITHUB_TOKEN,
   fetchImpl = globalThis.fetch,
@@ -19,13 +19,19 @@ export async function recordingNetworkFailures({
     ['github', 'https://api.github.com/rate_limit', { accept: 'application/vnd.github+json', ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}) }],
     ['hydradb', `${hydraApiBase.replace(/\/$/, '')}/health`, { 'API-Version': '2' }],
   ]
-  const failures = []
+  const results = []
   for (const [label, url, headers] of probes) {
     try {
-      await fetchImpl(url, { headers, signal: AbortSignal.timeout(timeoutMs) })
+      const response = await fetchImpl(url, { headers, signal: AbortSignal.timeout(timeoutMs) })
+      results.push({ label, url, ok: true, detail: `reachable · HTTP ${response.status}` })
     } catch (error) {
-      failures.push(`${label} ${failureDetail(error)}`)
+      results.push({ label, url, ok: false, detail: failureDetail(error) })
     }
   }
-  return failures
+  return results
+}
+
+export async function recordingNetworkFailures(options = {}) {
+  const results = await recordingNetworkProbe(options)
+  return results.filter((result) => !result.ok).map((result) => `${result.label} ${result.detail}`)
 }
