@@ -211,6 +211,7 @@ test('HydraDB adapter persists memories and filters temporal recall locally', as
     const recalled = await recallTemporal('minimist', '2023-01-01T00:00:00.000Z', undefined, { excludeScenarioId: 'current-case' })
     assert.equal(recalled.datedChunkCount, 1)
     assert.deepEqual(recalled.priorScenarioIds, ['prior-case'])
+    assert.deepEqual(recalled.relatedCases, [{ scenarioId: 'prior-case', kinds: [], repositories: [], validFrom: '2022-01-01T00:00:00Z', sourceUrls: [] }])
     assert.equal(requests.filter((request) => request.url.endsWith('/context/ingest')).length, persisted.memoryCount)
     assert.equal(requests.filter((request) => request.url.endsWith('/query')).length, 1)
   } finally {
