@@ -416,6 +416,23 @@ body { font-family: var(--sans); line-height: 1.45; }
 .memory-line-muted { color: var(--muted); }
 .memory-line-muted .memory-mark { background: var(--faint); }
 .event-evidence-count { display: block; margin-top: 6px; color: var(--accent); font-size: 11px; }
+.fix-proof { margin-top: 22px; padding: 18px 0 0; border-top: 1px solid var(--line); }
+.fix-proof-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.fix-proof-heading h3 { margin: 4px 0 0; color: var(--text); font-size: 16px; font-weight: 600; }
+.fix-proof-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--green); font-size: 11px; }
+.fix-proof-review .fix-proof-badge { color: var(--accent); }
+.fix-proof-compare { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); gap: 12px; align-items: center; margin-top: 15px; }
+.fix-proof-compare > div { min-width: 0; display: grid; gap: 5px; padding: 13px 14px; border: 1px solid var(--line); background: var(--surface); }
+.fix-proof-compare > div:last-child { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); }
+.fix-proof-compare span, .fix-proof-compare small { color: var(--muted); font-size: 10px; }
+.fix-proof-compare strong { overflow: hidden; color: var(--text); font: 600 12px/1.35 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.fix-proof-compare small { color: var(--faint); }
+.fix-proof-arrow { color: var(--accent); font-size: 18px; text-align: center; }
+.fix-proof-detail { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.fix-proof-boundary { display: flex; align-items: flex-start; gap: 8px; margin-top: 13px; color: var(--faint); font-size: 11px; line-height: 1.45; }
+.fix-proof-boundary svg { flex: 0 0 auto; margin-top: 1px; color: var(--green); }
+.fix-proof-boundary .source-link { flex: 0 0 auto; margin-left: auto; }
+.proof-bottom { grid-template-columns: 1fr; }
 
 @media (max-width: 980px) {
   .proof-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -437,6 +454,10 @@ body { font-family: var(--sans); line-height: 1.45; }
   .proof-overview-grid { grid-template-columns: 1fr; }
   .proof-overview-item, .proof-overview-item + .proof-overview-item { padding: 14px 0; border-right: 0; border-bottom: 1px solid var(--line-soft); }
   .proof-overview-item:last-child { border-bottom: 0; }
+  .fix-proof-compare { grid-template-columns: 1fr; gap: 7px; }
+  .fix-proof-arrow { transform: rotate(90deg); }
+  .fix-proof-boundary { flex-wrap: wrap; }
+  .fix-proof-boundary .source-link { margin-left: 23px; }
 }
 
 /* Case navigation: a quiet way to move through the proof without turning the report into a dashboard. */

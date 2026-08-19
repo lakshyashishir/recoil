@@ -321,19 +321,44 @@ function ImportProof({ finding }) {
   return <div className="import-proof"><FileCode2 size={16} /><div><span className="section-kicker">Observed in source</span><strong>{importer.path}{importer.line ? `:${importer.line}` : ''}</strong><code>{importer.snippet || `imports ${importer.specifier || finding.packageName}`}</code><SourceLink href={importer.sourceUrl}>Open source line</SourceLink></div></div>
 }
 
+function FixProof({ finding, challenge }) {
+  if (!finding || !challenge) return null
+  const currentVersion = finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'
+  const proposedVersion = challenge.proposedVersion || 'no fixed version'
+  const verified = ['FIX_SURVIVES', 'ALREADY_SAFE'].includes(challenge.status)
+  const lockfileSource = (finding.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source)) || finding.evidenceSources?.[0]
+  const statusLabel = challenge.status === 'FIX_SURVIVES'
+    ? 'Version-level proof'
+    : challenge.status === 'ALREADY_SAFE'
+      ? 'Already outside range'
+      : challenge.status === 'MANIFEST_CHANGE_REQUIRED'
+        ? 'Manifest change required'
+        : challenge.status === 'NO_REACHABLE_PATH'
+          ? 'Defense-in-depth update'
+          : 'Review required'
+  return <section className={`fix-proof fix-proof-${verified ? 'verified' : 'review'}`}>
+    <div className="fix-proof-heading"><div><span className="section-kicker">Remediation</span><h3>{statusLabel}</h3></div><span className="fix-proof-badge">{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : 'not verified'}</span></div>
+    <div className="fix-proof-compare">
+      <div><span>Observed</span><strong>{finding.packageName}@{currentVersion}</strong><small>{finding.verdict === 'REACHED' ? 'affected path found' : finding.verdict === 'DECLARED_ONLY' ? 'declared, not imported' : 'current resolution'}</small></div>
+      <span className="fix-proof-arrow" aria-hidden="true">→</span>
+      <div><span>Proposed</span><strong>{finding.packageName}@{proposedVersion}</strong><small>{challenge.status === 'MANIFEST_CHANGE_REQUIRED' ? `outside ${finding.declaredRange || 'the declared'} range` : verified ? 'outside the affected range' : 'not proven by this case'}</small></div>
+    </div>
+    <p className="fix-proof-detail">{challenge.detail}</p>
+    <div className="fix-proof-boundary"><PackageCheck size={15} /><span>The repository was not modified or executed. Recoil proves the advisory range and declared-range relationship; the lockfile still needs to be updated and reviewed.</span>{lockfileSource && <SourceLink href={lockfileSource}>Open lockfile evidence</SourceLink>}</div>
+  </section>
+}
+
 function RouteProof({ finding, challenge }) {
   if (!finding) return null
   const parts = findingParts(finding)
   const sourceLinks = [...new Set([finding.repositoryUrl, ...(finding.evidenceSources || []), ...(finding.imports || []).map((item) => item.sourceUrl)].filter(Boolean))]
-  const fixLabel = challenge?.proposedVersion ? `Upgrade to ${challenge.proposedVersion}` : challenge?.status === 'ALREADY_SAFE' ? 'Already outside affected range' : 'No verified version change'
-  const fixStatus = challenge?.status === 'FIX_SURVIVES' || challenge?.status === 'ALREADY_SAFE' ? 'verified' : 'review'
   return <section className="route-proof" id="case-proof">
     <div className="proof-heading"><div><span className="section-kicker">Route</span><h2>{finding.verdict === 'REACHED' ? 'Reachable' : finding.verdict === 'DECLARED_ONLY' ? 'Declared only' : finding.verdict === 'NOT_AFFECTED' ? 'Not affected' : 'Unclassified'}</h2></div><Verdict value={finding.verdict} /></div>
     <p className="proof-reason">{finding.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
     <div className="route-steps">{parts.map((part, index) => <div className="route-step" key={`${part}-${index}`}><span>{index + 1}</span><strong>{shorten(routeDisplayPart(part, finding), 38)}</strong><small>{index === 0 ? 'advisory' : index === parts.length - 1 ? 'source' : 'observed hop'}</small></div>)}</div>
     <ImportProof finding={finding} />
+    <FixProof finding={finding} challenge={challenge} />
     <div className="proof-bottom">
-      <div className={`fix-result fix-result-${fixStatus}`}><span className="fix-icon">{fixStatus === 'verified' ? <Check size={15} /> : <CircleAlert size={15} />}</span><div><span className="section-kicker">Fix</span><strong>{fixLabel}</strong><p>{challenge?.detail || 'No remediation proof was produced for this path.'}</p></div></div>
       <div className="proof-sources"><span className="section-kicker">Sources</span><div>{sourceLinks.slice(0, 4).map((source) => <SourceLink key={source} href={source}>{sourceHost(source)}</SourceLink>)}</div></div>
     </div>
   </section>
