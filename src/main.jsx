@@ -459,7 +459,15 @@ function IntegrityDetails({ report, hydra, evidenceStatus }) {
   const quality = report?.evidenceQuality || {}
   const sourceCount = report?.sources?.length || 0
   const graph = report?.graph || { nodes: [], edges: [] }
-  return <details className="integrity-details" id="case-audit"><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{graph.nodes.length}</strong><span>observed nodes</span></div><div><strong>{graph.edges.length}</strong><span>observed edges</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div></div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
+  const scope = report?.advisoryScope || { status: 'not_requested', affectedSymbols: [] }
+  const scopeLabel = scope.status === 'completed'
+    ? `${scope.affectedSymbols?.length || 0} candidate${scope.affectedSymbols?.length === 1 ? '' : 's'} returned`
+    : scope.status === 'skipped' || scope.status === 'not_requested'
+      ? 'not enabled'
+      : scope.status === 'failed'
+        ? 'unavailable'
+        : 'module-level only'
+  return <details className="integrity-details" id="case-audit"><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{graph.nodes.length}</strong><span>observed nodes</span></div><div><strong>{graph.edges.length}</strong><span>observed edges</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.'}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
 }
 
 function ReceiptLink() {
@@ -501,6 +509,64 @@ function CaseConclusion({ report, findings, summary, historical }) {
   </section>
 }
 
+function ProofLoop({ finding, challenge, historical, onInspectProof }) {
+  if (!finding) return null
+  const importer = finding.imports?.[0]
+  const observedTitle = finding.verdict === 'REACHED'
+    ? 'A source-backed route exists'
+    : finding.verdict === 'DECLARED_ONLY'
+      ? 'The package is declared, not reached'
+      : finding.verdict === 'NOT_AFFECTED'
+        ? 'The observed version is already safe'
+        : 'The route needs review'
+  const observedDetail = finding.verdict === 'REACHED'
+    ? `${finding.packageName}@${finding.resolvedVersion || 'unresolved'} is imported by ${importer?.path || 'sampled source'}.`
+    : finding.verdict === 'DECLARED_ONLY'
+      ? `${finding.packageName || 'The package'} is in the lockfile, but no sampled source file imports it.`
+      : finding.reason || 'The available evidence does not support a stronger conclusion.'
+  const fixTitle = historical
+    ? 'Current fix proof is hidden'
+    : challenge?.status === 'FIX_SURVIVES'
+      ? `Move to ${challenge.proposedVersion}`
+      : challenge?.status === 'ALREADY_SAFE'
+        ? 'No version change required'
+        : challenge?.status === 'NO_REACHABLE_PATH'
+          ? `Update ${challenge.proposedVersion || 'the dependency'} for defense in depth`
+          : challenge?.status === 'MANIFEST_CHANGE_REQUIRED'
+            ? `Change the declared range to admit ${challenge.proposedVersion}`
+            : 'No fix is proven yet'
+  const fixDetail = historical
+    ? 'Return to Current evidence to inspect remediation against the present lockfile.'
+    : challenge?.detail || 'The advisory did not provide enough evidence for a fix proof.'
+  const resultTitle = historical
+    ? `Graph rebuilt as of ${finding.asOf?.slice(0, 10) || 'the selected date'}`
+    : challenge?.status === 'FIX_SURVIVES'
+      ? 'No residual affected path in this proof'
+      : challenge?.status === 'ALREADY_SAFE'
+        ? 'Path is already outside the affected range'
+        : challenge?.status === 'NO_REACHABLE_PATH'
+          ? 'No reachable path to re-check'
+          : 'Review the residual path'
+  const resultDetail = historical
+    ? 'This is a dated reconstruction, not a claim about the current repository.'
+    : challenge?.status === 'FIX_SURVIVES'
+      ? 'The proposed version is advisory-backed and admitted by the repository range.'
+      : challenge?.status === 'ALREADY_SAFE'
+        ? 'The current resolution is outside the advisory range.'
+        : challenge?.residualPath?.length
+          ? 'The cited path remains and requires review.'
+          : 'The evidence supports a narrower conclusion than a closed fix.'
+  return <section className="proof-loop" aria-label="Path and remediation proof">
+    <div className="proof-loop-heading"><div><span className="section-kicker">Decision path</span><h2>From observed route to checked fix</h2></div><span>static evidence · no execution</span></div>
+    <div className="proof-loop-steps">
+      <article className="proof-loop-step proof-loop-observed"><span className="proof-loop-number">01</span><div><span>Path found</span><strong>{observedTitle}</strong><p>{observedDetail}</p></div></article>
+      <article className="proof-loop-step proof-loop-fix"><span className="proof-loop-number">02</span><div><span>Defense checked</span><strong>{fixTitle}</strong><p>{fixDetail}</p></div></article>
+      <article className="proof-loop-step proof-loop-result"><span className="proof-loop-number">03</span><div><span>Re-check</span><strong>{resultTitle}</strong><p>{resultDetail}</p></div></article>
+    </div>
+    {!historical && <button className="proof-loop-link" type="button" onClick={onInspectProof}>Open the full proof <ArrowUpRight size={13} /></button>}
+  </section>
+}
+
 function CaseNavigator({ finding, activeTab, onTabChange }) {
   const tabs = [{ id: 'graph', label: 'Graph' }, { id: 'proof', label: 'Proof' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Audit' }]
   return <nav className="case-navigator" aria-label="Case views">
@@ -534,7 +600,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel">
-      {activeTab === 'graph' && <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div>}
+      {activeTab === 'graph' && <><ProofLoop finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <TemporalProof report={report} onRewind={onRewind} />}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
