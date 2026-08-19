@@ -170,8 +170,10 @@ repositories and failed collectors, and surfaces mixed lockfile-version ambiguit
 
 Each repository finding also carries a compact provenance chain. It maps the readable path to the exact
 public source for each hop—advisory, lockfile resolution, repository history, sampled import or validated
-symbol, and first observation date. A missing or unobserved hop is shown as such; it is never replaced by
-a generic source list or a confident inference. The same chain is included in the downloadable receipt.
+symbol, and first observation date. The observed import line is included inline so a reviewer can verify
+the reachability claim without leaving the report. A missing or unobserved hop is shown as such; it is
+never replaced by a generic source list or a confident inference. The same chain is included in the
+downloadable receipt.
 When a real lockfile exposes a transitive chain, the default CLI summary prints it; `--proof` expands
 the individual dependency hop and its source URL.
 

@@ -59,6 +59,11 @@ function lineNumber(text, offset) {
   return text.slice(0, offset).split('\n').length
 }
 
+function sourceLine(text, line) {
+  if (!line) return null
+  return (text.split(/\r?\n/)[line - 1] || '').trim().slice(0, 240) || null
+}
+
 export function parseSourceSymbols(text = '', path = '') {
   const language = languageFor(path)
   const patterns = language === 'rust'
@@ -233,6 +238,7 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
           specifier: specifier.specifier,
           packageName: specifier.specifier.replace(/_/g, '-'),
           line: specifier.line,
+          snippet: sourceLine(file.text, specifier.line),
         })
         continue
       }
@@ -243,6 +249,7 @@ export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
           specifier: specifier.specifier,
           packageName: packageNameForSpecifier(specifier.specifier),
           line: specifier.line,
+          snippet: sourceLine(file.text, specifier.line),
         })
         continue
       }

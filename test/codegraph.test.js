@@ -17,6 +17,9 @@ test('JavaScript code graph resolves relative imports without executing source',
     ['code:src/engine.js', 'code:src/helper.ts'],
   ])
   assert.equal(graph.files[0].sourceUrl, 'https://example.test/src/index.js')
+
+  const external = buildCodeGraph([{ path: 'src/cli.js', text: "import minimist from 'minimist'\nexport const start = () => minimist(process.argv)", sourceUrl: 'https://example.test/src/cli.js' }])
+  assert.equal(external.externalImports[0].snippet, "import minimist from 'minimist'")
 })
 
 test('Rust code graph resolves crate modules and records bounded unknowns', () => {

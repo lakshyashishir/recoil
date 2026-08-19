@@ -77,7 +77,7 @@ function buildProofChain(finding, advisory) {
       label: `${item.path}${item.line ? `:${item.line}` : ''}`,
       source: item.sourceUrl || null,
       status: item.sourceUrl ? 'observed' : 'missing',
-      detail: `Imports ${item.specifier || finding.packageName || 'the resolved package'}`,
+      detail: `Imports ${item.specifier || finding.packageName || 'the resolved package'}${item.snippet ? ` · ${item.snippet}` : ''}`,
     })))
   } else {
     steps.push(proofStep({
