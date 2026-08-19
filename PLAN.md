@@ -225,6 +225,7 @@ Manual checks:
 
 ## Checkpoint history
 
+- `830aa05` — benchmark shared-resolution evidence and UNKNOWN overlap
 - `c12ce52` — surface cross-repository resolution evidence across clients and HydraDB
 - `57cf931` — explain model-scope fallback without overstating failure
 - `2a83f36` — make the browser's new-case action reset server state
