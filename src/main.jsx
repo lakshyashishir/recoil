@@ -151,9 +151,10 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
   const hydraReadFailed = hydra?.recall?.status === 'failed'
   const hydraRecalled = hydra?.recall?.status === 'recalled'
   const hydraPending = hydra?.indexingPending === true
+  const hydraWriteUnconfirmed = hydra?.status === 'queued' || Boolean(hydra?.indexingError)
   const hydraInFlight = hydraPending || investigation?.status === 'finalizing'
-  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? `HydraDB context recalled${hydraInFlight ? ' · indexing' : hydra?.status === 'queued' ? ' · write unconfirmed' : ''}` : hydraInFlight ? 'HydraDB indexing' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'queued' ? 'HydraDB write unconfirmed' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
-  const hydraLive = hydra?.status === 'persisted' || (hydraRecalled && !hydraPending)
+  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? `HydraDB context recalled${hydraInFlight ? ' · indexing' : hydraWriteUnconfirmed ? ' · write unconfirmed' : ''}` : hydraInFlight ? 'HydraDB indexing' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydraWriteUnconfirmed ? 'HydraDB write unconfirmed' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
+  const hydraLive = hydra?.status === 'persisted' && !hydraPending && !hydraReadFailed
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
     <div className="header-case"><strong>{id}</strong><span>{report?.package ? `${report.package} · ${state.toLowerCase()}` : state}</span></div>

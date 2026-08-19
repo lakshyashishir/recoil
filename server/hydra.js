@@ -266,8 +266,11 @@ function pollDelayMs() {
 }
 
 function pollTimeoutMs() {
-  const configured = Number.parseInt(process.env.HYDRADB_INDEX_WAIT_MS || '20000', 10)
-  return Number.isFinite(configured) ? Math.min(Math.max(configured, 1000), 300000) : 20000
+  // The hosted index is asynchronous. The browser/API path uses the same
+  // bounded window as the strict recording command so a healthy accepted
+  // batch does not routinely surface as queued before it becomes searchable.
+  const configured = Number.parseInt(process.env.HYDRADB_INDEX_WAIT_MS || '60000', 10)
+  return Number.isFinite(configured) ? Math.min(Math.max(configured, 1000), 300000) : 60000
 }
 
 function recallWaitMs() {
