@@ -5,6 +5,7 @@ import { buildInvestigationReport } from '../src/core/investigation.js'
 import { hydraStatus, persistInvestigation, recallTemporal } from '../server/hydra.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
+import { recordingNetworkFailures } from '../src/core/network-preflight.js'
 
 const query = process.env.RECOIL_SMOKE_QUERY || 'GHSA-434x-w66g-qw3r https://github.com/hydra-db/hydradb'
 const scenarioId = process.env.RECOIL_SMOKE_SCENARIO || `real-${Date.now()}`
@@ -17,29 +18,9 @@ function print(label, value) {
   console.log(`${label.padEnd(12)} ${value}`)
 }
 
-async function probe(url, headers = {}) {
-  try {
-    const response = await fetch(url, { headers, signal: AbortSignal.timeout(3500) })
-    return { ok: true, detail: `HTTP ${response.status}` }
-  } catch (error) {
-    const code = error?.cause?.code || error?.code
-    return { ok: false, detail: `${code ? `${code} · ` : ''}${error.message}` }
-  }
-}
-
 async function runNetworkPreflight() {
   const hydra = hydraStatus()
-  const probes = [
-    ['osv', 'https://api.osv.dev', {}],
-    ['github', 'https://api.github.com/rate_limit', { accept: 'application/vnd.github+json', ...(process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}) }],
-    ['hydradb', `${hydra.apiBase}/health`, { 'API-Version': '2' }],
-  ]
-  const failures = []
-  for (const [label, url, headers] of probes) {
-    const result = await probe(url, headers)
-    if (!result.ok) failures.push(`${label} ${result.detail}`)
-  }
-  return failures
+  return recordingNetworkFailures({ hydraApiBase: hydra.apiBase })
 }
 
 const repositoryCount = parseGitHubRepositories(query).length

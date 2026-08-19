@@ -5,7 +5,9 @@ import { parseGitHubRepositories, parseInvestigationInput } from '../server/coll
 import { startInvestigation } from '../server/investigation.js'
 import { getOrCreate, snapshot as getScenarioSnapshot } from '../server/index.js'
 import { recordingBlockers as buildRecordingBlockers, recordingPreflight as buildRecordingPreflight } from '../src/core/recording.js'
+import { recordingNetworkFailures } from '../src/core/network-preflight.js'
 import { buildEvidenceReceipt, verifyEvidenceReceipt } from '../src/core/receipt.js'
+import { hydraStatus } from '../server/hydra.js'
 
 const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
 const args = process.argv.slice(2)
@@ -139,6 +141,8 @@ async function main() {
   if (recordingMode) {
     const blockers = recordingPreflight(query)
     if (blockers.length) throw new Error(`Recording preflight failed: ${blockers.join(' · ')}`)
+    const networkFailures = await recordingNetworkFailures({ hydraApiBase: hydraStatus().apiBase })
+    if (networkFailures.length) throw new Error(`Recording network preflight failed: ${networkFailures.join(' · ')}`)
   }
 
   if (caseFlagIndex >= 0 && (!caseFlagValue || caseFlagValue.startsWith('--'))) throw new Error('--case requires a case identifier')
