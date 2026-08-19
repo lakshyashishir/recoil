@@ -65,7 +65,7 @@ function httpError(response, url) {
 }
 
 function cachePath(url, options = {}) {
-  if (!/^https:\/\/api\.github\.com\//.test(url) || (options?.method && options.method !== 'GET')) return null
+  if (!/^https:\/\/(?:api\.github\.com|raw\.githubusercontent\.com)\//.test(url) || (options?.method && options.method !== 'GET')) return null
   const root = process.env.RECOIL_CACHE_DIR || '.recoil-cache'
   const key = createHash('sha256').update(url).digest('hex')
   return `${root}/${key}.json`
@@ -134,8 +134,10 @@ function githubSourceUrl(repository, path) {
   return `https://github.com/${repository.slug}/blob/${repositoryRef(repository)}/${path}`
 }
 
-async function readRawGitHubFile(repository, path) {
+export async function readRawGitHubFile(repository, path) {
   const rawUrl = `https://raw.githubusercontent.com/${repository.slug}/${repositoryRef(repository)}/${path}`
+  const cached = readCache(rawUrl)
+  if (cached !== null) return cached
   let response
   try {
     response = await fetchWithNetworkRetry(rawUrl, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
@@ -144,7 +146,9 @@ async function readRawGitHubFile(repository, path) {
   }
   if (response.status === 404) return null
   if (!response.ok) throw httpError(response, rawUrl)
-  return { path, sourceUrl: rawUrl, text: await response.text() }
+  const file = { path, sourceUrl: rawUrl, text: await response.text() }
+  writeCache(rawUrl, {}, file)
+  return file
 }
 
 async function readGitHubFile(repository, path, { preferRaw = false } = {}) {

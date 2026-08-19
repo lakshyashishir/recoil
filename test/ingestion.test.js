@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { runMultiRepositoryIngestion } from '../server/collectors.js'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { readRawGitHubFile, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 
 const advisory = {
@@ -47,6 +50,32 @@ function packageLock(version) {
     },
   })
 }
+
+test('raw GitHub source reads replay from the bounded cache', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  const cacheDir = mkdtempSync(join(tmpdir(), 'recoil-raw-cache-'))
+  process.env.RECOIL_CACHE_DIR = cacheDir
+  let requests = 0
+  globalThis.fetch = async () => {
+    requests += 1
+    return response('export const cached = true')
+  }
+
+  try {
+    const repository = { slug: 'example/cache-app' }
+    const first = await readRawGitHubFile(repository, 'src/main.js')
+    const second = await readRawGitHubFile(repository, 'src/main.js')
+    assert.equal(requests, 1)
+    assert.deepEqual(second, first)
+    assert.equal(second.text, 'export const cached = true')
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+    rmSync(cacheDir, { recursive: true, force: true })
+  }
+})
 
 test('multi-repository ingestion computes real evidence contrast without synthetic graph nodes', async () => {
   const previousFetch = globalThis.fetch
