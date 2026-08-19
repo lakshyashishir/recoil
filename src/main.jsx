@@ -1,6 +1,7 @@
 import { Component, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowUpRight, Check, ChevronDown, CircleAlert, CircleCheck, Clock3, Download, ExternalLink, LoaderCircle, RotateCcw, Search, ShieldCheck } from 'lucide-react'
+import { recordingBlockers } from './core/recording.js'
 import './style.css'
 
 const SCENARIO_ID = '0017'
@@ -122,7 +123,7 @@ function RepositoryFinding({ finding, advisorySource }) {
   </details>
 }
 
-function EvidenceQuality({ quality }) {
+function EvidenceQuality({ quality, report, hydra, evidenceStatus }) {
   if (!quality) return null
   const complete = quality.readyForRecording
   const sourceCoverage = quality.sourceCoverage
@@ -130,8 +131,10 @@ function EvidenceQuality({ quality }) {
     ...(quality.collectorIssues || []).map((item) => `${item.collector}: ${item.status}`),
     ...(quality.unknownFindings || []).map((item) => `${item.repository}: ${item.verdict}`),
   ]
+  const recordingGateBlockers = recordingBlockers({ report, evidenceStatus, hydra, requireContrast: true, requireHydra: true })
+  const recordingReady = complete && recordingGateBlockers.length === 0
   return <section className={`evidence-quality quality-${quality.status}`} aria-label="Evidence quality">
-    <div className="quality-copy"><p className="eyebrow">EVIDENCE STATUS</p><strong>{complete ? 'Ready to record' : quality.status === 'review' ? 'Review before recording' : 'Evidence collection incomplete'}</strong><p>{quality.reason}</p>{blockers.length > 0 && <p className="quality-blockers">{blockers.slice(0, 3).join(' · ')}{blockers.length > 3 ? ` · +${blockers.length - 3} more` : ''}</p>}</div>
+    <div className="quality-copy"><p className="eyebrow">EVIDENCE STATUS</p><strong>{complete ? 'Evidence complete' : quality.status === 'review' ? 'Review before recording' : 'Evidence collection incomplete'}</strong><p>{quality.reason}</p>{blockers.length > 0 && <p className="quality-blockers">{blockers.slice(0, 3).join(' · ')}{blockers.length > 3 ? ` · +${blockers.length - 3} more` : ''}</p>}{complete && <p className={`quality-gate ${recordingReady ? 'quality-gate-ready' : ''}`}>Final recording gate · {recordingReady ? 'ready' : recordingGateBlockers.slice(0, 2).join(' · ') || 'strict validation required'}{recordingGateBlockers.length > 2 ? ` · +${recordingGateBlockers.length - 2} more` : ''}</p>}</div>
     <div className="quality-facts"><span>{quality.unknownFindings?.length || 0}<small>unclassified</small></span><span>{quality.ambiguousVersions?.length || 0}<small>version ambiguities</small></span>{sourceCoverage && <span>{sourceCoverage.sampledFiles}/{sourceCoverage.candidateFiles}<small>source files sampled</small></span>}</div>
   </section>
 }
@@ -212,7 +215,7 @@ function ReceiptLink() {
   return <a className="receipt-link" href={`/api/scenarios/${SCENARIO_ID}/receipt`} download="recoil-evidence-receipt.json"><Download size={14} /> Download evidence receipt</a>
 }
 
-function FinalReport({ report, hydra, onRewind }) {
+function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const summary = report?.summary || {}
   const scope = report?.advisoryScope || {}
   const quality = report?.evidenceQuality || {}
@@ -230,7 +233,7 @@ function FinalReport({ report, hydra, onRewind }) {
       : 'module-level package proof; symbol scope not enabled'
   return <main className="report-page">
     <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{confirmedHeadline}<br /><i>{headlineDetail}</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.{summary.unknown ? ` ${summary.unknown} repository${summary.unknown === 1 ? '' : 'ies'} remain unclassified and are not counted as safe.` : ''}</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p>{packageResolution.status === 'ambiguous' && <p className="scope-proof">Package identity is ambiguous · {packageResolution.candidates.join(', ')}. Provide an advisory or package selector before comparing repositories.</p>}{packageResolution.status === 'unresolved' && <p className="scope-proof">Package identity could not be resolved safely. Provide an advisory or package selector.</p>}<ReceiptLink /></section>
-    <EvidenceQuality quality={quality} />
+    <EvidenceQuality quality={quality} report={report} hydra={hydra} evidenceStatus={evidenceStatus} />
     <CrossRepositoryEvidence correlations={report?.crossRepositoryCorrelations} />
     <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
     <Rewind report={report} activeReport={report} onSelect={onRewind} />
@@ -323,7 +326,7 @@ function App() {
   }
 
   if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} />
-  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} />{isComplete ? <><FinalReport report={activeReport} hydra={hydra || investigation?.hydra} onRewind={rewind} /><div className="new-case-wrap"><button type="button" onClick={newInvestigation}><RotateCcw size={14} /> New investigation</button></div></> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
+  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} />{isComplete ? <><FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /><div className="new-case-wrap"><button type="button" onClick={newInvestigation}><RotateCcw size={14} /> New investigation</button></div></> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
 class AppBoundary extends Component {

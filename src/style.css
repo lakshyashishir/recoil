@@ -100,6 +100,8 @@ h1 i, .verdict-block h1 i { color: var(--cream); font-style: normal; }
 .quality-copy strong { display: block; color: var(--text); font-size: 17px; font-weight: 500; }
 .quality-copy p:not(.eyebrow) { max-width: 670px; margin: 7px 0 0; color: var(--muted); font: 11px/1.5 'IBM Plex Mono', monospace; }
 .quality-copy .quality-blockers { color: var(--amber); }
+.quality-copy .quality-gate { color: var(--amber); }
+.quality-copy .quality-gate-ready { color: var(--green); }
 .quality-complete .quality-copy strong { color: var(--green); }.quality-review .quality-copy strong, .quality-partial .quality-copy strong { color: var(--amber); }
 .quality-facts { display: flex; gap: 22px; }.quality-facts span { display: grid; gap: 4px; min-width: 82px; color: var(--cream); font: 500 18px 'IBM Plex Mono', monospace; }.quality-facts small { color: var(--faint); font: 9px 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .04em; }
 .scope-proof { margin: 12px 0 0; color: var(--faint); font: 10px/1.5 'IBM Plex Mono', monospace; }
