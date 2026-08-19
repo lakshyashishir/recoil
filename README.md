@@ -218,7 +218,9 @@ Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you want to require the HydraDB write/re
 requiring the three-way contrast. Strict modes fail before collection when the query has no GHSA/CVE
 advisory, fewer than three GitHub repositories, or the required HydraDB credentials are missing,
 avoiding a misleading partial run and unnecessary public/API requests.
-`npm run smoke:recording` enables both strict requirements directly, so it is the preferred final command.
+`npm run smoke:recording` enables both strict requirements directly, so it is the preferred final command. When
+the doctor reports `ENOTFOUND` for OSV, GitHub, or HydraDB, the recording gate must be retried after connectivity
+returns; cached or partial evidence is never promoted to a recording receipt.
 
 The OpenTUI console remains available for local operator use:
 

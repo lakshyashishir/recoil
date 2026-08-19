@@ -34,17 +34,18 @@ The strongest case contains three different outcomes: one repository that import
 Use the exact same query with the strict smoke gate before recording:
 
 ```bash
-RECOIL_SMOKE_REQUIRE_CONTRAST=1 \
 RECOIL_SMOKE_QUERY="<verified advisory> https://github.com/<owner>/<repository-a> https://github.com/<owner>/<repository-b> https://github.com/<owner>/<repository-c>" \
-npm run smoke:real
+npm run smoke:recording
 ```
 
-The smoke command refuses to pass unless all three verdicts are present and HydraDB persistence succeeds.
+`smoke:recording` is the single strict recording command. It refuses to pass unless all three verdicts are
+present and HydraDB persistence succeeds.
 Recoil waits for HydraDB's async indexing status before it performs the recall; if the status endpoint cannot
 be reached, the run stays queued and the smoke gate fails rather than presenting an unverified memory read.
 Recording mode requires a GHSA/CVE advisory, completed indexing, a successful temporal recall with dated facts, and at least one
 returned graph triplet. Strict mode also checks for three repository URLs and HydraDB credentials before
-starting collection, so it does not spend API calls on an invalid recording setup.
+starting collection, so it does not spend API calls on an invalid recording setup. If the network doctor
+reports `ENOTFOUND`, stop and retry later; do not use a cached or partial run as the final recording.
 
 When that strict smoke passes, it also saves the sanitized portable receipt under
 `.recoil-recordings/<scenario-id>.json`. Keep that artifact for the recording; the directory is ignored by
