@@ -657,3 +657,57 @@ body { font-family: var(--sans); line-height: 1.45; }
   .example-picker { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; padding-bottom: 3px; scrollbar-width: thin; }
   .example-picker > span, .example-chip { flex: 0 0 auto; }
 }
+
+/* The live case names its subject before showing progress. This keeps the
+   animation tied to the user's actual advisory rather than to a generic
+   loading state. */
+.live-subject { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0 0 13px; }
+.live-subject strong { color: var(--text); font: 600 12px/1 var(--mono); }
+.live-subject span { color: var(--muted); font: 11px/1 var(--mono); }
+
+/* A route is easier to understand when the selected repository is rendered
+   as a cited sequence, not only as a highlighted line in the full graph. */
+.evidence-trace { margin: 0 0 30px; padding: 20px 0 22px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.evidence-trace-heading { display: flex; align-items: end; justify-content: space-between; gap: 22px; }
+.evidence-trace-heading > div { min-width: 0; }
+.evidence-trace-heading .section-kicker { margin-bottom: 7px; }
+.evidence-trace-heading h2 { margin: 0 0 7px; color: var(--text); font-size: 20px; font-weight: 600; letter-spacing: -.03em; }
+.evidence-trace-heading p { max-width: 760px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.trace-path { display: flex; align-items: stretch; overflow-x: auto; margin-top: 19px; padding-bottom: 3px; scrollbar-width: thin; }
+.trace-hop-wrap { display: flex; align-items: center; min-width: 0; }
+.trace-hop { width: 148px; min-height: 102px; display: grid; align-content: start; gap: 7px; padding: 11px 12px 10px; border-top: 2px solid var(--line); border-right: 1px solid var(--line-soft); background: var(--surface); }
+.trace-hop-advisory { border-top-color: var(--accent); }
+.trace-hop-resolved { border-top-color: var(--red); }
+.trace-hop-lockfile { border-top-color: var(--accent); }
+.trace-hop-repository { border-top-color: var(--green); }
+.trace-hop-source, .trace-hop-symbol { border-top-color: var(--red); }
+.trace-hop-index { color: var(--faint); font: 10px/1 var(--mono); }
+.trace-hop-kind { color: var(--muted); font: 9px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.trace-hop strong { overflow: hidden; color: var(--text); font: 600 11px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.trace-hop .source-link, .trace-source-missing { width: max-content; margin-top: auto; font-size: 9px; }
+.trace-source-missing { color: var(--faint); font: 9px/1.4 var(--mono); }
+.trace-arrow { flex: 0 0 auto; width: 27px; color: var(--faint); font-size: 15px; text-align: center; }
+.trace-defense { display: flex; align-items: end; justify-content: space-between; gap: 22px; margin-top: 17px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.trace-defense > div:first-child { min-width: 0; display: grid; gap: 5px; }
+.trace-defense .section-kicker { margin: 0; color: var(--muted); }
+.trace-defense strong { color: var(--text); font-size: 13px; font-weight: 600; }
+.trace-defense p { max-width: 760px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.trace-defense-actions { display: flex; align-items: center; gap: 16px; flex: 0 0 auto; }
+.trace-fix-status { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font: 10px/1 var(--mono); white-space: nowrap; }
+.trace-fix-status.is-verified { color: var(--green); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .live-page .map-node { animation: evidence-node-in .38s cubic-bezier(.22, 1, .36, 1) both; }
+  .live-page .map-edge { animation: evidence-edge-in .45s ease-out both; }
+}
+@keyframes evidence-node-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; } }
+@keyframes evidence-edge-in { from { opacity: 0; } to { opacity: .72; } }
+
+@media (max-width: 720px) {
+  .live-subject { margin-bottom: 10px; }
+  .evidence-trace-heading { align-items: flex-start; flex-direction: column; gap: 11px; }
+  .evidence-trace-heading > .verdict { align-self: flex-start; }
+  .trace-hop { width: 136px; }
+  .trace-defense { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .trace-defense-actions { width: 100%; justify-content: space-between; }
+}

@@ -40,7 +40,28 @@ async function reconcileQueuedHydra(record, state, report, queued) {
   try {
     const indexed = await settleHydraIndexing(queued.result)
     const acknowledged = [...new Set((indexed.results || []).map((item) => item.id || item.source_id || item.sourceId).filter(Boolean))]
-    if (indexed.indexingStatus !== 'completed' || acknowledged.length < (queued.memoryCount || 0)) return
+    if (indexed.indexingStatus !== 'completed' || acknowledged.length < (queued.memoryCount || 0)) {
+      if (record.investigation !== state) return
+      const deferred = {
+        ...queued,
+        status: 'queued',
+        sourceIds: acknowledged,
+        indexingPending: false,
+        indexingError: `HydraDB accepted ${queued.memoryCount || 0} evidence memories, but did not confirm indexing within the follow-up window.`,
+        result: indexed,
+      }
+      state.hydra = hydraState(deferred, state.hydra?.recall || { status: 'skipped', chunks: [] })
+      record.hydra = state.hydra
+      pushEvent(state, {
+        type: 'step',
+        key: 'hydra',
+        status: 'complete',
+        title: 'Evidence graph accepted; indexing unconfirmed',
+        detail: `${acknowledged.length}/${queued.memoryCount || 0} memories acknowledged. The source-backed report remains available; HydraDB persistence is not claimed.`,
+      })
+      state.step = 'complete'
+      return
+    }
     if (record.investigation !== state) return
     const recallQuery = [record.query, report.package, report.advisory?.id].filter(Boolean).join(' ')
     const recall = await recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
@@ -57,9 +78,24 @@ async function reconcileQueuedHydra(record, state, report, queued) {
       detail: `${persisted.memoryCount || 0} temporal evidence memories · ${recall.chunks?.length || 0} recalled · ${recall.relatedScenarioIds?.length || 0} related cases`,
     })
     state.step = 'complete'
-  } catch {
-    // The initial queued state remains the honest result if the bounded
-    // follow-up cannot confirm a terminal cloud status.
+  } catch (error) {
+    if (record.investigation !== state) return
+    const deferred = {
+      ...queued,
+      status: 'queued',
+      indexingPending: false,
+      indexingError: error.message,
+    }
+    state.hydra = hydraState(deferred, state.hydra?.recall || { status: 'skipped', chunks: [] })
+    record.hydra = state.hydra
+    pushEvent(state, {
+      type: 'step',
+      key: 'hydra',
+      status: 'complete',
+      title: 'Evidence graph accepted; HydraDB follow-up failed',
+      detail: 'The source-backed report remains available, but Recoil cannot claim that this batch was persisted.',
+    })
+    state.step = 'complete'
   }
 }
 

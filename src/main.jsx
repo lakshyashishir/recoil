@@ -132,9 +132,9 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
   const state = investigation?.status === 'complete' ? 'Complete' : investigation?.status === 'failed' ? 'Incomplete' : investigation?.status === 'finalizing' ? 'Storing history' : 'Reading'
   const hydraReadFailed = hydra?.recall?.status === 'failed'
   const hydraRecalled = hydra?.recall?.status === 'recalled'
-  const hydraPending = hydra?.status === 'queued' || hydra?.indexingPending
+  const hydraPending = hydra?.indexingPending === true
   const hydraInFlight = hydraPending || investigation?.status === 'finalizing'
-  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? `HydraDB context recalled${hydraInFlight ? ' · indexing' : ''}` : hydraInFlight ? 'HydraDB indexing' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
+  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? `HydraDB context recalled${hydraInFlight ? ' · indexing' : hydra?.status === 'queued' ? ' · write unconfirmed' : ''}` : hydraInFlight ? 'HydraDB indexing' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'queued' ? 'HydraDB write unconfirmed' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
   const hydraLive = hydra?.status === 'persisted' || (hydraRecalled && !hydraPending)
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
@@ -507,9 +507,9 @@ function CaseConclusion({ report, findings, summary, historical, hydra }) {
   const noReachablePath = challenge.filter((item) => item.status === 'NO_REACHABLE_PATH').length
   const history = historical ? `reconstructed ${report?.rewind?.asOf?.slice(0, 10) || 'historical date'}` : summary.exposureDays != null ? `${summary.exposureDays.toLocaleString()} days before disclosure` : 'not dated'
   const memory = report?.rewind?.memory
-  const hydraPending = hydra?.status === 'queued' || hydra?.indexingPending
+  const hydraPending = hydra?.indexingPending === true
   const memoryLabel = memory?.status === 'recalled'
-    ? `${memory.datedChunkCount || 0} dated fact${memory.datedChunkCount === 1 ? '' : 's'} recalled${hydraPending ? ' · case indexing' : hydra?.status === 'persisted' ? ' · stored' : ''}`
+    ? `${memory.datedChunkCount || 0} dated fact${memory.datedChunkCount === 1 ? '' : 's'} recalled${hydraPending ? ' · case indexing' : hydra?.status === 'persisted' ? ' · stored' : hydra?.status === 'queued' ? ' · write unconfirmed' : ''}`
     : memory?.status === 'queued'
       ? 'indexing in HydraDB'
       : 'not available'
@@ -519,6 +519,81 @@ function CaseConclusion({ report, findings, summary, historical, hydra }) {
   return <section className="case-conclusion" aria-label="Case decision">
     <div className="case-conclusion-copy"><h2>Why this verdict holds</h2><p>{historical ? 'This is a dated reconstruction. The current report keeps reachability, timing, and remediation as separate evidence rather than collapsing them into one score.' : `Recoil compared ${report?.package || 'the affected package'} across the supplied repositories. A lockfile entry becomes a reachable path only when a sampled source import supports it.`}</p></div>
     <dl className="case-conclusion-facts"><div><dt>Reachability</dt><dd>{imports} sampled import{imports === 1 ? '' : 's'}</dd></div><div><dt>History</dt><dd>{history}</dd></div><div><dt>Remediation</dt><dd>{remediation}</dd></div><div><dt>Memory</dt><dd>{memoryLabel}</dd></div></dl>
+  </section>
+}
+
+function traceProofForPart(part, finding) {
+  const proofs = finding?.proof || []
+  const normalizedPart = String(part || '').toLowerCase()
+  const direct = proofs.find((item) => String(item.label || '').toLowerCase() === normalizedPart)
+  if (direct) return direct
+  return proofs.find((item) => {
+    const label = String(item.label || '').toLowerCase()
+    return label.includes(normalizedPart) || normalizedPart.includes(label)
+  }) || null
+}
+
+function traceSourceForPart(part, finding) {
+  const proof = traceProofForPart(part, finding)
+  if (proof?.source) return proof.source
+  if (/(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(part)) return (finding?.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source)) || finding?.evidenceSources?.[0]
+  return null
+}
+
+function traceKind(part, index, finding) {
+  if (index === 0) return 'advisory'
+  if (part === finding?.repository) return 'repository'
+  if (/(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(part)) return 'lockfile'
+  if (part.startsWith('symbol:')) return 'symbol'
+  if (finding?.imports?.some((item) => item.path === part)) return 'source'
+  if (part.includes('@')) return 'resolved'
+  return 'evidence'
+}
+
+function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
+  if (!finding) return null
+  const parts = findingParts(finding)
+  const title = finding.verdict === 'REACHED'
+    ? 'A source-backed route exists'
+    : finding.verdict === 'DECLARED_ONLY'
+      ? 'Present in the lockfile; no import observed'
+      : finding.verdict === 'NOT_AFFECTED'
+        ? 'The resolved version is outside the affected range'
+        : 'The route needs review'
+  const detail = finding.reason || 'The available public evidence does not support a stronger conclusion.'
+  const fixTitle = historical
+    ? 'Current fix proof is hidden in this view'
+    : challenge?.status === 'FIX_SURVIVES'
+      ? `${finding.packageName} ${finding.resolvedVersion || 'current'} → ${challenge.proposedVersion}`
+      : challenge?.status === 'ALREADY_SAFE'
+        ? 'No version change required'
+        : challenge?.status === 'NO_REACHABLE_PATH'
+          ? `Defense-in-depth update to ${challenge.proposedVersion || 'a fixed version'}`
+          : challenge?.status === 'MANIFEST_CHANGE_REQUIRED'
+            ? `Manifest change required for ${challenge.proposedVersion}`
+            : 'No fix is proven yet'
+  const fixDetail = historical
+    ? 'Return to Current evidence to inspect remediation against the present lockfile.'
+    : challenge?.detail || 'The advisory did not provide enough evidence for a fix proof.'
+  const verified = challenge?.status === 'FIX_SURVIVES' || challenge?.status === 'ALREADY_SAFE'
+  return <section className="evidence-trace" aria-label="Source-backed evidence trace">
+    <div className="evidence-trace-heading"><div><span className="section-kicker">Selected route</span><h2>{title}</h2><p>{detail}</p></div><Verdict value={finding.verdict} /></div>
+    <div className="trace-path" aria-label="Observed evidence hops">
+      {parts.map((part, index) => {
+        const source = traceSourceForPart(part, finding)
+        const kind = traceKind(part, index, finding)
+        return <div className="trace-hop-wrap" key={`${part}-${index}`}>
+          <article className={`trace-hop trace-hop-${kind}`}>
+            <span className="trace-hop-index">0{index + 1}</span>
+            <span className="trace-hop-kind">{kind}</span>
+            <strong>{shorten(routeDisplayPart(part, finding), 33)}</strong>
+            {source ? <SourceLink href={source}>source</SourceLink> : <span className="trace-source-missing">not collected</span>}
+          </article>
+          {index < parts.length - 1 && <span className="trace-arrow" aria-hidden="true">→</span>}
+        </div>
+      })}
+    </div>
+    <div className="trace-defense"><div><span className="section-kicker">Fix check</span><strong>{fixTitle}</strong><p>{fixDetail}</p></div><div className="trace-defense-actions"><span className={`trace-fix-status ${verified ? 'is-verified' : ''}`}>{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : historical ? 'historical view' : 'review required'}</span>{!historical && <button className="proof-loop-link" type="button" onClick={onInspectProof}>Open proof <ArrowUpRight size={13} /></button>}</div></div>
   </section>
 }
 
@@ -620,7 +695,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} hydra={hydra} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel">
-      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><ProofLoop finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /></>}
+      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <TemporalProof report={report} onRewind={onRewind} />}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
@@ -632,11 +707,14 @@ function RunningView({ snapshot }) {
   const investigation = snapshot?.investigation
   const events = investigation?.events || []
   const finalizing = investigation?.status === 'finalizing'
+  const query = snapshot?.scenario?.query || investigation?.query || ''
+  const advisory = query.match(/(?:GHSA|CVE)-[A-Z0-9-]+/i)?.[0] || query.split(/\s+/).find(Boolean) || 'public evidence'
+  const repositoryCount = (query.match(/https?:\/\/github\.com\/[^\s]+/gi) || []).length
   const graph = snapshot?.graph?.nodes?.length ? snapshot.graph : investigation?.graph || investigation?.evidence?.graph || { nodes: [], edges: [] }
   const graphReport = { graph, repositories: investigation?.report?.repositories || [] }
   const progress = snapshot?.graphProgress || investigation?.graphProgress
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>{finalizing ? 'Storing the case.' : 'Building the proof.'}</h1><p>{finalizing ? `${progressLabel}. The observed graph is complete; Recoil is writing dated history and recalling related context.` : `${progressLabel}. Recoil adds only relationships supported by public evidence.`}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1>{finalizing ? 'Storing the case.' : 'Building the proof.'}</h1><p>{finalizing ? `${progressLabel}. The observed graph is complete; Recoil is writing dated history and recalling related context.` : `${progressLabel}. Recoil adds only relationships supported by public evidence.`}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function App() {
@@ -657,7 +735,7 @@ function App() {
 
   useEffect(() => {
     const activeStatus = snapshot?.investigation?.status
-    const hydraPending = snapshot?.investigation?.hydra?.status === 'queued' || snapshot?.investigation?.hydra?.indexingPending
+    const hydraPending = snapshot?.investigation?.hydra?.indexingPending === true
     const shouldPoll = busy || ['running', 'finalizing'].includes(activeStatus) || activeStatus === 'complete' && hydraPending
     if (!shouldPoll) return undefined
     let cancelled = false
@@ -670,7 +748,7 @@ function App() {
           setBusy(false)
           if (next.investigation.status === 'complete') setReport(next.investigation.report)
           if (next.investigation.status === 'failed') setError(next.investigation.error || 'Investigation incomplete')
-          const nextHydraPending = next.investigation?.hydra?.status === 'queued' || next.investigation?.hydra?.indexingPending
+          const nextHydraPending = next.investigation?.hydra?.indexingPending === true
           if (next.investigation.status === 'failed' || !nextHydraPending) return
         }
       } catch (cause) {
