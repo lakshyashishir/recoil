@@ -91,6 +91,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Make strict recording preflight require an advisory ID so dated exposure and fixed-version claims cannot start from a package-only query.
 - [x] Reject repository-only client requests before collection; the browser, API, and direct CLI now share a clear advisory/package input contract.
 - [x] Keep Vite alive when the API process cannot bind, so startup failures are visible in the browser instead of appearing as a blank page.
+- [x] Align operator documentation with the advisory/package input contract and strict recording gate.
 
 ### Still required before calling the hackathon build complete
 
