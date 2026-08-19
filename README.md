@@ -229,6 +229,8 @@ The OpenTUI console remains available for local operator use:
 
 ```bash
 npm run tui
+# Run without an API server; this uses the same in-process investigation state machine as CLI --direct
+npm run tui -- --direct "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository"
 ```
 
 The primary browser and CLI flows are autonomous: one investigation request starts collection, classification, temporal proof, HydraDB persistence/recall, and the final report. There are no run-loop or step buttons in this path.

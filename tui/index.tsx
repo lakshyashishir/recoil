@@ -3,6 +3,7 @@
 import { createCliRenderer } from '@opentui/core'
 import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
 import { useEffect, useState } from 'react'
+import { startInvestigation } from '../server/investigation.js'
 
 const C = {
   bg: '#0b0e0c',
@@ -18,8 +19,17 @@ const C = {
 }
 
 const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
-const query = process.argv.slice(2).join(' ').trim() || process.env.RECOIL_TUI_QUERY || ''
+const tuiArgs = process.argv.slice(2)
+const directMode = tuiArgs.includes('--direct') || process.env.RECOIL_TUI_DIRECT === '1'
+const query = tuiArgs.filter((arg) => arg !== '--direct').join(' ').trim() || process.env.RECOIL_TUI_QUERY || ''
 const caseId = `tui-${Math.random().toString(16).slice(2, 10)}`
+const directRecord = directMode ? {
+  id: caseId,
+  query: '',
+  ingestion: { status: 'not_started', collectors: [] },
+  hydra: { status: 'not_started', memoryCount: 0 },
+  investigation: null,
+} : null
 
 function Panel({ title, children, style }) {
   return <box title={title} titleColor={C.amber} style={{ border: true, borderColor: C.line, backgroundColor: C.panel, padding: 1, flexDirection: 'column', gap: 1, ...style }}>{children}</box>
@@ -52,9 +62,12 @@ function App() {
     let cancelled = false
     async function run() {
       try {
-        await request(`/api/scenarios/${caseId}/investigate`, { method: 'POST', body: JSON.stringify({ query }) })
+        if (directMode) startInvestigation(directRecord, query)
+        else await request(`/api/scenarios/${caseId}/investigate`, { method: 'POST', body: JSON.stringify({ query }) })
         while (!cancelled) {
-          const snapshot = await request(`/api/scenarios/${caseId}`)
+          const snapshot = directMode
+            ? { investigation: directRecord.investigation }
+            : await request(`/api/scenarios/${caseId}`)
           const investigation = snapshot.investigation || {}
           setState({ status: investigation.status, events: investigation.events || [], report: investigation.report, hydra: investigation.hydra, error: investigation.error })
           if (['complete', 'failed'].includes(investigation.status)) break
@@ -91,6 +104,8 @@ function App() {
         <text fg={C.faint}>TARGET</text>
         <text fg={C.text}>{query || 'No query supplied'}</text>
         <text fg={C.muted}>{query ? 'public advisory and repository evidence' : 'run: npm run tui -- "<advisory> <github-url>"'}</text>
+        <text fg={C.faint}>TRANSPORT</text>
+        <text fg={C.muted}>{directMode ? 'direct · in-process state machine' : 'API · shared case state'}</text>
         <text fg={C.faint}>HYDRADB</text>
         <text fg={hydraReadFailed ? C.red : state.hydra?.status === 'persisted' ? C.green : C.muted}>{hydraReadFailed ? 'read failed' : state.hydra?.status || 'not started'}</text>
         <text fg={C.muted}>{state.hydra?.memoryCount || 0} memories · read {state.hydra?.recall?.status || 'not-run'} · {state.hydra?.recall?.datedChunkCount || 0} dated · {state.hydra?.recall?.relatedCaseCount || 0} related · {graphTriplets} graph triplets</text>

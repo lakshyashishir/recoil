@@ -99,6 +99,16 @@ The CLI and browser consume the same autonomous API state machine. `--json` is u
 For a cross-client demonstration against the browser's stable case, use `--case 0017`; use `--direct` only
 when an API server is unavailable. Direct mode preserves the same evidence and HydraDB boundaries.
 
+The TUI has the same transport choices:
+
+```bash
+npm run tui -- "<verified advisory> https://github.com/<owner>/<repository>"
+npm run tui -- --direct "<verified advisory> https://github.com/<owner>/<repository>"
+```
+
+The first shares API state with the browser; the second runs the same in-process state machine as the CLI's
+`--direct` mode and is useful for terminal-agent demonstrations without a local API process.
+
 The CLI exits nonzero when public collection is partial or any repository is `UNKNOWN`; keep the printed
 receipt for diagnosis, but do not record that run as the final demo.
 
