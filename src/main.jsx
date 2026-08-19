@@ -1154,7 +1154,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
-  const [graphView, setGraphView] = useState(true)
+  const [graphView, setGraphView] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyTarget, setHistoryTarget] = useState(null)
   // A freshly built report uses `now` as its requested rewind timestamp while
@@ -1186,10 +1186,20 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const packageLabel = report?.package || 'package identity unavailable'
   const headline = historical
     ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `A source-backed path existed in ${summary.reached} of ${total} repositories by ${historicalDate}.` : 'No source-backed path was evidenced at this date.'
-    : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `A source-backed path was found in ${summary.reached} of ${total} repositories.` : total ? 'No sampled source path reaches the affected package.' : 'No repository was checked.'
+    : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} repositories import the affected version.` : total ? 'No sampled source path reaches the affected package.' : 'No repository was checked.'
   const summaryLine = advisorySummary
     ? advisorySummary.toLowerCase().includes(packageLabel.toLowerCase()) ? advisorySummary : `${advisorySummary} · ${packageLabel}`
     : `The report compares ${packageLabel} across the collected repositories.`
+  const listedOnlyText = `${summary.declaredOnly || 0} ${summary.declaredOnly === 1 ? 'repository is' : 'repositories are'} listed without a sampled import`
+  const outsideRangeText = `${summary.notAffected || 0} ${summary.notAffected === 1 ? 'is' : 'are'} already outside the affected range`
+  const contrastText = [summary.declaredOnly ? listedOnlyText : null, summary.notAffected ? outsideRangeText : null].filter(Boolean).join(' and ')
+  const resultExplanation = historical
+    ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.`
+    : summary.unknown
+      ? 'The available records do not support a complete verdict yet.'
+      : summary.reached && (summary.declaredOnly || summary.notAffected)
+        ? `${summary.reached === 1 ? 'One repository needs attention.' : `${summary.reached} repositories need attention.`} ${contrastText}.`
+        : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
   const primaryFinding = findings.find((finding) => finding.verdict === 'REACHED') || selectedFinding
   const primaryChallenge = report?.challenge?.find((item) => item.repository === primaryFinding?.repository)
@@ -1220,7 +1230,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
-    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}<CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}<CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>source path found</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>listed, not imported</span></div><div><strong>{summary.notAffected || 0}</strong><span>already outside range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix proof' : 'fix proofs'}</span></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
