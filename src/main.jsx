@@ -296,10 +296,18 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
 
 function RouteList({ findings, selectedIndex, onSelect }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
+  const selected = findings[selectedIndex] || findings[0]
   return <aside className="route-panel">
     <div className="route-panel-heading"><div><span className="section-kicker">Repository comparison</span><h2>What the evidence says</h2></div><span>{findings.length} checked</span></div>
     <p className="route-panel-note">Select a repository to inspect the exact path behind its decision.</p>
     {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} repository{reached === 1 ? '' : 'ies'} reach the affected code in sampled source.</span></div>}
+    {selected && <div className="route-selected" aria-live="polite">
+      <div className="route-selected-heading"><span>Selected repository</span><Verdict value={selected.verdict} compact /></div>
+      <strong>{repositoryName(selected.repository)}</strong>
+      <p>{selected.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
+      <dl><div><dt>Resolved</dt><dd>{selected.resolvedVersions?.length > 1 ? selected.resolvedVersions.join(', ') : selected.resolvedVersion || 'not resolved'}</dd></div><div><dt>Source imports</dt><dd>{selected.imports?.length || 0}</dd></div></dl>
+      <button className="route-selected-action" type="button" onClick={() => document.getElementById('case-proof')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })}>Inspect proof <ArrowUpRight size={13} /></button>
+    </div>}
     <div className="route-list">
       {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
         <span className="route-index">0{index + 1}</span>
@@ -425,21 +433,18 @@ function summarizeFindings(findings = []) {
 }
 
 function CaseConclusion({ report, findings, summary, historical }) {
-  const total = summary.totalRepositories || findings.length
-  const reached = findings.filter((finding) => finding.verdict === 'REACHED')
-  const unknown = findings.filter((finding) => !['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'].includes(finding.verdict))
-  const fixCount = report?.challenge?.filter((item) => item.status === 'FIX_SURVIVES').length || 0
-  const decision = historical
-    ? unknown.length ? `${unknown.length} of ${total} repositories were not yet evidenced on this date.` : reached.length ? `${reached.length} of ${total} repositories already reached sampled code on this date.` : `No repository reached sampled code on this date.`
-    : unknown.length ? `${unknown.length} of ${total} repositories need more evidence before a decision.` : reached.length ? `${reached.length} of ${total} repositories reach sampled affected code.` : `No repository reaches sampled affected code.`
-  const explanation = historical
-    ? 'This view is a dated reconstruction. Return to current evidence to inspect remediation.'
-    : report?.package ? `Recoil compared ${report.package} across the repositories you supplied. Presence in a lockfile is not treated as source reachability.` : 'The package identity was not resolved well enough to prove a stronger path.'
-  const exposure = historical ? 'historical view' : summary.exposureDays != null ? `${summary.exposureDays} days before disclosure` : 'not dated'
-  const remediation = historical ? 'current view' : fixCount ? `${fixCount} fix${fixCount === 1 ? '' : 'es'} verified` : summary.alreadySafe ? `${summary.alreadySafe} already safe` : 'review required'
+  const imports = findings.reduce((total, finding) => total + (finding.imports?.length || 0), 0)
+  const challenge = report?.challenge || []
+  const verified = challenge.filter((item) => item.status === 'FIX_SURVIVES').length
+  const alreadySafe = challenge.filter((item) => item.status === 'ALREADY_SAFE').length
+  const noReachablePath = challenge.filter((item) => item.status === 'NO_REACHABLE_PATH').length
+  const history = historical ? `reconstructed ${report?.rewind?.asOf?.slice(0, 10) || 'historical date'}` : summary.exposureDays != null ? `${summary.exposureDays.toLocaleString()} days before disclosure` : 'not dated'
+  const remediation = historical
+    ? 'current evidence'
+    : [verified ? `${verified} fix verified` : null, alreadySafe ? `${alreadySafe} already safe` : null, noReachablePath ? `${noReachablePath} unreachable` : null].filter(Boolean).join(' · ') || 'review required'
   return <section className="case-conclusion" aria-label="Case decision">
-    <div className="case-conclusion-copy"><span className="section-kicker">Plain-language answer</span><h2>{decision}</h2><p>{explanation}</p></div>
-    <dl className="case-conclusion-facts"><div><dt>Exposure window</dt><dd>{exposure}</dd></div><div><dt>Remediation</dt><dd>{remediation}</dd></div></dl>
+    <div className="case-conclusion-copy"><h2>Why this verdict holds</h2><p>{historical ? 'This is a dated reconstruction. The current report keeps reachability, timing, and remediation as separate evidence rather than collapsing them into one score.' : `Recoil compared ${report?.package || 'the affected package'} across the supplied repositories. A lockfile entry becomes a reachable path only when a sampled source import supports it.`}</p></div>
+    <dl className="case-conclusion-facts"><div><dt>Reachability</dt><dd>{imports} sampled import{imports === 1 ? '' : 's'}</dd></div><div><dt>History</dt><dd>{history}</dd></div><div><dt>Remediation</dt><dd>{remediation}</dd></div></dl>
   </section>
 }
 
