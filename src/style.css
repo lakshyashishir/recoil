@@ -1063,6 +1063,23 @@ body { font-family: var(--sans); line-height: 1.45; }
 .full-graph-disclosure-body { border-top: 1px solid var(--line-soft); }
 .full-graph-disclosure-body > .evidence-map { border: 0; border-radius: 0; }
 .case-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* The cited path is the primary evidence view. Give it the full reading
+   width, then make repository decisions a scan-friendly matrix beneath it. */
+.case-workspace { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.case-workspace > .evidence-map, .case-workspace > .route-panel { grid-column: 1; grid-row: auto; }
+.route-panel { padding-top: 0; }
+.comparison-matrix-header, .comparison-matrix .route-item { display: grid; grid-template-columns: 28px minmax(170px, 1.45fr) minmax(130px, .85fr) minmax(150px, 1fr) minmax(180px, 1fr) auto; gap: 16px; align-items: center; }
+.comparison-matrix-header { padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-soft); color: var(--faint); font: 10px/1 var(--mono); }
+.comparison-matrix .route-item { padding: 14px 0; }
+.comparison-matrix .route-item:hover, .comparison-matrix .route-item-selected { padding-left: 10px; padding-right: 10px; }
+.route-item-repository, .route-item-resolution, .route-item-source, .route-item-action { display: grid; gap: 4px; min-width: 0; }
+.route-item-repository strong, .route-item-resolution b, .route-item-source b, .route-item-action b { overflow: hidden; color: var(--text); font-size: 12px; font-weight: 600; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.route-item-repository strong, .route-item-resolution b { font-family: var(--mono); }
+.route-item-repository small, .route-item-resolution small, .route-item-source small, .route-item-action small { overflow: hidden; color: var(--muted); font-size: 10px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.route-item-source b { color: var(--red); }
+.route-item-action b { color: var(--accent); }
+.route-item-selected .route-item-source b, .route-item-selected .route-item-action b { color: var(--text); }
 .case-export-actions { display: grid; justify-items: end; gap: 7px; }
 .brief-link { display: inline-flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid var(--accent); border-radius: var(--radius); color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); font: 10px/1 var(--sans); text-decoration: none; transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease; }
 .brief-link:hover { color: var(--text); background: var(--surface); }
@@ -1086,6 +1103,15 @@ body { font-family: var(--sans); line-height: 1.45; }
   .case-summary div:nth-child(even) { border-right: 0; }
   .case-summary div:nth-child(-n + 4) { border-bottom: 1px solid var(--line); }
   .case-summary div:last-child { grid-column: 1 / -1; border-right: 0; border-bottom: 0; }
+  .comparison-matrix-header { display: none; }
+  .comparison-matrix .route-item { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px 9px; align-items: start; padding: 13px 0; }
+  .comparison-matrix .route-item:hover, .comparison-matrix .route-item-selected { padding-left: 8px; padding-right: 8px; }
+  .comparison-matrix .route-item-repository { grid-column: 2; grid-row: 1; }
+  .comparison-matrix .route-item-resolution, .comparison-matrix .route-item-source, .comparison-matrix .route-item-action { grid-column: 2; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 8px; }
+  .comparison-matrix .route-item-resolution { grid-row: 2; }
+  .comparison-matrix .route-item-source { grid-row: 3; }
+  .comparison-matrix .route-item-action { grid-row: 4; }
+  .comparison-matrix .route-item > .verdict { grid-column: 3; grid-row: 1; }
   .case-export-actions { justify-items: end; }
   .input-readiness { align-items: flex-start; flex-direction: column; gap: 6px; }
 }

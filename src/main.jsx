@@ -539,45 +539,35 @@ function routeEvidenceLabel(finding) {
   return 'evidence needs review'
 }
 
-function routePathLabel(finding) {
-  const parts = findingParts(finding).map((part) => routeDisplayPart(part, finding)).filter(Boolean)
-  return parts.length ? parts.join(' → ') : 'No observed path'
-}
-
-function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false, onInspectProof }) {
+function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
-  const selected = findings[selectedIndex] || findings[0]
-  const selectedChallenge = challenges.find((item) => item.repository === selected?.repository)
-  const importer = selected?.imports?.[0]
-  const challengeLabel = historical
-    ? 'Current view only'
-    : selectedChallenge?.status === 'FIX_SURVIVES'
-    ? 'Fixed version verified'
-    : selectedChallenge?.status === 'ALREADY_SAFE'
-      ? 'Already outside range'
-      : selectedChallenge?.status === 'NO_REACHABLE_PATH'
-        ? 'No reachable path'
-        : selectedChallenge?.status === 'MANIFEST_CHANGE_REQUIRED'
-          ? 'Manifest change required'
-          : 'Review required'
   return <aside className="route-panel">
-    <div className="route-panel-heading"><div><span className="section-kicker">Repository comparison</span><h2>What the evidence says</h2></div><span>{findings.length} checked</span></div>
-    <p className="route-panel-note">Select a repository to inspect the exact path behind its decision.</p>
+    <div className="route-panel-heading"><div><span className="section-kicker">Repository decisions</span><h2>What to do with each repository</h2></div><span>{findings.length} checked</span></div>
+    <p className="route-panel-note">Select a row to inspect its cited source evidence below.</p>
     {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} {reached === 1 ? 'repository reaches' : 'repositories reach'} the affected code in sampled source.</span></div>}
-    {selected && <div className="route-selected" aria-live="polite">
-      <div className="route-selected-heading"><span>Selected repository</span><Verdict value={selected.verdict} compact /></div>
-      <strong>{repositoryName(selected.repository)}</strong>
-      <p>{selected.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
-      <dl><div><dt>Resolved</dt><dd>{selected.resolvedVersions?.length > 1 ? selected.resolvedVersions.join(', ') : selected.resolvedVersion || 'not resolved'}</dd></div><div><dt>Source imports</dt><dd>{selected.imports?.length || 0}</dd></div></dl>
-      <div className="route-selected-proof"><div><span>Source check</span><strong>{importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'No sampled import'}</strong></div><div><span>Fix check</span><strong>{challengeLabel}</strong></div></div>
-      <button className="route-selected-action" type="button" onClick={onInspectProof}>Open fix details <ArrowUpRight size={13} /></button>
-    </div>}
-    <div className="route-list">
-      {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
-        <span className="route-index">0{index + 1}</span>
-        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'}</small><em><b>{routeActionLabel(finding, challenges.find((item) => item.repository === finding.repository), historical)}</b> · {routeEvidenceLabel(finding)}</em><code title={routePathLabel(finding)}>{routePathLabel(finding)}</code></span>
-        <Verdict value={finding.verdict} compact />
-      </button>)}
+    <div className="route-list comparison-matrix" role="list" aria-label="Repository decisions">
+      <div className="comparison-matrix-header" aria-hidden="true"><span /> <span>Repository</span><span>Resolution</span><span>Source use</span><span>Next action</span><span /></div>
+      {findings.map((finding, index) => {
+        const challenge = challenges.find((item) => item.repository === finding.repository)
+        const importer = finding.imports?.[0]
+        const version = finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'
+        const sourceUse = finding.verdict === 'REACHED'
+          ? `${finding.imports?.length || 0} sampled import${finding.imports?.length === 1 ? '' : 's'}`
+          : finding.verdict === 'DECLARED_ONLY'
+            ? 'No sampled import'
+            : finding.verdict === 'NOT_AFFECTED'
+              ? 'Outside affected range'
+              : 'Evidence needs review'
+        const sourceDetail = importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : finding.verdict === 'DECLARED_ONLY' ? 'lockfile only' : finding.verdict === 'NOT_AFFECTED' ? 'semver check' : 'incomplete sample'
+        return <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
+          <span className="route-index">0{index + 1}</span>
+          <span className="route-item-repository"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'}</small></span>
+          <span className="route-item-resolution"><b>{version}</b><small>resolved version</small></span>
+          <span className="route-item-source"><b>{sourceUse}</b><small>{sourceDetail}</small></span>
+          <span className="route-item-action"><b>{routeActionLabel(finding, challenge, historical)}</b><small>{challenge?.status === 'FIX_SURVIVES' ? 'advisory-backed fix' : routeEvidenceLabel(finding)}</small></span>
+          <Verdict value={finding.verdict} compact />
+        </button>
+      })}
     </div>
     {!historical && <SharedResolution correlations={correlations} />}
   </aside>
@@ -1279,7 +1269,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <TemporalSummaryStrip report={report} summary={summary} earliestReached={earliestReached} historical={historical} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} loading={historyLoading} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
-      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
+      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={primaryFinding} challenge={primaryChallenge} earliestReached={earliestReached} onInspectProof={() => inspectProof(primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
