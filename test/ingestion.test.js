@@ -445,6 +445,59 @@ test('npm ingestion resolves an affected package from a Yarn lock and extensionl
   }
 })
 
+test('npm ingestion follows pnpm v9 snapshot edges into an affected import', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const pnpmAdvisory = {
+    id: 'GHSA-pnpm-1234-5678',
+    summary: 'Test advisory for a pnpm-managed transitive package',
+    published: '2026-01-01T00:00:00Z',
+    affected: [{ package: { ecosystem: 'npm', name: 'minimist' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.2.6' }] }] }],
+    sourceUrl: 'https://api.osv.dev/v1/vulns/ghsa-pnpm-1234-5678',
+  }
+  const manifest = JSON.stringify({ name: 'pnpm-app', dependencies: { '@scope/parser': '2.1.0' } })
+  const pnpmLock = `lockfileVersion: '9.0'\n\npackages:\n  minimist@1.2.5:\n    resolution: {integrity: sha512-test}\n  '@scope/parser@2.1.0':\n    resolution: {integrity: sha512-test}\n\nsnapshots:\n  '@scope/parser@2.1.0':\n    dependencies:\n      minimist: 1.2.5\n`
+  const source = "#!/usr/bin/env node\nconst minimist = require('minimist')\nmodule.exports = () => minimist(process.argv)"
+
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') return response(pnpmAdvisory)
+    if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', versions: { '1.2.5': {}, '1.2.6': {} }, maintainers: [] })
+    if (url.hostname === 'raw.githubusercontent.com') {
+      const path = url.pathname.split('/').slice(4).join('/')
+      if (path === 'package.json') return response(manifest)
+      if (path === 'pnpm-lock.yaml') return response(pnpmLock)
+      if (path === 'bin/cli') return response(source)
+      return response({}, 404)
+    }
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
+    if (!match || match[1] !== 'example/pnpm-app') return response({}, 404)
+    const operation = match[2]
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'bin/cli' }] })
+    if (operation.startsWith('commits')) {
+      if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/pnpm-app/commit/oldest', commit: { author: { date: '2025-01-01T00:00:00Z' } } }])
+      return response([])
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-pnpm-1234-5678 https://github.com/example/pnpm-app', scenarioId: 'pnpm-integration-test' })
+    const repository = ingestion.repositories[0]
+    const finding = ingestion.findings[0]
+    assert.equal(ingestion.status, 'completed')
+    assert.equal(repository.manifest.lockfile, 'pnpm-lock.yaml')
+    assert.equal(finding.verdict, 'REACHED')
+    assert.deepEqual(finding.dependencyPath.map((item) => `${item.name}@${item.version}`), ['@scope/parser@2.1.0', 'minimist@1.2.5'])
+    assert.ok(ingestion.graph.edges.some(([from, to]) => from === 'package:@scope/parser@2.1.0' && to === 'package:minimist@1.2.5'))
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+  }
+})
+
 test('network failures preserve the endpoint and downgrade evidence honestly', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (input) => {
