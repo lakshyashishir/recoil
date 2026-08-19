@@ -645,8 +645,10 @@ function CaseChronology({ finding, report, challenge, historical, onOpenHistory 
 
 function IntegrityDetails({ report, hydra, evidenceStatus }) {
   const quality = report?.evidenceQuality || {}
+  const coverage = quality.sourceCoverage || {}
   const sourceCount = report?.sources?.length || 0
   const graph = report?.graph || { nodes: [], edges: [] }
+  const sampled = coverage.sampledFiles != null ? `${coverage.sampledFiles}/${coverage.candidateFiles || coverage.sampledFiles}` : 'not measured'
   const scope = report?.advisoryScope || { status: 'not_requested', affectedSymbols: [] }
   const scopeLabel = scope.status === 'completed'
     ? `${scope.affectedSymbols?.length || 0} candidate${scope.affectedSymbols?.length === 1 ? '' : 's'} returned`
@@ -655,7 +657,7 @@ function IntegrityDetails({ report, hydra, evidenceStatus }) {
       : scope.status === 'failed'
         ? 'unavailable'
         : 'module-level only'
-  return <details className="integrity-details" id="case-audit"><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{graph.nodes.length}</strong><span>observed nodes</span></div><div><strong>{graph.edges.length}</strong><span>observed edges</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.'}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
+  return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.'}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
 }
 
 function ReceiptLink() {
@@ -822,22 +824,6 @@ function CaseNavigator({ finding, activeTab, onTabChange }) {
   </nav>
 }
 
-function EvidenceLedger({ report }) {
-  const coverage = report?.evidenceQuality?.sourceCoverage || {}
-  const graph = report?.graph || { nodes: [], edges: [] }
-  const sourceCount = report?.sources?.length || 0
-  const sampled = coverage.sampledFiles != null
-    ? `${coverage.sampledFiles}/${coverage.candidateFiles || coverage.sampledFiles}`
-    : 'not measured'
-  const entries = [
-    { value: sourceCount, label: 'public sources' },
-    { value: sampled, label: 'source files sampled' },
-    { value: graph.edges.length, label: 'observed relationships' },
-    { value: 'static only', label: 'execution boundary' },
-  ]
-  return <section className="evidence-ledger" aria-label="Evidence boundary"><span className="section-kicker">Evidence ledger</span><div className="evidence-ledger-items">{entries.map((entry) => <div className="evidence-ledger-item" key={entry.label}><strong>{entry.value}</strong><span>{entry.label}</span></div>)}</div><p>No package installation, repository execution, or exploit payload was used to produce this case.</p></section>
-}
-
 function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
@@ -879,7 +865,6 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
-    <EvidenceLedger report={report} />
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={openHistory} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel">

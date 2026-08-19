@@ -287,7 +287,7 @@ h1, h2, p { margin-top: 0; }
 .integrity-details summary { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 15px 0; color: var(--muted); cursor: pointer; font: 11px/1 var(--mono); list-style: none; }
 .integrity-details summary::-webkit-details-marker { display: none; }
 .integrity-details summary span { color: var(--green); font-size: 10px; }
-.integrity-grid { display: grid; grid-template-columns: repeat(4, 1fr); padding: 2px 0 18px; }
+.integrity-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 2px 0 18px; }
 .integrity-grid div { display: grid; gap: 5px; padding: 10px 15px 10px 0; border-right: 1px solid var(--line-soft); }
 .integrity-grid div + div { padding-left: 15px; }
 .integrity-grid div:last-child { border-right: 0; }
@@ -372,10 +372,10 @@ h1, h2, p { margin-top: 0; }
   .related-case-meta { justify-content: flex-start; text-align: left; }
   .related-case-meta > span + span { padding-left: 0; border-left: 0; }
   .integrity-grid { grid-template-columns: repeat(2, 1fr); }
-  .integrity-grid div:nth-child(2) { border-right: 0; }
-  .integrity-grid div:nth-child(-n + 2) { border-bottom: 1px solid var(--line-soft); }
-  .integrity-grid div:nth-child(3) { padding-left: 0; }
-  .integrity-grid div:nth-child(4) { padding-left: 15px; }
+  .integrity-grid div:nth-child(odd) { padding-left: 0; }
+  .integrity-grid div:nth-child(even) { padding-left: 15px; border-right: 0; }
+  .integrity-grid div:nth-child(-n + 4) { border-bottom: 1px solid var(--line-soft); }
+  .integrity-grid div:nth-child(5) { grid-column: 1 / -1; border-right: 0; }
   .floating-error { right: 12px; bottom: 12px; left: 12px; }
 }
 
@@ -812,17 +812,6 @@ body { font-family: var(--sans); line-height: 1.45; }
   .landing-footer { align-items: flex-start; flex-direction: column; gap: 7px; }
 }
 
-/* A compact trust line keeps the report impressive for the right reason:
-   it quantifies the collected record and states the execution boundary. */
-.evidence-ledger { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 20px; align-items: center; margin: 0 0 16px; padding: 10px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
-.evidence-ledger > .section-kicker { margin: 0; white-space: nowrap; }
-.evidence-ledger-items { display: flex; align-items: center; min-width: 0; }
-.evidence-ledger-item { display: grid; gap: 3px; min-width: 0; padding: 0 16px; border-left: 1px solid var(--line-soft); }
-.evidence-ledger-item:first-child { padding-left: 0; border-left: 0; }
-.evidence-ledger-item strong { overflow: hidden; color: var(--text); font: 600 11px/1.2 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
-.evidence-ledger-item span { color: var(--faint); font-size: 10px; line-height: 1.2; white-space: nowrap; }
-.evidence-ledger p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.35; text-align: right; }
-
 /* Put the operational answer before the graph. This is a flat decision line
    built from repository findings and fix challenges, not a decorative card. */
 .case-decision-callout { display: grid; grid-template-columns: minmax(135px, .36fr) minmax(0, 1.5fr) minmax(210px, .72fr); gap: 22px; align-items: start; margin: 0 0 16px; padding: 14px 0 16px; border-bottom: 1px solid var(--line); }
@@ -841,11 +830,6 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-decision-callout-historical .case-decision-meta { border-left-color: var(--faint); }
 
 @media (max-width: 720px) {
-  .evidence-ledger { grid-template-columns: 1fr; gap: 10px; align-items: start; }
-  .evidence-ledger-items { width: 100%; overflow-x: auto; padding-bottom: 2px; }
-  .evidence-ledger-item { flex: 0 0 auto; padding-left: 12px; padding-right: 12px; }
-  .evidence-ledger-item:first-child { padding-left: 0; }
-  .evidence-ledger p { max-width: 360px; text-align: left; }
   .case-decision-callout { grid-template-columns: 1fr; gap: 9px; padding-top: 13px; }
   .case-decision-meta { padding-top: 10px; padding-left: 0; border-top: 2px solid var(--accent); border-left: 0; }
   .case-decision-callout-historical .case-decision-meta { border-top-color: var(--faint); }
