@@ -228,6 +228,10 @@ Manual checks:
 
 ## Checkpoint history
 
+- `fc5fdbe` — print observed proof excerpts and prior-case summaries in the CLI
+- `f0f76d9` — show bounded observed import excerpts in evidence proof chains
+- `29fe29e` — surface sanitized prior evidence from HydraDB recall
+- `8705c86` — cache bounded raw GitHub source reads
 - `830aa05` — benchmark shared-resolution evidence and UNKNOWN overlap
 - `c12ce52` — surface cross-repository resolution evidence across clients and HydraDB
 - `57cf931` — explain model-scope fallback without overstating failure

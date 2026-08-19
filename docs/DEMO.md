@@ -57,7 +57,12 @@ Checking the real fixed version against each declared range
 Writing and recalling dated HydraDB evidence
 ```
 
-The final report shows the exact source-backed path, repository verdict, exposure window, fixed-version result, residual-path status, source links, and limits. On a Cargo case, the same path begins with a real Rust crate import; when the optional scope pass finds a matching symbol in that importing file, the symbol is shown as an additional cited hop.
+The final report shows the exact source-backed path, including the observed import line, repository verdict,
+exposure window, fixed-version result, residual-path status, source links, and limits. The HydraDB section
+also keeps a compact prior-evidence summary available when temporal recall relates the case to an earlier
+investigation; raw retrieved chunks remain hidden. On a Cargo case, the same path begins with a real Rust
+crate import; when the optional scope pass finds a matching symbol in that importing file, the symbol is
+shown as an additional cited hop.
 
 ## Spoken demo script
 
