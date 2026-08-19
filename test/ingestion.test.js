@@ -167,7 +167,7 @@ test('multi-repository ingestion computes real evidence contrast without synthet
   const previousCache = process.env.RECOIL_CACHE_DIR
   process.env.RECOIL_CACHE_DIR = '/dev/null'
   const repositories = {
-    'example/reached': { version: '1.2.5', sourcePath: 'services/reached/src/cli.js', source: "import minimist from 'minimist'\nexport function main() { return minimist(process.argv) }", firstCommit: '2021-01-01T00:00:00Z' },
+    'example/reached': { version: '1.2.5', sourcePath: 'bin/reached-cli.js', source: "import minimist from 'minimist'\nexport function main() { return minimist(process.argv) }", firstCommit: '2021-01-01T00:00:00Z' },
     'example/declared': { version: '1.2.5', sourcePath: 'src/main.js', source: 'export function main() { return true }', firstCommit: '2021-02-01T00:00:00Z' },
     'example/fixed': { version: '1.2.6', sourcePath: 'src/main.js', source: 'export function main() { return true }', firstCommit: '2022-04-01T00:00:00Z' },
   }
@@ -218,9 +218,9 @@ test('multi-repository ingestion computes real evidence contrast without synthet
     assert.equal(report.repositories[0].repositoryUrl, 'https://github.com/example/reached/tree/fixture-ref')
     assert.ok(requests.some((url) => url.pathname.endsWith('/contents/package.json') && url.searchParams.get('ref') === 'fixture-ref'))
     assert.ok(requests.some((url) => url.pathname.endsWith('/git/trees/fixture-ref')))
-    assert.ok(requests.some((url) => url.hostname === 'raw.githubusercontent.com' && url.pathname.endsWith('/src/cli.js')))
+    assert.ok(requests.some((url) => url.hostname === 'raw.githubusercontent.com' && url.pathname.endsWith('/bin/reached-cli.js')))
     assert.ok(report.repositories[0].imports[0].sourceUrl.includes('/blob/fixture-ref/'))
-    assert.ok(report.repositories[0].evidenceSources.some((source) => source.includes('src/cli.js')))
+    assert.ok(report.repositories[0].evidenceSources.some((source) => source.includes('bin/reached-cli.js')))
     assert.equal(report.repositories[0].pathObservedAt, '2021-01-01T00:00:00.000Z')
     assert.equal(report.graph.nodes.some((node) => node.label === 'customer database'), false)
     assert.equal(ingestion.repositories.every((item) => !('impactCandidates' in item.manifest.codeGraph)), true)

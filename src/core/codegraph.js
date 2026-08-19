@@ -1,5 +1,17 @@
 const SOURCE_EXTENSIONS = ['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.rs']
 
+/**
+ * Repository entrypoints are not always named with a source extension. A
+ * committed executable such as bin/http-server is still JavaScript when it
+ * has a Node shebang, and excluding it creates a false DECLARED_ONLY result.
+ * Keep this allowlist narrow so arbitrary generated files are not promoted
+ * into the bounded source sample.
+ */
+export function isAnalyzableSourcePath(path = '') {
+  return SOURCE_EXTENSIONS.some((extension) => path.endsWith(extension))
+    || /(?:^|\/)(?:bin|cmd|cli)\/[^/]+$/.test(path)
+}
+
 function languageFor(path = '') {
   return path.endsWith('.rs') ? 'rust' : 'javascript'
 }
@@ -204,7 +216,7 @@ function resolveRust(from, specifier, files) {
 
 export function buildCodeGraph(sourceFiles = [], { maxFiles = 24 } = {}) {
   const selected = sourceFiles
-    .filter((file) => file?.path && file?.text && SOURCE_EXTENSIONS.some((extension) => file.path.endsWith(extension)))
+    .filter((file) => file?.path && file?.text && isAnalyzableSourcePath(file.path))
     .slice(0, maxFiles)
   const files = new Map(selected.map((file) => [normalizePath(file.path), { ...file, path: normalizePath(file.path) }]))
   const nodes = [...files.values()].map((file, index) => ({

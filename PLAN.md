@@ -29,6 +29,7 @@ observed path → proposed fix → residual re-check
 - [x] Public npm, Cargo, OSV, and GitHub repository collectors.
 - [x] GitHub API caching with explicit rate-limit and partial-collection errors.
 - [x] Bounded JavaScript/TypeScript/Rust source graph with local imports, external package imports, symbols, and source URLs.
+- [x] Include bounded `bin/`, `cmd/`, and `cli/` entrypoints, including extensionless Node executables, in source reachability sampling.
 - [x] Lockfile resolution for npm and Cargo evidence.
 - [x] OSV affected-range and fixed-version evaluation.
 - [x] Multi-repository ingestion for up to four public GitHub repositories.

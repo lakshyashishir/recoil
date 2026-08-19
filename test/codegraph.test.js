@@ -95,6 +95,17 @@ test('source graph preserves external package imports for reachability proof', (
   ])
 })
 
+test('source graph includes extensionless executable entrypoints', () => {
+  const graph = buildCodeGraph([
+    { path: 'bin/http-server', text: "#!/usr/bin/env node\nconst argv = require('minimist')(process.argv.slice(2))" },
+  ])
+
+  assert.equal(graph.fileCount, 1)
+  assert.deepEqual(graph.externalImports.map((item) => ({ packageName: item.packageName, path: item.path })), [
+    { packageName: 'minimist', path: 'bin/http-server' },
+  ])
+})
+
 test('change evidence preserves changed symbols without inventing deployment surfaces', () => {
   const graph = buildCodeGraph([
     { path: 'src/payments.ts', text: 'export function chargePayment(token) { return stripe.charge(token) }' },

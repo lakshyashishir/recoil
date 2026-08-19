@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { buildChangeImpact, buildCodeGraph, enrichChangeEvidence, parseCodeowners } from '../src/core/codegraph.js'
+import { buildChangeImpact, buildCodeGraph, enrichChangeEvidence, isAnalyzableSourcePath, parseCodeowners } from '../src/core/codegraph.js'
 import { buildObservedGraph, classifyRepository, fixedVersionsFromAdvisory } from '../src/core/evidence.js'
 
 async function readJson(url, options) {
@@ -260,8 +260,8 @@ async function collectSourceFiles(repository, knownPaths = undefined, knownError
     }
   }
   const eligiblePaths = paths
-    .filter((path) => /(?:^|\/)(?:src|lib|app|packages|crates)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
-    .filter((path) => /\.(?:js|jsx|mjs|cjs|ts|tsx|rs)$/.test(path))
+    .filter((path) => /(?:^|\/)(?:src|lib|app|packages|crates|bin|cmd|cli)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
+    .filter((path) => isAnalyzableSourcePath(path))
     .filter((path) => !/(?:node_modules|target|dist|build|vendor)\//.test(path))
   const candidates = eligiblePaths.slice(0, sourceLimit)
   const responses = await Promise.all(candidates.map(async (path) => {
