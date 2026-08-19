@@ -78,6 +78,12 @@ function indexingStatus(item) {
   return String(item?.indexing_status || item?.indexingStatus || item?.status || item?.state || '').toLowerCase()
 }
 
+function ingestBatchSize(total) {
+  const configured = Number.parseInt(process.env.HYDRADB_INGEST_BATCH_SIZE || '8', 10)
+  if (!Number.isFinite(configured)) return Math.min(total, 8)
+  return Math.min(Math.max(configured, 1), Math.max(total, 1))
+}
+
 // HydraDB responses have used both the resource `id` and the memory's
 // `source_id` naming across ingestion/status surfaces. Normalize the identity
 // at the adapter boundary so a successful cloud response cannot be mistaken
@@ -175,8 +181,9 @@ function graphPayloadForBatch(batch) {
 async function ingest(memories, signal) {
   const results = []
   let lastResult = {}
-  for (let offset = 0; offset < memories.length; offset += 1) {
-    const batch = memories.slice(offset, offset + 1)
+  const batchSize = ingestBatchSize(memories.length)
+  for (let offset = 0; offset < memories.length; offset += batchSize) {
+    const batch = memories.slice(offset, offset + batchSize)
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const form = new FormData()
       form.append('database', databaseId())
