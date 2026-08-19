@@ -174,6 +174,7 @@ function findingParts(finding) {
 function nodeMatchesPart(node, part, finding) {
   if (!node || !part) return false
   if (node.label === part) return true
+  if (node.type === 'package' && part.split(',').map((value) => value.trim()).includes(node.label)) return true
   if (node.type === 'repository' && (part === finding?.repository || part === finding?.repositoryUrl)) return true
   if (node.type === 'advisory' && part === finding?.advisoryId) return true
   if (node.type === 'lockfile' && node.label === part && node.id.includes(finding?.repository || '')) return true
