@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Database, Download, ExternalLink, FileCode2, LoaderCircle, PackageCheck, RotateCcw, ShieldCheck, Waypoints } from 'lucide-react'
+import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Database, Download, ExternalLink, FileCode2, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
 import './style.css'
 
 const SCENARIO_ID = '0017'
@@ -19,6 +19,24 @@ const INVESTIGATION_EXAMPLES = [
     value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/http-party/http-server/tree/v13.0.2',
   },
 ]
+
+const THEME_STORAGE_KEY = 'recoil-theme'
+
+function initialTheme() {
+  if (typeof window === 'undefined') return 'light'
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+  if (stored === 'dark' || stored === 'light') return stored
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function useTheme() {
+  const [theme, setTheme] = useState(initialTheme)
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
+  }, [theme])
+  return [theme, () => setTheme((current) => current === 'dark' ? 'light' : 'dark')]
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -55,6 +73,11 @@ function SourceLink({ href, children }) {
   return <a className="source-link" href={href} target="_blank" rel="noreferrer">{children || sourceHost(href)} <ExternalLink size={11} /></a>
 }
 
+function ThemeToggle({ theme, onToggle }) {
+  const nextTheme = theme === 'dark' ? 'light' : 'dark'
+  return <button className="theme-toggle" type="button" onClick={onToggle} aria-label={`Switch to ${nextTheme} mode`} title={`Switch to ${nextTheme} mode`}><span aria-hidden="true">{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}</span><span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
+}
+
 function Verdict({ value, compact = false }) {
   const label = value === 'REACHED'
     ? 'Source reached'
@@ -69,11 +92,11 @@ function Verdict({ value, compact = false }) {
   return <span className={`verdict verdict-${String(value || 'UNKNOWN').toLowerCase()} ${compact ? 'verdict-compact' : ''}`}>{icon}{label}</span>
 }
 
-function Landing({ value, setValue, onSubmit, busy, error }) {
+function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme }) {
   return <main className="landing-page">
     <header className="landing-header">
       <div className="brand"><span className="brand-mark" /> RECOIL</div>
-      <span className="brand-note">Evidence path analysis</span>
+      <div className="landing-header-tools"><span className="brand-note">Evidence path analysis</span><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div>
     </header>
     <section className="landing-grid">
       <div className="landing-intro">
@@ -101,7 +124,7 @@ function Landing({ value, setValue, onSubmit, busy, error }) {
   </main>
 }
 
-function InvestigationHeader({ investigation, hydra, onNewCase }) {
+function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleTheme }) {
   const report = investigation?.report
   const id = report?.advisory?.id || investigation?.evidence?.target?.advisoryId || 'investigation'
   const state = investigation?.status === 'complete' ? 'Complete' : investigation?.status === 'failed' ? 'Incomplete' : 'Reading'
@@ -110,7 +133,7 @@ function InvestigationHeader({ investigation, hydra, onNewCase }) {
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
     <div className="header-case"><strong>{id}</strong><span>{report?.package ? `${report.package} · ${state.toLowerCase()}` : state}</span></div>
-    <div className="header-actions"><div className="header-status"><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydraLabel}</div>{onNewCase && <button className="header-new-case" type="button" onClick={onNewCase}>New case <RotateCcw size={13} /></button>}</div>
+    <div className="header-actions"><div className="header-status"><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydraLabel}</div><ThemeToggle theme={theme} onToggle={onToggleTheme} />{onNewCase && <button className="header-new-case" type="button" onClick={onNewCase}>New case <RotateCcw size={13} /></button>}</div>
   </header>
 }
 
@@ -526,6 +549,7 @@ function App() {
   const [hydra, setHydra] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [theme, toggleTheme] = useTheme()
   const investigation = snapshot?.investigation
 
   useEffect(() => {
@@ -585,8 +609,8 @@ function App() {
     setSnapshot(null); setReport(null); setHydra(null); setError(''); setInput(DEFAULT_INPUT)
   }
 
-  if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} />
-  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} />{isComplete ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
+  if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} theme={theme} onToggleTheme={toggleTheme} />
+  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{isComplete ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
 class AppBoundary extends Component {

@@ -22,6 +22,24 @@
   --radius: 8px;
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #17191c;
+  --surface: #1e2125;
+  --surface-raised: #262a2f;
+  --surface-soft: #30353b;
+  --line: #3a4149;
+  --line-soft: #2c3238;
+  --text: #eef1f4;
+  --muted: #adb6c0;
+  --faint: #7e8995;
+  --accent: #82a9d9;
+  --green: #78b696;
+  --red: #d88479;
+  --blue: #82a9d9;
+  --button-text: #111417;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { min-height: 100%; margin: 0; }
 body { min-width: 320px; overflow-x: hidden; background: var(--bg); color: var(--text); }
@@ -35,6 +53,11 @@ h1, h2, p { margin-top: 0; }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font: 600 12px/1 var(--mono); letter-spacing: .14em; }
 .brand-mark { width: 10px; height: 10px; display: inline-block; border: 1px solid var(--accent); background: transparent; }
 .brand-note { color: var(--faint); font: 11px/1 var(--mono); }
+.landing-header-tools { display: flex; align-items: center; gap: 16px; }
+.theme-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: transparent; font-size: 11px; transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease; }
+.theme-toggle:hover { border-color: var(--accent); color: var(--text); background: var(--surface); }
+.theme-toggle:active { transform: translateY(1px) scale(.99); }
+.theme-toggle span:first-child { display: grid; place-items: center; color: var(--accent); }
 .section-kicker, .landing-kicker { display: block; margin-bottom: 12px; color: var(--accent); font: 600 10px/1.2 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
 
 .landing-page { min-height: 100dvh; display: grid; grid-template-rows: auto 1fr auto; padding: 26px clamp(24px, 5vw, 72px) 22px; background: var(--bg); }
@@ -253,6 +276,7 @@ h1, h2, p { margin-top: 0; }
 @media (max-width: 720px) {
   .landing-page { padding: 20px 18px 18px; }
   .landing-header, .landing-footer, .live-heading, .case-hero { align-items: flex-start; flex-direction: column; }
+  .landing-header-tools { width: 100%; justify-content: space-between; }
   .landing-grid { padding: 12vh 0 8vh; }
   .landing-intro h1 { font-size: clamp(46px, 14vw, 66px); }
   .landing-intro > p:last-child { font-size: 14px; }
