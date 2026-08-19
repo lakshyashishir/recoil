@@ -602,6 +602,14 @@ body { font-family: var(--sans); line-height: 1.45; }
 .change-proof-meta span { display: grid; gap: 4px; }
 .change-proof-meta b { color: var(--faint); font-size: 10px; font-weight: 500; }
 .change-proof > p { margin: 11px 0 0; color: var(--faint); font-size: 11px; line-height: 1.45; }
+.advisory-scope-evidence { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.advisory-scope-evidence > .section-kicker { grid-row: 1 / span 2; margin: 0; color: var(--muted); }
+.advisory-scope-evidence > div { display: grid; gap: 4px; min-width: 0; }
+.advisory-scope-evidence strong { overflow: hidden; color: var(--text); font: 600 11px/1.35 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.advisory-scope-evidence p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.advisory-scope-evidence .source-link { width: max-content; margin-top: 2px; font-size: 10px; }
+.advisory-scope-validated > .section-kicker { color: var(--green); }
+.advisory-scope-module > .section-kicker { color: var(--accent); }
 
 /* Decision layer: give the reviewer the answer before asking them to read the graph. */
 .case-conclusion {

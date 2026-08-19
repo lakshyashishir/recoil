@@ -748,6 +748,23 @@ function ChangeProof({ finding }) {
   </div>
 }
 
+function AdvisoryScopeEvidence({ finding }) {
+  const scope = finding?.advisoryScope
+  if (!scope || scope.status === 'NOT_REQUESTED') return null
+  const symbols = scope.symbols || []
+  const validated = scope.status === 'VALIDATED_SYMBOL' && symbols.length > 0
+  const title = validated
+    ? symbols.map((symbol) => `${symbol.name} · ${symbol.path}:${symbol.line}`).join(', ')
+    : 'Module-level proof retained'
+  const detail = validated
+    ? 'An advisory-named symbol matched an indexed symbol in an importing file.'
+    : scope.note || 'No advisory-named symbol matched an importing file; the package-import proof remains authoritative.'
+  return <div className={`advisory-scope-evidence ${validated ? 'advisory-scope-validated' : 'advisory-scope-module'}`}>
+    <span className="section-kicker">Advisory scope</span>
+    <div><strong>{title}</strong><p>{detail}</p>{validated && symbols[0]?.sourceUrl && <SourceLink href={symbols[0].sourceUrl}>Open validated symbol</SourceLink>}</div>
+  </div>
+}
+
 function RouteProof({ finding, challenge }) {
   if (!finding) return null
   const parts = findingParts(finding)
@@ -914,7 +931,7 @@ function IntegrityDetails({ report, hydra, evidenceStatus }) {
       : scope.status === 'failed'
         ? 'unavailable'
         : 'module-level only'
-  return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.'}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
+  return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.note || (scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.')}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of runtime execution.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
 }
 
 function ReceiptLink() {
@@ -1184,6 +1201,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
         <div className="trace-defense-actions"><span className={`trace-fix-status ${verified ? 'is-verified' : ''}`}>{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : historical ? 'historical view' : 'review required'}</span>{!historical && <button className="case-proof-link" type="button" onClick={onInspectProof}>Open fix details <ArrowUpRight size={13} /></button>}</div>
       </article>
     </div>
+    <AdvisoryScopeEvidence finding={finding} />
     <ChangeProof finding={finding} />
   </section>
 }
