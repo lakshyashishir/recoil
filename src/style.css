@@ -1,42 +1,25 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --bg: #0d0f0e;
-  --surface: #131614;
-  --surface-raised: #181c19;
-  --surface-soft: #202520;
-  --line: #303830;
-  --line-soft: #222822;
-  --text: #edf0eb;
-  --muted: #a0aaa1;
-  --faint: #727c74;
-  --accent: #d7b27d;
-  --green: #91c8a0;
-  --red: #d58276;
-  --blue: #9bbec8;
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-raised: #f2f4f7;
+  --surface-soft: #e9edf2;
+  --line: #d7dde5;
+  --line-soft: #e8ebef;
+  --text: #20252d;
+  --muted: #5c6674;
+  --faint: #84909e;
+  --accent: #345f9f;
+  --green: #2d7653;
+  --red: #ad4f45;
+  --blue: #345f9f;
+  --button-text: #ffffff;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --radius: 8px;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --bg: #f5f6f2;
-    --surface: #ffffff;
-    --surface-raised: #eef1eb;
-    --surface-soft: #e5eae3;
-    --line: #d4dbd2;
-    --line-soft: #e5e9e3;
-    --text: #171c18;
-    --muted: #5f6b62;
-    --faint: #818d83;
-    --accent: #916b35;
-    --green: #2e7951;
-    --red: #a84d42;
-    --blue: #306a7b;
-  }
 }
 
 * { box-sizing: border-box; }
@@ -61,12 +44,12 @@ h1, h2, p { margin-top: 0; }
 .landing-intro h1 span { color: var(--accent); }
 .landing-intro > p:last-child { max-width: 430px; margin: 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
 .landing-form-wrap { width: min(670px, 100%); justify-self: end; }
-.investigate-form { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 18px 55px rgb(0 0 0 / .18); }
+.investigate-form { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 18px 55px rgb(27 39 29 / .10); }
 .investigate-form label { display: block; padding: 17px 18px 0; color: var(--muted); font: 11px/1.3 var(--mono); }
 .investigate-form textarea { width: 100%; min-height: 132px; resize: vertical; border: 0; padding: 16px 18px 18px; color: var(--text); background: transparent; font: 14px/1.65 var(--mono); outline: 0; }
 .investigate-form textarea::placeholder { color: var(--faint); opacity: .75; }
 .form-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px 13px 13px 18px; border-top: 1px solid var(--line-soft); color: var(--faint); font: 10px/1.4 var(--mono); }
-.form-footer button, .new-case-wrap button { display: inline-flex; align-items: center; gap: 8px; padding: 11px 14px; border: 1px solid var(--accent); border-radius: var(--radius); color: var(--bg); background: var(--accent); font: 600 11px/1 var(--mono); transition: transform .2s ease, background .2s ease; }
+.form-footer button, .new-case-wrap button { display: inline-flex; align-items: center; gap: 8px; padding: 11px 14px; border: 1px solid var(--accent); border-radius: var(--radius); color: var(--button-text); background: var(--accent); font: 600 11px/1 var(--mono); transition: transform .2s ease, background .2s ease; }
 .form-footer button:hover, .new-case-wrap button:hover { background: var(--text); border-color: var(--text); }
 .form-footer button:active, .new-case-wrap button:active, .example-chip:active, .route-item:active { transform: translateY(1px) scale(.99); }
 .example-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; color: var(--faint); font: 10px/1.3 var(--mono); }
@@ -228,7 +211,7 @@ h1, h2, p { margin-top: 0; }
 .runtime-error { min-height: 100dvh; display: grid; place-content: center; gap: 10px; padding: 30px; background: var(--bg); }
 .runtime-error h1 { margin-bottom: 0; font-size: 32px; font-weight: 500; }
 .runtime-error p { color: var(--muted); }
-.runtime-error button { width: max-content; padding: 10px 14px; border: 1px solid var(--accent); border-radius: var(--radius); color: var(--bg); background: var(--accent); }
+.runtime-error button { width: max-content; padding: 10px 14px; border: 1px solid var(--accent); border-radius: var(--radius); color: var(--button-text); background: var(--accent); }
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -299,3 +282,68 @@ h1, h2, p { margin-top: 0; }
 @media (prefers-reduced-transparency: reduce) {
   .product-header { background: var(--bg); backdrop-filter: none; }
 }
+
+/* Recoil type system: system UI for product chrome, mono only for evidence values. */
+body { font-family: var(--sans); line-height: 1.45; }
+.brand, .brand-note, .section-kicker, .landing-kicker, .investigate-form label,
+.form-footer, .form-footer button, .example-picker, .example-chip, .landing-footer,
+.error-banner, .floating-error, .header-case, .header-status, .live-safety,
+.journal-state, .map-count, .route-panel-heading > span, .event-title span,
+.event-now, .journal-empty, .map-empty-body, .map-layer-label, .map-node-type,
+.map-legend, .case-state, .receipt-link, .case-summary span, .route-panel-note,
+.route-index, .route-item-copy small, .verdict, .route-step span, .route-step small,
+.fix-result p, .temporal-copy > p, .memory-line, .temporal-controls span,
+.temporal-controls small, .temporal-stats small, .temporal-unavailable p,
+.integrity-details summary, .integrity-grid span, .integrity-details > div > p {
+  font-family: var(--sans);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.brand { font-size: 13px; font-weight: 650; }
+.brand-note { font-size: 12px; }
+.section-kicker, .landing-kicker { margin-bottom: 9px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.landing-kicker { color: var(--accent); }
+.landing-intro h1 { max-width: 620px; margin-bottom: 18px; font-size: clamp(42px, 5vw, 64px); font-weight: 600; letter-spacing: -.045em; line-height: 1.02; }
+.landing-intro > p:last-child { max-width: 460px; font-size: 15px; line-height: 1.55; }
+.investigate-form label { padding-top: 16px; font-size: 12px; font-weight: 550; }
+.investigate-form textarea { font-family: var(--mono); font-size: 13px; line-height: 1.6; }
+.form-footer { font-size: 11px; }
+.form-footer button { font-size: 12px; }
+.example-picker { font-size: 12px; }
+.example-chip { font-size: 11px; }
+.landing-footer { font-size: 11px; }
+.header-case { font-size: 12px; }
+.header-status { font-size: 11px; }
+.live-heading h1 { margin-bottom: 8px; font-size: clamp(36px, 4vw, 52px); font-weight: 600; letter-spacing: -.045em; }
+.live-heading p { font-size: 14px; }
+.live-safety, .journal-state, .map-count { font-size: 11px; }
+.journal-heading h2, .map-heading h2, .route-panel-heading h2, .proof-heading h2, .temporal-proof h2 { font-size: 18px; font-weight: 600; letter-spacing: -.015em; }
+.event-title { font-size: 14px; }
+.event-title span, .event-copy p { font-family: var(--sans); font-size: 12px; line-height: 1.5; }
+.event-now { font-size: 10px; }
+.journal-empty, .map-empty-body { font-size: 12px; }
+.map-layer-label { font-size: 10px; letter-spacing: .02em; }
+.map-node-type { font-size: 10px; letter-spacing: normal; }
+.map-node-label { font-family: var(--mono); font-size: 11px; }
+.map-legend { font-size: 10px; }
+.case-hero h1 { max-width: 700px; margin-bottom: 12px; font-size: clamp(40px, 5vw, 60px); font-weight: 600; letter-spacing: -.05em; line-height: 1.02; }
+.case-hero p { font-size: 14px; }
+.case-state, .receipt-link { font-size: 11px; }
+.case-summary strong { font-size: 22px; }
+.case-summary span { font-size: 11px; }
+.route-panel-note { font-size: 12px; }
+.route-index, .route-item-copy small { font-size: 11px; }
+.verdict { font-size: 12px; }
+.verdict-compact { font-size: 10px; }
+.proof-reason { font-size: 14px; }
+.route-step span { font-size: 12px; }
+.route-step small { font-size: 10px; }
+.fix-result p { font-size: 12px; }
+.source-link { font-family: var(--mono); font-size: 10px; }
+.temporal-copy > p { font-size: 12px; }
+.memory-line { font-size: 11px; }
+.temporal-controls span { font-size: 11px; }
+.temporal-controls small { font-size: 10px; }
+.temporal-stats small { font-size: 10px; }
+.integrity-details summary { font-size: 12px; }
+.integrity-grid span, .integrity-details > div > p { font-size: 11px; }
