@@ -63,6 +63,18 @@ function repositoryName(value = '') {
   return value.replace(/^https?:\/\/github\.com\//, '').replace(/\/tree\/.*$/, '').replace(/\.git$/, '')
 }
 
+function repositoryKey(value = '') {
+  return repositoryName(value).replace(/@[^/]+$/, '')
+}
+
+function queryRepositories(query = '') {
+  return [...query.matchAll(/https?:\/\/github\.com\/[^\s]+/gi)]
+    .map((match) => repositoryName(match[0]))
+    .filter(Boolean)
+    .filter((repository, index, repositories) => repositories.indexOf(repository) === index)
+    .slice(0, 4)
+}
+
 function StatusIcon({ status }) {
   if (status === 'complete' || status === 'persisted') return <Check size={15} strokeWidth={2.3} />
   if (status === 'failed') return <CircleAlert size={15} />
@@ -151,7 +163,29 @@ function currentInvestigationActivity(events = [], investigationStatus) {
   return null
 }
 
-function EventStream({ events = [], investigationStatus }) {
+function LiveRepositoryProgress({ query, events = [] }) {
+  const repositories = queryRepositories(query)
+  if (!repositories.length) return null
+  const latestByRepository = new Map()
+  events.filter((event) => event.repository).forEach((event) => latestByRepository.set(repositoryKey(event.repository), event))
+  return <section className="live-repositories" aria-label="Repository collection status">
+    <div className="live-repositories-heading"><span>Repositories</span><span>{repositories.length} targets</span></div>
+    <div className="live-repository-list">
+      {repositories.map((repository, index) => {
+        const event = latestByRepository.get(repositoryKey(repository))
+        const status = event?.status || 'waiting'
+        const statusLabel = status === 'complete' ? 'read' : status === 'working' ? 'reading' : status === 'failed' ? 'failed' : 'queued'
+        return <div className={`live-repository live-repository-${status}`} key={repository}>
+          <span className="live-repository-index">0{index + 1}</span>
+          <div><strong>{repository}</strong><small>{event?.detail || 'Waiting for the public lockfile and source sample.'}</small></div>
+          <span className="live-repository-status">{statusLabel}</span>
+        </div>
+      })}
+    </div>
+  </section>
+}
+
+function EventStream({ events = [], investigationStatus, query }) {
   const [expanded, setExpanded] = useState(false)
   const eventCurrent = events.find((event) => event.status === 'working')
   const current = currentInvestigationActivity(events, investigationStatus)
@@ -160,6 +194,7 @@ function EventStream({ events = [], investigationStatus }) {
   const visibleEvents = expanded ? events : events.filter((event) => recentKeys.has(event.key) || event.key === eventCurrent?.key)
   return <section className="event-journal" aria-label="Investigation progress" aria-busy={active}>
     <div className="journal-heading"><div><span className="section-kicker">Progress</span><h2 aria-live="polite" aria-atomic="true">{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state" role="status" aria-live="polite">{active ? 'working' : 'up to date'}</span></div>
+    <LiveRepositoryProgress query={query} events={events} />
     <div className="journal-activity-heading"><span>Recent activity</span>{events.length > 5 && <button type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show recent' : `Show all ${events.length}`}</button>}</div>
     <div className="event-list">
       {!eventCurrent && current && <article className="event-row event-working event-current-fallback"><div className="event-status"><StatusIcon status="working" /></div><div className="event-copy"><div className="event-title"><strong>{current.title}</strong></div><p>{current.detail}</p></div><span className="event-now">now</span></article>}
@@ -866,7 +901,7 @@ function RunningView({ snapshot }) {
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function App() {
