@@ -922,6 +922,7 @@ body { font-family: var(--sans); line-height: 1.45; }
 .full-graph-disclosure summary:hover { color: var(--accent); }
 .full-graph-disclosure-body { border-top: 1px solid var(--line-soft); }
 .full-graph-disclosure-body > .evidence-map { border: 0; border-radius: 0; }
+.case-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
 @media (max-width: 720px) {
   .proof-map-lane { padding-right: 17px; padding-left: 17px; }
@@ -929,4 +930,10 @@ body { font-family: var(--sans); line-height: 1.45; }
   .proof-map-lane-note, .proof-map-no-path { margin-left: 0; }
   .full-graph-disclosure summary { align-items: flex-start; flex-wrap: wrap; padding-right: 17px; padding-left: 17px; }
   .full-graph-disclosure summary span { width: 100%; margin-left: 23px; }
+
+  .case-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .case-summary div { border-right: 1px solid var(--line); }
+  .case-summary div:nth-child(even) { border-right: 0; }
+  .case-summary div:nth-child(-n + 4) { border-bottom: 1px solid var(--line); }
+  .case-summary div:last-child { grid-column: 1 / -1; border-right: 0; border-bottom: 0; }
 }
