@@ -107,6 +107,11 @@ function Verdict({ value, compact = false }) {
 }
 
 function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme }) {
+  const advisory = value.match(/(?:GHSA|CVE)-[A-Z0-9-]+/i)?.[0]
+  const packageSelector = value.match(/\b(?:npm|cargo):[^\s]+/i)?.[0]
+  const repositories = queryRepositories(value)
+  const target = advisory || packageSelector
+  const ready = Boolean(target && repositories.length)
   return <main className="landing-page">
     <header className="landing-header">
       <div className="brand"><span className="brand-mark" /> RECOIL</div>
@@ -122,9 +127,10 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
           <label htmlFor="investigation-input">Advisory and repositories</label>
           <textarea id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder={'GHSA-xvch-5gv4-984h\nhttps://github.com/org/repository'} rows={5} />
+          <div className="input-readiness" aria-live="polite"><span className={target ? 'is-ready' : ''}><i aria-hidden="true" />{target || 'Add an advisory or package selector'}</span><span className={repositories.length ? 'is-ready' : ''}><i aria-hidden="true" />{repositories.length ? `${repositories.length} public repositor${repositories.length === 1 ? 'y' : 'ies'}` : 'Add at least one public GitHub repository'}</span></div>
           <div className="form-footer">
             <span>Public records only</span>
-            <button type="submit" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button>
+            <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button>
           </div>
         </form>
         <div className="example-picker" aria-label="Example investigations">
