@@ -904,7 +904,7 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   </section>
 }
 
-function TemporalHighlight({ report, summary = {}, earliestReached, onOpenHistory, historyLoading = false, historical = false }) {
+function TemporalHighlight({ report, summary = {}, finding, challenge, earliestReached, onOpenHistory, onInspectProof, historyLoading = false, historical = false }) {
   const before = report?.rewind?.beforeAdvisory
   if (historical || !before) return null
   const published = report?.advisory?.published
@@ -919,10 +919,34 @@ function TemporalHighlight({ report, summary = {}, earliestReached, onOpenHistor
   const observedDate = earliestReached?.pathObservedAt?.slice(0, 10) || 'not dated'
   const publishedDate = published?.slice(0, 10) || 'not dated'
   const exposureLabel = summary.exposureDays != null ? `${summary.exposureDays.toLocaleString()} days before disclosure` : 'A dated comparison is available'
-  return <section className="temporal-highlight" aria-label="Temporal evidence summary">
-    <div className="temporal-highlight-copy"><span className="section-kicker">Temporal proof</span><h2>{exposureLabel}</h2><p>{earliestReached ? `The earliest sampled path was first observed on ${observedDate}; the advisory was published on ${publishedDate}.` : 'Recoil has a dated before-disclosure snapshot for this case.'}</p></div>
-    <div className="temporal-highlight-track" aria-label="Disclosure boundary"><div><strong>{observedDate}</strong><span>path first observed</span></div><i aria-hidden="true">→</i><div><strong>{publishedDate}</strong><span>advisory published</span></div></div>
-    <div className="temporal-highlight-action"><span><i className={`memory-mark ${memory?.status === 'recalled' ? '' : 'memory-mark-muted'}`} />{memoryLabel}</span>{onOpenHistory && <button type="button" onClick={onOpenHistory} disabled={historyLoading}>{historyLoading ? <LoaderCircle className="spin" size={13} /> : <Clock3 size={13} />}{historyLoading ? 'Rebuilding…' : 'Compare before disclosure'}<ArrowUpRight size={13} /></button>}</div>
+  const importer = finding?.imports?.[0]
+  const currentVersion = finding?.resolvedVersion || finding?.resolvedVersions?.join(', ') || 'unresolved'
+  const proposedVersion = challenge?.proposedVersion || 'not established'
+  const pathTitle = finding?.verdict === 'REACHED' ? 'A source path exists' : finding?.verdict === 'DECLARED_ONLY' ? 'Declared, not imported' : finding?.verdict === 'NOT_AFFECTED' ? 'Outside the affected range' : 'Path needs review'
+  const pathDetail = finding?.verdict === 'REACHED'
+    ? `${finding.packageName || 'The package'}@${currentVersion} reaches ${importer?.path || 'sampled source'}.`
+    : finding?.reason || 'The available evidence does not support a stronger conclusion.'
+  const fixTitle = challenge?.status === 'FIX_SURVIVES'
+    ? 'The proposed fix cuts the path'
+    : challenge?.status === 'ALREADY_SAFE'
+      ? 'No fix is needed for this resolution'
+      : challenge?.status === 'NO_REACHABLE_PATH'
+        ? 'Defense-in-depth update available'
+        : challenge?.status === 'MANIFEST_CHANGE_REQUIRED'
+          ? 'The manifest must change first'
+          : 'Fix proof needs review'
+  const fixDetail = challenge?.proposedVersion
+    ? `${finding?.packageName || 'Package'} ${currentVersion} → ${proposedVersion}`
+    : challenge?.detail || 'No advisory-backed fixed version was established.'
+  return <section className="proof-loop" aria-label="Evidence proof loop">
+    <div className="proof-loop-heading"><div><span className="section-kicker">Proof loop</span><h2>From observed path to defensible response.</h2><p>Every stage below is computed from the records collected for this case.</p></div><div className="proof-loop-heading-actions">{onInspectProof && <button type="button" onClick={onInspectProof}>Inspect path <ArrowUpRight size={13} /></button>}{onOpenHistory && <button type="button" onClick={onOpenHistory} disabled={historyLoading}>{historyLoading ? <LoaderCircle className="spin" size={13} /> : <Clock3 size={13} />}{historyLoading ? 'Rebuilding…' : 'Open dated view'}</button>}</div></div>
+    <div className="proof-loop-grid">
+      <article className="proof-loop-step proof-loop-observed"><span className="proof-loop-index">01 · Observe</span><strong>{pathTitle}</strong><code>{repositoryName(finding?.repository) || 'repository not selected'}</code><p>{pathDetail}</p>{importer?.sourceUrl ? <SourceLink href={importer.sourceUrl}>Open source line</SourceLink> : <span className="proof-loop-muted">source citation unavailable</span>}</article>
+      <div className="proof-loop-arrow" aria-hidden="true">→</div>
+      <article className="proof-loop-step proof-loop-fix"><span className="proof-loop-index">02 · Re-check</span><strong>{fixTitle}</strong><code>{fixDetail}</code><p>{challenge?.detail || 'The version-level challenge could not be completed from the available advisory evidence.'}</p><span className={`proof-loop-status ${['FIX_SURVIVES', 'ALREADY_SAFE'].includes(challenge?.status) ? 'is-verified' : ''}`}>{['FIX_SURVIVES', 'ALREADY_SAFE'].includes(challenge?.status) ? <Check size={12} /> : <CircleAlert size={12} />}{challenge?.status === 'FIX_SURVIVES' ? 'version proof verified' : challenge?.status === 'ALREADY_SAFE' ? 'already safe' : 'review required'}</span></article>
+      <div className="proof-loop-arrow" aria-hidden="true">→</div>
+      <article className="proof-loop-step proof-loop-history"><span className="proof-loop-index">03 · Remember</span><strong>{exposureLabel}</strong><code>{observedDate} → {publishedDate}</code><p>{earliestReached ? 'The path was visible in public repository history before the advisory was published.' : 'Recoil has a dated comparison boundary for this case.'}</p><span className="proof-loop-memory"><i className={`memory-mark ${memory?.status === 'recalled' ? '' : 'memory-mark-muted'}`} />{memoryLabel}</span></article>
+    </div>
   </section>
 }
 
@@ -1060,6 +1084,8 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} ${reachedPhrase} sampled code.` : total ? 'No repository reaches sampled code.' : 'No repository was checked.'
   const summaryLine = report?.advisory?.summary ? `${report.advisory.summary} · ${report.package || 'package identity unavailable'}` : `The report compares ${report.package || 'the affected package'} across the collected repositories.`
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
+  const primaryFinding = findings.find((finding) => finding.verdict === 'REACHED') || selectedFinding
+  const primaryChallenge = report?.challenge?.find((item) => item.repository === primaryFinding?.repository)
   const primaryReachIndex = findings.findIndex((finding) => finding.verdict === 'REACHED')
   const inspectProof = (index = primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex) => {
     if (index >= 0) setSelectedIndex(index)
@@ -1086,7 +1112,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => onRewind(report?.rewind?.currentAsOf) : null} />
-    <TemporalHighlight report={report} summary={summary} earliestReached={earliestReached} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} />
+    <TemporalHighlight report={report} summary={summary} finding={primaryFinding} challenge={primaryChallenge} earliestReached={earliestReached} onInspectProof={() => inspectProof(primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
