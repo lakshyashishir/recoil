@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, FileText, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
+import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Download, ExternalLink, FileCode2, FileText, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
 import './style.css'
 
 const SCENARIO_ID = '0017'
@@ -212,53 +212,6 @@ function EventStream({ events = [], investigationStatus, query }) {
     </div>
     {!events.length && <div className="journal-empty">The investigation will stream here after you start it.</div>}
   </section>
-}
-
-function LiveEvidenceSummary({ graph, graphProgress, events = [], investigationStatus }) {
-  const current = currentInvestigationActivity(events, investigationStatus)
-  const repositories = graphProgress?.totalRepositories ? `${graphProgress.completedRepositories || 0}/${graphProgress.totalRepositories}` : '—'
-  const nodes = graph?.nodes?.length || 0
-  const edges = graph?.edges?.length || 0
-  return <section className="live-evidence-summary" aria-label="Evidence collected so far">
-    <div className="live-evidence-summary-heading"><span className="section-kicker">Evidence so far</span><span>{current?.title || 'Preparing the first record'}</span></div>
-    <div className="live-evidence-summary-stats"><div><strong>{repositories}</strong><span>repositories read</span></div><div><strong>{nodes}</strong><span>evidence nodes</span></div><div><strong>{edges}</strong><span>relationships observed</span></div></div>
-    <p>{current?.detail || 'The graph will fill as public records are collected.'}</p>
-  </section>
-}
-
-function eventStatus(events, keys = []) {
-  const matches = events.filter((event) => keys.includes(event.key) || keys.some((key) => event.key?.startsWith(key)))
-  if (matches.some((event) => event.status === 'failed')) return 'failed'
-  if (matches.some((event) => event.status === 'working')) return 'working'
-  if (matches.some((event) => event.status === 'complete' || event.status === 'persisted')) return 'complete'
-  return 'waiting'
-}
-
-function EvidencePhaseRail({ events = [], live = false, investigationStatus, investigationStep }) {
-  const phases = [
-    { key: 'records', label: 'Read records', detail: 'OSV, registry, repositories', keys: ['public-records', 'repository:', 'registry'], icon: <SearchIcon /> },
-    { key: 'route', label: 'Trace routes', detail: 'Lockfiles and source imports', keys: ['classification', 'proving-paths'], icon: <Waypoints size={16} /> },
-    { key: 'proof', label: 'Prove the fix', detail: 'Range and residual path', keys: ['fix-plan'], icon: <PackageCheck size={16} /> },
-    { key: 'memory', label: 'Store history', detail: 'HydraDB temporal record', keys: ['hydra'], icon: <Database size={16} /> },
-  ]
-  return <div className={`phase-rail ${live ? 'phase-rail-live' : ''}`} aria-label="Investigation stages" role="list">
-    {phases.map((phase, index) => {
-      const eventPhaseStatus = eventStatus(events, phase.keys)
-      const status = phase.key === 'memory' && investigationStep === 'hydra' && investigationStatus === 'finalizing'
-        ? 'working'
-        : eventPhaseStatus
-      const statusLabel = status === 'complete' ? 'complete' : status === 'working' ? 'working now' : status === 'failed' ? 'needs attention' : 'waiting'
-      return <div className={`phase ${status}`} key={phase.key} role="listitem" aria-label={`${phase.label}: ${statusLabel}`}>
-        <div className="phase-icon">{status === 'complete' ? <Check size={15} /> : status === 'working' ? <LoaderCircle className="spin" size={15} /> : phase.icon}</div>
-        <div className="phase-copy"><strong>{phase.label}</strong><span>{phase.detail}</span></div>
-        {index < phases.length - 1 && <i className="phase-connector" aria-hidden="true" />}
-      </div>
-    })}
-  </div>
-}
-
-function SearchIcon() {
-  return <span className="phase-search-icon" aria-hidden="true" />
 }
 
 function findingParts(finding) {
@@ -1157,7 +1110,7 @@ function RunningView({ snapshot }) {
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><LiveEvidenceSummary graph={graph} graphProgress={progress} events={events} investigationStatus={investigation?.status} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function FailedView({ snapshot, onNewCase }) {

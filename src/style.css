@@ -473,40 +473,6 @@ body { font-family: var(--sans); line-height: 1.45; }
 .integrity-details summary { font-size: 12px; }
 .integrity-grid span, .integrity-details > div > p { font-size: 11px; }
 
-/* Evidence desk: the product is a proof workflow, not an agent dashboard. */
-.phase-rail {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  margin: 28px 0 0;
-  padding: 16px 0 18px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-.phase { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; min-width: 0; padding-right: 30px; color: var(--faint); }
-.phase-icon { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--faint); background: var(--surface); }
-.phase-copy { display: grid; align-content: center; gap: 4px; min-width: 0; }
-.phase-copy strong { color: var(--muted); font-size: 12px; font-weight: 600; }
-.phase-copy span { overflow: hidden; color: var(--faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.phase-connector { position: absolute; top: 14px; right: 10px; width: 20px; height: 1px; background: var(--line); }
-.phase.complete .phase-icon { border-color: color-mix(in srgb, var(--green) 65%, var(--line)); color: var(--green); background: color-mix(in srgb, var(--green) 8%, var(--surface)); }
-.phase.complete .phase-copy strong { color: var(--text); }
-.phase.working .phase-icon { border-color: var(--accent); color: var(--accent); }
-.phase.working .phase-copy strong { color: var(--accent); }
-.phase.failed .phase-icon { border-color: var(--red); color: var(--red); }
-.phase-search-icon { width: 11px; height: 11px; display: block; border: 1.5px solid currentColor; border-radius: 50%; position: relative; }
-.phase-search-icon::after { content: ''; position: absolute; right: -4px; bottom: -2px; width: 5px; height: 1.5px; transform: rotate(45deg); transform-origin: left center; background: currentColor; }
-
-.live-evidence-summary { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(0, 1.5fr) minmax(230px, 1fr); gap: 22px; align-items: center; margin-top: 20px; padding: 13px 0 15px; border-bottom: 1px solid var(--line); }
-.live-evidence-summary-heading { display: grid; gap: 5px; min-width: 0; }
-.live-evidence-summary-heading .section-kicker { margin: 0; }
-.live-evidence-summary-heading > span:last-child { overflow: hidden; color: var(--text); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.live-evidence-summary-stats { display: flex; gap: 26px; min-width: 0; }
-.live-evidence-summary-stats div { display: grid; gap: 5px; min-width: 76px; }
-.live-evidence-summary-stats strong { color: var(--text); font: 500 20px/1 var(--mono); font-variant-numeric: tabular-nums; }
-.live-evidence-summary-stats span { color: var(--faint); font: 10px/1.2 var(--mono); }
-.live-evidence-summary p { max-width: 360px; margin: 0; color: var(--muted); font: 11px/1.45 var(--mono); }
-
 .case-advisory { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 17px; color: var(--muted); font-size: 12px; }
 .case-advisory strong { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--text); background: var(--surface); font: 600 11px/1 var(--mono); }
 .case-advisory span { color: var(--muted); }
@@ -654,10 +620,6 @@ body { font-family: var(--sans); line-height: 1.45; }
 }
 
 @media (max-width: 720px) {
-  .phase-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 0; }
-  .phase:nth-child(2) .phase-connector, .phase:nth-child(4) .phase-connector { display: none; }
-  .phase:nth-child(2) { padding-right: 0; }
-  .phase-copy span { font-size: 10px; }
   .case-advisory { align-items: flex-start; flex-direction: column; gap: 7px; }
   .fix-proof-compare { grid-template-columns: 1fr; gap: 7px; }
   .fix-proof-arrow { transform: rotate(90deg); }
@@ -733,8 +695,6 @@ body { font-family: var(--sans); line-height: 1.45; }
   .case-navigator-links { width: 100%; justify-content: space-between; }
   .case-navigator-links button { padding-left: 3px; padding-right: 3px; }
   .case-chronology-heading { align-items: flex-start; flex-direction: column; gap: 11px; }
-  .live-evidence-summary { grid-template-columns: 1fr; gap: 14px; }
-  .live-evidence-summary-stats { gap: 22px; }
   .chronology-action { align-self: flex-start; }
   .case-chronology-track { grid-template-columns: 1fr; gap: 0; }
   .temporal-compare-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
