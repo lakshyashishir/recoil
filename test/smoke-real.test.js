@@ -22,6 +22,23 @@ test('strict real smoke rejects an under-specified recording query before collec
   assert.match(result.stdout, /contrast mode requires 3 public GitHub repositories/)
 })
 
+test('strict smoke flag enforces the recording contract without environment toggles', () => {
+  const result = spawnSync(process.execPath, ['scripts/smoke-real.mjs', '--strict'], {
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      RECOIL_SMOKE_QUERY: 'GHSA-434x-w66g-qw3r https://github.com/example/repository',
+      HYDRA_DB_API_KEY: 'configured',
+      HYDRADB_DATABASE_ID: 'database',
+      RECOIL_SMOKE_REQUIRE_CONTRAST: '',
+      RECOIL_SMOKE_REQUIRE_HYDRA: '',
+    },
+  })
+  assert.equal(result.status, 2)
+  assert.match(result.stdout, /contrast mode requires 3 public GitHub repositories/)
+})
+
 test('strict real smoke rejects a package-only query before collection', () => {
   const result = spawnSync(process.execPath, ['scripts/smoke-real.mjs'], {
     cwd: root,

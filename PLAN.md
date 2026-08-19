@@ -99,6 +99,7 @@ observed path → proposed fix → residual re-check
 - [x] Avoid redundant API/raw retries for known public-file 404s while preserving API fallback for raw transport failures.
 - [x] Normalize legacy npm lockfile v1 dependency trees into source-cited nested package paths and graph edges.
 - [x] Expose the supported lockfile and workspace evidence surfaces through the judge-facing `/api/health` capability contract.
+- [x] Add a single `npm run smoke:recording` command that enables the complete three-way and HydraDB recording gate.
 
 ### Still required before calling the hackathon build complete
 

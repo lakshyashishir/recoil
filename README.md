@@ -136,6 +136,8 @@ Run the configuration doctor before a demo. It does not make network calls unles
 npm run doctor
 npm run doctor -- --recording "GHSA-xxxx-yyyy-zzzz https://github.com/org/repo-a https://github.com/org/repo-b https://github.com/org/repo-c"
 npm run doctor -- --network
+# One command for the final three-way + HydraDB recording gate
+RECOIL_SMOKE_QUERY="<verified advisory> https://github.com/org/repo-a https://github.com/org/repo-b https://github.com/org/repo-c" npm run smoke:recording
 ```
 
 `--recording` requires a GHSA/CVE advisory, three public repositories, and HydraDB write/read credentials.
@@ -216,6 +218,7 @@ Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you want to require the HydraDB write/re
 requiring the three-way contrast. Strict modes fail before collection when the query has no GHSA/CVE
 advisory, fewer than three GitHub repositories, or the required HydraDB credentials are missing,
 avoiding a misleading partial run and unnecessary public/API requests.
+`npm run smoke:recording` enables both strict requirements directly, so it is the preferred final command.
 
 The OpenTUI console remains available for local operator use:
 

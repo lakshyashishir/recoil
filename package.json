@@ -15,6 +15,7 @@
     "doctor": "node --env-file-if-exists=.env scripts/doctor.mjs",
     "verify": "node scripts/verify.js",
     "smoke:real": "node --env-file-if-exists=.env scripts/smoke-real.mjs",
+    "smoke:recording": "node --env-file-if-exists=.env scripts/smoke-real.mjs --strict",
     "tui": "bun run tui/index.tsx",
     "server": "node --env-file-if-exists=.env server/index.js"
   },

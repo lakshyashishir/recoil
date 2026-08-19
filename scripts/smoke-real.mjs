@@ -8,8 +8,9 @@ import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
 
 const query = process.env.RECOIL_SMOKE_QUERY || 'GHSA-434x-w66g-qw3r https://github.com/hydra-db/hydradb'
 const scenarioId = process.env.RECOIL_SMOKE_SCENARIO || `real-${Date.now()}`
-const requiredContrast = process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
-const requiredHydra = process.env.RECOIL_SMOKE_REQUIRE_HYDRA === '1' || requiredContrast
+const strictMode = process.argv.includes('--strict')
+const requiredContrast = strictMode || process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
+const requiredHydra = strictMode || process.env.RECOIL_SMOKE_REQUIRE_HYDRA === '1' || requiredContrast
 const receiptPath = process.env.RECOIL_SMOKE_RECEIPT || `.recoil-recordings/${scenarioId}.json`
 
 function print(label, value) {
