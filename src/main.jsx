@@ -391,6 +391,25 @@ function SharedResolution({ correlations = [] }) {
   </section>
 }
 
+function routeActionLabel(finding, challenge, historical) {
+  if (historical) return 'Historical evidence'
+  if (challenge?.status === 'FIX_SURVIVES') return `Upgrade to ${challenge.proposedVersion}`
+  if (challenge?.status === 'MANIFEST_CHANGE_REQUIRED') return `Change manifest to ${challenge.proposedVersion}`
+  if (challenge?.status === 'NO_REACHABLE_PATH') return `Refresh to ${challenge.proposedVersion}`
+  if (challenge?.status === 'ALREADY_SAFE') return 'No version change required'
+  if (finding?.verdict === 'REACHED') return 'Review fix proof'
+  if (finding?.verdict === 'DECLARED_ONLY') return 'Review dependency declaration'
+  if (finding?.verdict === 'NOT_AFFECTED') return 'No action from this case'
+  return 'Complete evidence'
+}
+
+function routeEvidenceLabel(finding) {
+  if (finding?.verdict === 'REACHED') return `${finding.imports?.length || 0} sampled import${finding.imports?.length === 1 ? '' : 's'} found`
+  if (finding?.verdict === 'DECLARED_ONLY') return 'present in lockfile; no sampled import'
+  if (finding?.verdict === 'NOT_AFFECTED') return 'resolved outside affected range'
+  return 'evidence needs review'
+}
+
 function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false, onInspectProof }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   const selected = findings[selectedIndex] || findings[0]
@@ -422,7 +441,7 @@ function RouteList({ findings, selectedIndex, onSelect, challenges = [], correla
     <div className="route-list">
       {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
         <span className="route-index">0{index + 1}</span>
-        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'}</small><em>{finding.verdict === 'REACHED' ? `${finding.imports?.length || 0} sampled import${finding.imports?.length === 1 ? '' : 's'} found` : finding.verdict === 'DECLARED_ONLY' ? 'present in lockfile; no sampled import' : finding.verdict === 'NOT_AFFECTED' ? 'resolved outside affected range' : 'evidence needs review'}</em></span>
+        <span className="route-item-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'}</small><em><b>{routeActionLabel(finding, challenges.find((item) => item.repository === finding.repository), historical)}</b> · {routeEvidenceLabel(finding)}</em></span>
         <Verdict value={finding.verdict} compact />
       </button>)}
     </div>
@@ -813,14 +832,18 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     setActiveTab('history')
     window.requestAnimationFrame(() => document.getElementById('case-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
+  const changeTab = (tab) => {
+    setActiveTab(tab)
+    window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
     <EvidenceLedger report={report} />
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={openHistory} />
-    <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
+    <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel">
-      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /></>}
+      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => onRewind(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={onRewind} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
