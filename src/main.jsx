@@ -121,7 +121,7 @@ function EventStream({ events = [] }) {
     <div className="event-list">
       {events.map((event) => <article className={`event-row event-${event.status}`} key={event.id || event.key}>
         <div className="event-status"><StatusIcon status={event.status} /></div>
-        <div className="event-copy"><div className="event-title"><strong>{event.title}</strong>{event.repository && <span>{event.repository}</span>}</div><p>{event.detail}</p>{event.sourceUrls?.[0] && <SourceLink href={event.sourceUrls[0]} />}</div>
+        <div className="event-copy"><div className="event-title"><strong>{event.title}</strong>{event.repository && <span>{event.repository}</span>}</div><p>{event.detail}</p>{event.graphProgress && <span className="event-evidence-count">{event.graphProgress.completedRepositories}/{event.graphProgress.totalRepositories} repositories mapped · {event.graph?.nodes?.length || 0} nodes · {event.graph?.edges?.length || 0} edges</span>}{event.sourceUrls?.[0] && <SourceLink href={event.sourceUrls[0]} />}</div>
         {event.status === 'working' && <span className="event-now">now</span>}
       </article>)}
     </div>
@@ -286,7 +286,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
           })}
         </g>
       </svg>
-      <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-declared" /> declared only</span><span><i className="legend-dot legend-safe" /> safe</span></div>
+      <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-declared" /> declared only</span><span><i className="legend-dot legend-safe" /> safe</span><span className="map-direction">arrows follow the evidence</span></div>
     </div>
   </section>
 }
@@ -419,8 +419,9 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
 
 function RunningView({ snapshot }) {
   const investigation = snapshot?.investigation
-  const graphReport = { graph: snapshot?.graph || investigation?.evidence?.graph || { nodes: [], edges: [] }, repositories: investigation?.report?.repositories || [] }
   const events = investigation?.events || []
+  const graph = snapshot?.graph?.nodes?.length ? snapshot.graph : investigation?.graph || investigation?.evidence?.graph || { nodes: [], edges: [] }
+  const graphReport = { graph, repositories: investigation?.report?.repositories || [] }
   return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>Building the proof.</h1><p>Recoil is reading public records and adding only observed relationships to the case.</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live /><div className="live-workspace"><EventStream events={events} /><EvidenceMap report={graphReport} events={events} live /></div></main>
 }
 

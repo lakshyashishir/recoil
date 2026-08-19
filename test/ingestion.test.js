@@ -226,6 +226,11 @@ test('multi-repository ingestion computes real evidence contrast without synthet
     assert.equal(report.graph.nodes.some((node) => node.label === 'customer database'), false)
     assert.equal(ingestion.repositories.every((item) => !('impactCandidates' in item.manifest.codeGraph)), true)
     assert.ok(events.some((event) => event.key === 'classification' && event.status === 'complete'))
+    const graphEvents = events.filter((event) => event.graph)
+    assert.ok(graphEvents.length >= 2)
+    assert.equal(graphEvents[0].graphProgress.completedRepositories, 0)
+    assert.equal(graphEvents.at(-1).graphProgress.completedRepositories, 3)
+    assert.ok(graphEvents.at(-1).graph.edges.some(([from, to]) => from === 'lock:example/reached@fixture-ref:package-lock.json' && to === 'repo:example/reached@fixture-ref'))
   } finally {
     globalThis.fetch = previousFetch
     if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR

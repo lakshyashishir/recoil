@@ -308,9 +308,12 @@ function graphPredicate(from, to) {
   const pair = `${from?.type || ''}:${to?.type || ''}`
   if (pair === 'advisory:package') return 'AFFECTS'
   if (pair === 'package:package') return 'DEPENDS_ON'
+  if (pair === 'package:lockfile') return 'RESOLVED_IN'
   if (pair === 'package:repository') return 'RESOLVED_IN'
   if (pair === 'repository:lockfile') return 'HAS_LOCKFILE'
+  if (pair === 'lockfile:repository') return 'BELONGS_TO'
   if (pair === 'lockfile:code') return 'IMPORTS'
+  if (pair === 'repository:code') return 'CONTAINS_SOURCE'
   if (pair === 'code:symbol') return 'INDEXES_SYMBOL'
   return 'CONNECTED_TO'
 }

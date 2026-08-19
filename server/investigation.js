@@ -13,6 +13,8 @@ function pushEvent(state, event) {
     ...event,
   }
   state.events = previous ? state.events.map((item) => item.key === event.key ? next : item) : [...state.events, next]
+  if (event.graph) state.graph = event.graph
+  if (event.graphProgress) state.graphProgress = event.graphProgress
   state.step = event.key
   return next
 }

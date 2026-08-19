@@ -294,6 +294,8 @@ export function createInvestigationState(query = '') {
     query,
     step: 'idle',
     events: [],
+    graph: { nodes: [], edges: [] },
+    graphProgress: { completedRepositories: 0, totalRepositories: 0 },
     evidence: null,
     report: null,
     hydra: { status: 'not_started', memoryCount: 0 },

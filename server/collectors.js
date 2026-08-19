@@ -1017,13 +1017,43 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
     const queried = await collectAdvisories(requestedPackage, input.advisoryId, 'npm').catch((error) => ({ collector: 'advisory-resolver', status: 'failed', error: error.message }))
     advisory = queried.targetAdvisory ? { ...queried.targetAdvisory, sourceUrl: queried.sourceUrl } : null
   }
-  onProgress({ type: 'step', key: 'public-records', status: 'complete', title: 'Public records ready', detail: advisory?.id ? `${advisory.id} · ${advisory.published ? `published ${advisory.published.slice(0, 10)}` : 'publication date unavailable'}` : 'No advisory identifier was supplied; repository evidence will be marked accordingly.', sourceUrls: [advisory?.sourceUrl].filter(Boolean) })
+  const graphAdvisoryId = input.advisoryId || advisory?.id || 'advisory'
+  const graphPackageName = requestedPackage || advisoryPackage || null
+  onProgress({
+    type: 'step',
+    key: 'public-records',
+    status: 'complete',
+    title: 'Public records ready',
+    detail: advisory?.id ? `${advisory.id} · ${advisory.published ? `published ${advisory.published.slice(0, 10)}` : 'publication date unavailable'}` : 'No advisory identifier was supplied; repository evidence will be marked accordingly.',
+    sourceUrls: [advisory?.sourceUrl].filter(Boolean),
+    graph: buildObservedGraph({ advisoryId: graphAdvisoryId, packageName: graphPackageName, repositoryFindings: [] }),
+    graphProgress: { completedRepositories: 0, totalRepositories: repositories.length },
+  })
+  const completedRepositoryResults = []
   const repositoryResults = await Promise.all(repositories.map(async (repository) => {
     const repositoryId = repositoryEvidenceId(repository)
     onProgress({ type: 'repository', key: `repository:${repositoryId}`, status: 'working', title: `Reading ${repositoryId}`, detail: 'Reading manifest, lockfile, and bounded source imports. Nothing is installed.', repository: repositoryId })
     try {
       const result = await collectRepository(repository, requestedPackage)
-      onProgress({ type: 'repository', key: `repository:${repositoryId}`, status: 'complete', title: `${repositoryId} read`, detail: `${result.manifest?.lockfile || 'no lockfile'} · ${result.manifest?.codeGraph?.fileCount || 0} sampled source files`, repository: repositoryId, sourceUrls: [result.sourceUrl].filter(Boolean) })
+      completedRepositoryResults.push(result)
+      const partialPackage = graphPackageName || result.inferredPackage || null
+      const partialFindings = completedRepositoryResults.map((completed) => classifyRepository({
+        repository: completed,
+        packageName: partialPackage,
+        advisory,
+        advisoryId: graphAdvisoryId,
+      }))
+      onProgress({
+        type: 'repository',
+        key: `repository:${repositoryId}`,
+        status: 'complete',
+        title: `${repositoryId} read`,
+        detail: `${result.manifest?.lockfile || 'no lockfile'} · ${result.manifest?.codeGraph?.fileCount || 0} sampled source files`,
+        repository: repositoryId,
+        sourceUrls: [result.sourceUrl].filter(Boolean),
+        graph: buildObservedGraph({ advisoryId: graphAdvisoryId, packageName: partialPackage, repositoryFindings: partialFindings }),
+        graphProgress: { completedRepositories: completedRepositoryResults.length, totalRepositories: repositories.length },
+      })
       return result
     } catch (error) {
       onProgress({ type: 'repository', key: `repository:${repositoryId}`, status: 'failed', title: `${repositoryId} unavailable`, detail: error.message, repository: repositoryId })

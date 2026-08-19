@@ -95,7 +95,9 @@ test('observed graph contains only advisory, repository, lockfile, and source ev
   const graph = buildObservedGraph({ advisoryId: advisory.id, packageName: 'minimist', repositoryFindings: [finding] })
 
   assert.equal(graph.nodes.some((node) => node.label === 'customer database'), false)
-  assert.ok(graph.edges.some(([from, to]) => from === `lock:example/app:package-lock.json` && to.includes('code:example/app:src/cli.js')))
+  assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.5' && to === 'lock:example/app:package-lock.json'))
+  assert.ok(graph.edges.some(([from, to]) => from === 'lock:example/app:package-lock.json' && to === 'repo:example/app'))
+  assert.ok(graph.edges.some(([from, to]) => from === 'repo:example/app' && to === 'code:example/app:src/cli.js'))
 })
 
 test('dependency path follows nested lockfile resolution and declines ambiguous fallback', () => {
@@ -158,8 +160,8 @@ test('observed graph retains every resolved package version', () => {
   const graph = buildObservedGraph({ advisoryId: advisory.id, packageName: 'minimist', repositoryFindings: [finding] })
   assert.ok(graph.nodes.some((node) => node.id === 'package:minimist@1.2.5'))
   assert.ok(graph.nodes.some((node) => node.id === 'package:minimist@1.2.6'))
-  assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.5' && to === 'repo:example/app'))
-  assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.6' && to === 'repo:example/app'))
+  assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.5' && to === 'lock:example/app:package-lock.json'))
+  assert.ok(graph.edges.some(([from, to]) => from === 'package:minimist@1.2.6' && to === 'lock:example/app:package-lock.json'))
 })
 
 test('advisory symbol suggestions are attached only after exact source validation', () => {

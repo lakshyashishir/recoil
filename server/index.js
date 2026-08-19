@@ -41,7 +41,7 @@ async function body(req) {
 function investigationSnapshot(record) {
   const investigation = record.investigation
   const evidence = investigation?.evidence || record.ingestion || { status: 'not_started', collectors: [] }
-  const graph = evidence.graph || { nodes: [], edges: [] }
+  const graph = evidence.graph || investigation?.graph || record.graph || { nodes: [], edges: [] }
   const collectors = new Map((evidence.collectors || []).map((collector) => [collector.collector, collector]))
   const sourceStatus = (collectorName) => collectors.get(collectorName)?.status
     || (investigation?.status === 'running' || investigation?.status === 'finalizing' ? 'working' : 'ready')
@@ -49,6 +49,7 @@ function investigationSnapshot(record) {
     id: record.id,
     scenario: { id: record.id, query: record.query, mode: 'evidence' },
     graph,
+    graphProgress: investigation?.graphProgress || { completedRepositories: 0, totalRepositories: 0 },
     events: investigation?.events || [],
     state: { status: investigation?.status || 'idle', step: investigation?.step || 'idle' },
     ingestion: evidence,
