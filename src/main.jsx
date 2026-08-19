@@ -539,6 +539,13 @@ function routeEvidenceLabel(finding) {
   return 'evidence needs review'
 }
 
+function citedProofLabel(finding) {
+  const proof = finding?.proof || []
+  if (!proof.length) return 'No cited path'
+  const cited = proof.filter((step) => ['observed', 'validated'].includes(step.status) && step.source).length
+  return `${cited}/${proof.length} cited hops`
+}
+
 function sourceCoverageLabel(finding) {
   if (finding?.sourceSampleSize == null && finding?.sourceCandidateCount == null) return null
   const sampled = Number(finding.sourceSampleSize || 0)
@@ -1183,7 +1190,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
       : `${finding.packageName} ${currentVersion} → ${proposedVersion}`
     : 'No advisory-backed version change established'
   return <section className="evidence-trace" aria-label="Source-backed evidence trace">
-    <div className="evidence-trace-heading"><div><span className="section-kicker">Selected route</span><h2>{title}</h2><p>{detail}</p></div><Verdict value={finding.verdict} /></div>
+    <div className="evidence-trace-heading"><div><span className="section-kicker">Selected route</span><h2>{title}</h2><p>{detail}</p></div><div className="evidence-trace-heading-status"><span>{citedProofLabel(finding)}</span><Verdict value={finding.verdict} /></div></div>
     <div className="evidence-trace-proof-grid">
       <article className="evidence-trace-proof evidence-trace-source">
         <span className="section-kicker">Source evidence</span>
