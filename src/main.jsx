@@ -1034,6 +1034,14 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   const primaryChallenge = challenges.find((item) => item.repository === primaryFinding?.repository)
   const suggestedCommand = primaryChallenge?.status === 'FIX_SURVIVES' ? packageFixCommand(primaryFinding, primaryChallenge) : null
   const importer = primaryFinding?.imports?.[0]
+  const proofFinding = primaryFinding || findings[0]
+  const proofImporter = proofFinding?.imports?.[0]
+  const proofSource = proofImporter?.sourceUrl || proofFinding?.lockfileSource || proofFinding?.evidenceSources?.[0]
+  const proofRoute = proofFinding
+    ? proofFinding.verdict === 'REACHED'
+      ? `${repositoryName(proofFinding.repository)} · ${proofImporter ? `${proofImporter.path}${proofImporter.line ? `:${proofImporter.line}` : ''}` : 'sampled source'}`
+      : `${repositoryName(proofFinding.repository)} · ${routeEvidenceLabel(proofFinding)}`
+    : null
   const repositoryWord = (count) => count === 1 ? 'repository' : 'repositories'
   const evidenceBasis = `${reached.length} reached · ${declaredOnly.length} declared only · ${notAffected.length} outside range${unknown.length ? ` · ${unknown.length} needs review` : ''}`
 
@@ -1061,7 +1069,7 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   return <section className={`case-decision-callout ${historical ? 'case-decision-callout-historical' : ''}`} aria-label="Case decision">
     <div className="case-decision-label"><span className="section-kicker">Decision</span><span>from collected evidence</span></div>
     <div className="case-decision-copy"><h2>{title}</h2><p>{detail}</p></div>
-    <div className="case-decision-meta"><span>Evidence basis</span><strong>{evidenceBasis}</strong>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}{suggestedCommand && <CopyFixCommand command={suggestedCommand} />}</div>
+    <div className="case-decision-meta">{proofRoute && <div className="case-decision-route"><span>Primary evidence</span><strong>{proofRoute}</strong><small>{citedProofLabel(proofFinding)}{sourceCoverageLabel(proofFinding) ? ` · ${sourceCoverageLabel(proofFinding)}` : ''}</small>{proofSource && <SourceLink href={proofSource}>Open evidence</SourceLink>}</div>}<span>Evidence basis</span><strong>{evidenceBasis}</strong>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}{suggestedCommand && <CopyFixCommand command={suggestedCommand} />}</div>
   </section>
 }
 
