@@ -1,4 +1,4 @@
-import { compareVersions, versionAffectedByAdvisory } from './evidence.js'
+import { buildObservedGraph, compareVersions, versionAffectedByAdvisory } from './evidence.js'
 import { buildEvidenceQuality } from './validation.js'
 import { summarizeGraphContext } from './graph-context.js'
 
@@ -111,7 +111,16 @@ function buildProofChain(finding, advisory) {
 function findingAsOf(finding, asOf) {
   const observedAt = dateOrNull(finding.pathObservedAt)
   if (observedAt && new Date(observedAt) > new Date(asOf)) {
-    return { ...finding, verdict: 'NOT_YET_OBSERVED', reason: `The relevant lockfile/source evidence was first observed after ${asOf.slice(0, 10)}.`, asOf }
+    return {
+      ...finding,
+      verdict: 'NOT_YET_OBSERVED',
+      reason: `The relevant lockfile/source evidence was first observed after ${asOf.slice(0, 10)}.`,
+      imports: [],
+      dependencyPath: [],
+      changeEvidence: null,
+      path: [finding.advisoryId || 'advisory', finding.repository || 'repository'],
+      asOf,
+    }
   }
   return { ...finding, asOf }
 }
@@ -220,6 +229,11 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
     exposureDays: daysBetween(dateOrNull(finding.pathObservedAt), advisoryPublishedAt),
   })).map((finding) => ({ ...finding, proof: buildProofChain(finding, advisory) }))
   const rewindFindings = currentFindings.map((finding) => findingAsOf(finding, requestedAsOf))
+  const rewindGraph = buildObservedGraph({
+    advisoryId: advisory?.id || ingestion?.target?.advisoryId || 'advisory',
+    packageName: ingestion?.package || null,
+    repositoryFindings: rewindFindings.filter((finding) => finding.verdict !== 'NOT_YET_OBSERVED'),
+  })
   const challenge = currentFindings.map((finding) => challengeFinding(finding, advisory))
   const reached = currentFindings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = currentFindings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
@@ -261,6 +275,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       currentAsOf,
       advisoryPublic: advisoryPublishedAt ? new Date(requestedAsOf) >= new Date(advisoryPublishedAt) : null,
       findings: rewindFindings,
+      graph: rewindGraph,
       beforeAdvisory: advisoryPublishedAt ? new Date(new Date(advisoryPublishedAt).getTime() - 86400000).toISOString() : null,
     },
     summary: {

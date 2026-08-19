@@ -98,6 +98,14 @@ test('investigation report makes a transitive lockfile hop a cited proof step', 
   assert.equal(dependency.source, 'https://github.com/example/reached/blob/HEAD/package-lock.json')
 })
 
+test('historical rewind rebuilds the graph and removes evidence observed later', () => {
+  const historical = buildInvestigationReport(baseEvidence, { asOf: '2020-01-01T00:00:00Z' })
+  assert.equal(historical.rewind.findings[0].verdict, 'NOT_YET_OBSERVED')
+  assert.deepEqual(historical.rewind.findings[0].imports, [])
+  assert.deepEqual(historical.rewind.graph.nodes.map((node) => node.type), ['advisory'])
+  assert.deepEqual(historical.rewind.graph.edges, [])
+})
+
 test('HydraDB rewind context is summarized without replacing local verdicts', () => {
   const report = buildInvestigationReport(baseEvidence)
   const attached = attachHydraRewind(report, {

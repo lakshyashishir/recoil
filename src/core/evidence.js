@@ -322,7 +322,7 @@ export function buildObservedGraph({ advisoryId, packageName, repositoryFindings
   for (const finding of repositoryFindings) {
     const repoId = `repo:${finding.repository}`
     const evidencePath = finding.path || []
-    const lockfileLabel = evidencePath[2] || evidencePath[3] || 'unknown'
+    const lockfileLabel = evidencePath.find((part) => /(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|cargo\.lock)$/i.test(String(part))) || evidencePath[2] || evidencePath[3] || 'unknown'
     const lockId = `lock:${finding.repository}:${lockfileLabel}`
     const resolvedVersions = [...new Set(finding.resolvedVersions || [finding.resolvedVersion].filter(Boolean))]
     const packageVersions = resolvedVersions.length
@@ -358,6 +358,12 @@ export function buildObservedGraph({ advisoryId, packageName, repositoryFindings
       const codeId = `code:${finding.repository}:${item.path}`
       nodes.push({ id: codeId, label: item.path, type: 'code', sourceUrl: item.sourceUrl })
       edges.push([repoId, codeId])
+    }
+    for (const symbol of finding.advisoryScope?.symbols || []) {
+      const codeId = `code:${finding.repository}:${symbol.path}`
+      const symbolId = `symbol:${finding.repository}:${symbol.path}:${symbol.line}:${symbol.name}`
+      nodes.push({ id: symbolId, label: `${symbol.name} · ${symbol.path}:${symbol.line}`, type: 'symbol', sourceUrl: symbol.sourceUrl || null })
+      edges.push([codeId, symbolId])
     }
   }
   return { nodes: [...new Map(nodes.map((node) => [node.id, node])).values()], edges: [...new Set(edges.map((edge) => edge.join('>')))].map((edge) => edge.split('>')), packageName }

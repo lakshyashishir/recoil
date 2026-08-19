@@ -400,6 +400,19 @@ function ReceiptLink() {
   return <a className="receipt-link" href={`/api/scenarios/${SCENARIO_ID}/receipt`} download="recoil-evidence-receipt.json"><Download size={14} /> Download receipt</a>
 }
 
+function summarizeFindings(findings = []) {
+  const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
+  const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY').length
+  const notAffected = findings.filter((finding) => finding.verdict === 'NOT_AFFECTED').length
+  return {
+    totalRepositories: findings.length,
+    reached,
+    declaredOnly,
+    notAffected,
+    unknown: findings.length - reached - declaredOnly - notAffected,
+  }
+}
+
 function CaseNavigator({ finding }) {
   if (!finding) return null
   const jumpTo = (id) => {
@@ -421,20 +434,24 @@ function CaseNavigator({ finding }) {
 
 function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const findings = report?.repositories || []
+  const historical = Boolean(report?.rewind?.asOf && report?.rewind?.currentAsOf && report.rewind.asOf !== report.rewind.currentAsOf)
+  const findings = historical ? report?.rewind?.findings || report?.repositories || [] : report?.repositories || []
   const selectedFinding = findings[selectedIndex] || findings[0]
-  const challenge = report?.challenge?.find((item) => item.repository === selectedFinding?.repository)
-  const summary = report?.summary || {}
+  const challenge = historical ? null : report?.challenge?.find((item) => item.repository === selectedFinding?.repository)
+  const summary = historical ? summarizeFindings(findings) : report?.summary || {}
   const recordingReady = report?.evidenceQuality?.readyForRecording
   const total = summary.totalRepositories || findings.length
-  const headline = summary.unknown ? `${summary.unknown} of ${total} repositories need review.` : summary.reached ? `${summary.reached} of ${total} repositories expose the path.` : 'No repository exposes the path.'
+  const historicalDate = report?.rewind?.asOf?.slice(0, 10)
+  const headline = historical
+    ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `${summary.reached} of ${total} repositories still exposed the path by ${historicalDate}.` : 'No repository exposed the path at this date.'
+    : summary.unknown ? `${summary.unknown} of ${total} repositories need review.` : summary.reached ? `${summary.reached} of ${total} repositories expose the path.` : 'No repository exposes the path.'
   const summaryLine = report?.advisory?.summary ? `${report.advisory.summary} · ${report.package || 'package identity unavailable'}` : `The report compares ${report.package || 'the affected package'} across the collected repositories.`
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
   return <main className="case-page">
-    <section className="case-hero"><div><span className="section-kicker">Evidence report</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
-    <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{summary.fixSurvives || 0}</strong><span>fixes verified</span></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
+    <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : 'fixes verified'}</span></div></section>
     <CaseNavigator finding={selectedFinding} />
-    <div className="case-workspace" id="case-graph"><EvidenceMap report={report} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
+    <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
     <RouteProof finding={selectedFinding} challenge={challenge} />
     <TemporalProof report={report} onRewind={onRewind} />
     <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />
