@@ -649,6 +649,7 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-navigator-links button:hover, .case-navigator-links button:focus-visible { color: var(--text); background: var(--surface-raised); outline: none; }
 .case-navigator-links button:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
 .case-tab-panel { min-height: 420px; }
+.case-tab-panel, #case-proof, #case-history { scroll-margin-top: 126px; }
 .case-tab-panel > .route-proof, .case-tab-panel > .temporal-proof, .case-tab-panel > .integrity-details { margin-top: 0; }
 
 .case-chronology { margin: 0 0 22px; padding: 17px 0 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }

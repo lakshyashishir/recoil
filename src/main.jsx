@@ -819,7 +819,7 @@ function CaseNavigator({ finding, activeTab, onTabChange }) {
   return <nav className="case-navigator" aria-label="Case views">
     <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
-      {tabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-controls="case-tab-panel" aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'active' : ''} onClick={() => onTabChange(tab.id)}>{tab.label}</button>)}
+      {tabs.map((tab) => <button key={tab.id} id={`case-tab-${tab.id}`} type="button" role="tab" aria-controls="case-tab-panel" aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'active' : ''} onClick={() => onTabChange(tab.id)}>{tab.label}</button>)}
     </div>
   </nav>
 }
@@ -867,7 +867,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={openHistory} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
-    <div className="case-tab-panel" id="case-tab-panel" role="tabpanel">
+    <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => onRewind(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={onRewind} /></>}
