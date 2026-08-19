@@ -15,7 +15,15 @@ test('recording blockers accept a complete contrast with HydraDB temporal recall
     evidenceQuality: { readyForRecording: true, reason: 'complete' },
     repositories: [{ verdict: 'REACHED' }, { verdict: 'DECLARED_ONLY' }, { verdict: 'NOT_AFFECTED' }],
   }
-  assert.deepEqual(recordingBlockers({ report, evidenceStatus: 'completed', hydra: { status: 'persisted', memoryCount: 4, sourceIds: ['a', 'b', 'c', 'd'], recall: { status: 'recalled', datedChunkCount: 2 } }, requireContrast: true, requireHydra: true }), [])
+  assert.deepEqual(recordingBlockers({ report, evidenceStatus: 'completed', hydra: { status: 'persisted', memoryCount: 4, sourceIds: ['a', 'b', 'c', 'd'], recall: { status: 'recalled', datedChunkCount: 2, graphContext: { triplets: [{ source: 'package', predicate: 'RESOLVED_IN', target: 'repository' }] } } }, requireContrast: true, requireHydra: true }), [])
+})
+
+test('recording blockers reject a HydraDB read without graph triplets', () => {
+  const report = {
+    evidenceQuality: { readyForRecording: true, reason: 'complete' },
+    repositories: [{ verdict: 'REACHED' }, { verdict: 'DECLARED_ONLY' }, { verdict: 'NOT_AFFECTED' }],
+  }
+  assert.deepEqual(recordingBlockers({ report, evidenceStatus: 'completed', hydra: { status: 'persisted', memoryCount: 4, sourceIds: ['a', 'b', 'c', 'd'], recall: { status: 'recalled', datedChunkCount: 2, graphContext: { triplets: [] } } }, requireContrast: true, requireHydra: true }), ['HydraDB graph recall returned no triplets'])
 })
 
 test('recording blockers reject an empty HydraDB temporal read', () => {

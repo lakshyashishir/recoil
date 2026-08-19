@@ -124,6 +124,7 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     assert.equal(health.body.recordingContract.requiresHydraMemory, true)
     assert.equal(health.body.recordingContract.requiresHydraTemporalRecall, true)
     assert.equal(health.body.recordingContract.requiresDatedTemporalFact, true)
+    assert.equal(health.body.recordingContract.requiresHydraGraphContext, true)
     assert.equal(health.body.recordingContract.incompleteHydraWrites, false)
     assert.ok(health.body.capabilities.includes('per-hop-provenance'))
     assert.equal('legacyArenaAgents' in health.body, false)

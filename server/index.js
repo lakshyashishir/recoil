@@ -112,6 +112,7 @@ async function route(req, res) {
         requiresHydraMemory: true,
         requiresHydraTemporalRecall: true,
         requiresDatedTemporalFact: true,
+        requiresHydraGraphContext: true,
         incompleteHydraWrites: process.env.RECOIL_HYDRA_PERSIST_PARTIAL === '1',
       },
       capabilities: [

@@ -1,4 +1,5 @@
 import { hasIncompleteEvidence, missingRequiredVerdicts } from './validation.js'
+import { summarizeGraphContext } from './graph-context.js'
 
 export function recordingPreflight({ repositoryCount = 0, hydraConfigured = false, requireContrast = false, requireHydra = false } = {}) {
   const blockers = []
@@ -28,5 +29,7 @@ export function recordingBlockers({ report, evidenceStatus, hydra, requireContra
   }
   if (requireHydra && hydra?.recall?.status !== 'recalled') blockers.push(`HydraDB temporal read status is ${hydra?.recall?.status || 'not-run'}`)
   if (requireHydra && hydra?.recall?.status === 'recalled' && !(hydra.recall.datedChunkCount > 0)) blockers.push('HydraDB temporal recall returned no dated facts')
+  const hydraWriteComplete = hydra?.status === 'persisted' && hydra.memoryCount > 0 && Array.isArray(hydra.sourceIds) && hydra.sourceIds.length >= hydra.memoryCount
+  if (requireHydra && hydraWriteComplete && hydra?.recall?.status === 'recalled' && hydra.recall.datedChunkCount > 0 && !(summarizeGraphContext(hydra.recall.graphContext)?.triplets?.length > 0)) blockers.push('HydraDB graph recall returned no triplets')
   return [...new Set(blockers)]
 }

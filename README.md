@@ -194,10 +194,11 @@ credentials, or GitHub cache data are written to the artifact.
 
 Set `RECOIL_SMOKE_REQUIRE_CONTRAST=1` for the recording gate. In that mode the case must contain one
 `REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, and HydraDB must finish indexing and return
-a temporal recall, in addition to the normal completeness checks. Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you
-want to require the HydraDB write/read proof without requiring the three-way contrast. Strict modes fail before
-collection when the query has fewer than three GitHub repositories or the required HydraDB credentials are
-missing, avoiding a misleading partial run and unnecessary public/API requests.
+a temporal recall with at least one returned graph triplet, in addition to the normal completeness checks.
+Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you want to require the HydraDB write/read/graph proof without
+requiring the three-way contrast. Strict modes fail before collection when the query has fewer than three
+GitHub repositories or the required HydraDB credentials are missing, avoiding a misleading partial run and
+unnecessary public/API requests.
 
 The OpenTUI console remains available for local operator use:
 
