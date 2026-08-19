@@ -38,6 +38,9 @@ dependency scanners collapse into one alert:
 - **Cross-repository overlap:** when multiple repositories resolve the same package version, Recoil
   surfaces that observed overlap and stores it as a separate HydraDB correlation memory instead of
   hiding the blast-radius relationship inside a graph dump.
+- **Separate case sessions:** each browser submission creates a new case record, so a completed
+  investigation is never overwritten by the next one. Receipts and briefs follow that case ID,
+  while HydraDB keeps the durable cross-case history.
 
 This positions Recoil as a **cross-ecosystem reachability and remediation proof layer** for Track 2:
 Track 2A’s supply-chain blast radius is the entry point, while Cargo/Rust source proof, changed-symbol

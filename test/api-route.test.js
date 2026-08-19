@@ -61,6 +61,14 @@ test('API rejects a repository-only investigation before collection', async () =
   assert.match(result.body.error, /GHSA\/CVE advisory or package selector/)
 })
 
+test('API creates an isolated case session with a stable case ID', async () => {
+  const result = await request('POST', '/api/scenarios', { id: 'session-contract', query: 'GHSA-session-1234-5678 https://github.com/example/repository' })
+  assert.equal(result.statusCode, 201)
+  assert.equal(result.body.scenarioId, 'session-contract')
+  assert.equal(result.body.scenario.id, 'session-contract')
+  assert.equal(result.body.state.status, 'idle')
+})
+
 test('API route chain starts, completes, rewinds, and exports a receipt', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.OPENAI_API_KEY

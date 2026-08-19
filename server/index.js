@@ -157,7 +157,7 @@ async function route(req, res) {
   if (req.method === 'POST' && url.pathname === '/api/scenarios') {
     return body(req).then((payload) => {
       const id = payload.id || randomUUID().slice(0, 8)
-      return json(res, 201, snapshot(getOrCreate(id, payload)))
+      return json(res, 201, { scenarioId: id, ...snapshot(getOrCreate(id, payload)) })
     }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
   }
 

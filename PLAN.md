@@ -119,6 +119,8 @@ observed path → proposed fix → residual re-check
 - [x] Keep target npm lockfile entries outside the bounded prefix available for classification.
 - [x] Keep HydraDB searchable source metadata within its 1,024-byte cloud limit.
 - [x] Retain normalized HydraDB graph triplets in the recording smoke output.
+- [x] Give each browser submission its own case session so reports, receipts, and briefs are not
+      overwritten by the next investigation.
 
 ### Still required before calling the hackathon build complete
 

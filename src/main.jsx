@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Download, ExternalLink, FileCode2, FileText, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
 import './style.css'
 
-const SCENARIO_ID = '0017'
+const DEFAULT_SCENARIO_ID = '0017'
+const SCENARIO_STORAGE_KEY = 'recoil-case-id'
+const LANDING_STORAGE_KEY = 'recoil-new-case'
 const DEFAULT_INPUT = ''
 const INVESTIGATION_EXAMPLES = [
   {
@@ -21,6 +23,16 @@ const INVESTIGATION_EXAMPLES = [
 ]
 
 const THEME_STORAGE_KEY = 'recoil-theme'
+
+function initialScenarioId() {
+  if (typeof window === 'undefined') return DEFAULT_SCENARIO_ID
+  return window.localStorage.getItem(SCENARIO_STORAGE_KEY) || DEFAULT_SCENARIO_ID
+}
+
+function initialLanding() {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(LANDING_STORAGE_KEY) === '1'
+}
 
 function initialTheme() {
   if (typeof window === 'undefined') return 'light'
@@ -1101,12 +1113,12 @@ function IntegrityDetails({ report, hydra, evidenceStatus }) {
   return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.note || (scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.')}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of runtime execution.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
 }
 
-function ReceiptLink() {
-  return <a className="receipt-link" href={`/api/scenarios/${SCENARIO_ID}/receipt`} download="recoil-evidence-receipt.json"><Download size={14} /> Download receipt</a>
+function ReceiptLink({ scenarioId = DEFAULT_SCENARIO_ID }) {
+  return <a className="receipt-link" href={`/api/scenarios/${scenarioId}/receipt`} download="recoil-evidence-receipt.json"><Download size={14} /> Download receipt</a>
 }
 
-function BriefLink() {
-  return <a className="brief-link" href={`/api/scenarios/${SCENARIO_ID}/brief`} download="recoil-evidence-brief.md"><FileText size={14} /> Download case brief</a>
+function BriefLink({ scenarioId = DEFAULT_SCENARIO_ID }) {
+  return <a className="brief-link" href={`/api/scenarios/${scenarioId}/brief`} download="recoil-evidence-brief.md"><FileText size={14} /> Download case brief</a>
 }
 
 function summarizeFindings(findings = []) {
@@ -1392,7 +1404,7 @@ function CaseNavigator({ finding, activeTab, onTabChange }) {
   </nav>
 }
 
-function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
+function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
@@ -1472,7 +1484,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
-    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>source path found</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>listed, not imported</span></div><div><strong>{summary.notAffected || 0}</strong><span>already outside range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix proof' : 'fix proofs'}</span></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} />
     <TemporalSummaryStrip report={report} summary={summary} earliestReached={earliestReached} historical={historical} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} loading={historyLoading} />
@@ -1541,6 +1553,8 @@ function FailedView({ snapshot, onNewCase }) {
 
 function App() {
   const [input, setInput] = useState(DEFAULT_INPUT)
+  const [scenarioId, setScenarioId] = useState(initialScenarioId)
+  const [landing, setLanding] = useState(initialLanding)
   const [snapshot, setSnapshot] = useState(null)
   const [report, setReport] = useState(null)
   const [hydra, setHydra] = useState(null)
@@ -1551,10 +1565,15 @@ function App() {
   const investigation = snapshot?.investigation
 
   useEffect(() => {
+    window.localStorage.setItem(SCENARIO_STORAGE_KEY, scenarioId)
+  }, [scenarioId])
+
+  useEffect(() => {
     let active = true
-    api(`/api/scenarios/${SCENARIO_ID}`).then((next) => { if (active) setSnapshot(next) }).catch((cause) => { if (active) setError(`Recoil API unavailable. Start the app with npm run start. ${cause.message}`) })
+    if (landing) return undefined
+    api(`/api/scenarios/${scenarioId}`).then((next) => { if (active) setSnapshot(next) }).catch((cause) => { if (active) setError(`Recoil API unavailable. Start the app with npm run start. ${cause.message}`) })
     return () => { active = false }
-  }, [])
+  }, [landing, scenarioId])
 
   useEffect(() => {
     const activeStatus = snapshot?.investigation?.status
@@ -1564,7 +1583,7 @@ function App() {
     let cancelled = false
     const poll = async () => {
       try {
-        const next = await api(`/api/scenarios/${SCENARIO_ID}`)
+        const next = await api(`/api/scenarios/${scenarioId}`)
         if (cancelled) return
         setSnapshot(next)
         if (next.investigation?.status === 'complete' || next.investigation?.status === 'failed') {
@@ -1582,7 +1601,7 @@ function App() {
     }
     const timer = window.setTimeout(poll, 100)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [busy, snapshot?.investigation?.status])
+  }, [busy, scenarioId, snapshot?.investigation?.status])
 
   const activeReport = report || investigation?.report
   const hasInvestigation = Boolean(investigation && investigation.status !== 'idle')
@@ -1592,7 +1611,13 @@ function App() {
     if (!input.trim() || busy) return
     setBusy(true); setError(''); setReport(null); setHydra(null); setShowReportEarly(false)
     try {
-      const next = await api(`/api/scenarios/${SCENARIO_ID}/investigate`, { method: 'POST', body: JSON.stringify({ query: input.trim() }) })
+      const created = await api('/api/scenarios', { method: 'POST', body: JSON.stringify({ query: input.trim() }) })
+      const nextScenarioId = created.scenarioId || created.id || created.scenario?.id
+      if (!nextScenarioId) throw new Error('The API did not return a case ID')
+      window.localStorage.removeItem(LANDING_STORAGE_KEY)
+      setLanding(false)
+      setScenarioId(nextScenarioId)
+      const next = await api(`/api/scenarios/${nextScenarioId}/investigate`, { method: 'POST', body: JSON.stringify({ query: input.trim() }) })
       setSnapshot(next)
     } catch (cause) { setBusy(false); setError(cause.message) }
   }
@@ -1600,20 +1625,23 @@ function App() {
   async function rewind(asOf) {
     if (!activeReport || !asOf) return
     try {
-      const next = await api(`/api/scenarios/${SCENARIO_ID}/rewind`, { method: 'POST', body: JSON.stringify({ asOf }) })
+      const next = await api(`/api/scenarios/${scenarioId}/rewind`, { method: 'POST', body: JSON.stringify({ asOf }) })
       setReport(next.report)
       setHydra({ ...(investigation?.hydra || {}), recall: { ...next.hydra, chunkCount: next.hydra?.chunks?.length || 0 }, temporalRecall: next.hydra })
     } catch (cause) { setError(cause.message) }
   }
 
-  async function newInvestigation() {
-    try { await api(`/api/scenarios/${SCENARIO_ID}/reset`, { method: 'POST' }) } catch (cause) { setError(`Could not reset the case. ${cause.message}`); return }
-    setSnapshot(null); setReport(null); setHydra(null); setError(''); setInput(DEFAULT_INPUT); setShowReportEarly(false)
+  function newInvestigation() {
+    // A new case gets its own server-side record on the next submission. The
+    // completed case remains available in HydraDB instead of being destroyed
+    // by a UI reset.
+    window.localStorage.setItem(LANDING_STORAGE_KEY, '1')
+    setLanding(true); setSnapshot(null); setReport(null); setHydra(null); setError(''); setInput(DEFAULT_INPUT); setShowReportEarly(false); setBusy(false)
   }
 
   if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} theme={theme} onToggleTheme={toggleTheme} />
   const showReport = Boolean(activeReport && (isComplete || showReportEarly))
-  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{showReport ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /> : investigation?.status === 'failed' ? <FailedView snapshot={snapshot} onNewCase={newInvestigation} /> : <RunningView snapshot={snapshot} onOpenReport={() => setShowReportEarly(true)} />}{error && investigation?.status !== 'failed' && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
+  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{showReport ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} scenarioId={scenarioId} /> : investigation?.status === 'failed' ? <FailedView snapshot={snapshot} onNewCase={newInvestigation} /> : <RunningView snapshot={snapshot} onOpenReport={() => setShowReportEarly(true)} />}{error && investigation?.status !== 'failed' && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
 class AppBoundary extends Component {
