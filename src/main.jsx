@@ -318,7 +318,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
   </section>
 }
 
-function RouteList({ findings, selectedIndex, onSelect, challenges = [], historical = false }) {
+function RouteList({ findings, selectedIndex, onSelect, challenges = [], historical = false, onInspectProof }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   const selected = findings[selectedIndex] || findings[0]
   const selectedChallenge = challenges.find((item) => item.repository === selected?.repository)
@@ -344,7 +344,7 @@ function RouteList({ findings, selectedIndex, onSelect, challenges = [], histori
       <p>{selected.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
       <dl><div><dt>Resolved</dt><dd>{selected.resolvedVersions?.length > 1 ? selected.resolvedVersions.join(', ') : selected.resolvedVersion || 'not resolved'}</dd></div><div><dt>Source imports</dt><dd>{selected.imports?.length || 0}</dd></div></dl>
       <div className="route-selected-proof"><div><span>Source check</span><strong>{importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'No sampled import'}</strong></div><div><span>Fix check</span><strong>{challengeLabel}</strong></div></div>
-      <button className="route-selected-action" type="button" onClick={() => document.getElementById('case-proof')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })}>Inspect proof <ArrowUpRight size={13} /></button>
+      <button className="route-selected-action" type="button" onClick={onInspectProof}>Inspect proof <ArrowUpRight size={13} /></button>
     </div>}
     <div className="route-list">
       {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
@@ -492,27 +492,19 @@ function CaseConclusion({ report, findings, summary, historical }) {
   </section>
 }
 
-function CaseNavigator({ finding }) {
-  if (!finding) return null
-  const jumpTo = (id) => {
-    const element = document.getElementById(id)
-    if (!element) return
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    element.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' })
-  }
-  return <nav className="case-navigator" aria-label="Case sections">
-    <div className="case-navigator-selection"><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></div>
-    <div className="case-navigator-links">
-      <button type="button" onClick={() => jumpTo('case-graph')}>Graph</button>
-      <button type="button" onClick={() => jumpTo('case-proof')}>Proof</button>
-      <button type="button" onClick={() => jumpTo('case-history')}>History</button>
-      <button type="button" onClick={() => jumpTo('case-audit')}>Audit</button>
+function CaseNavigator({ finding, activeTab, onTabChange }) {
+  const tabs = [{ id: 'graph', label: 'Graph' }, { id: 'proof', label: 'Proof' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Audit' }]
+  return <nav className="case-navigator" aria-label="Case views">
+    <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
+    <div className="case-navigator-links" role="tablist" aria-label="Case views">
+      {tabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'active' : ''} onClick={() => onTabChange(tab.id)}>{tab.label}</button>)}
     </div>
   </nav>
 }
 
 function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [activeTab, setActiveTab] = useState('graph')
   const historical = Boolean(report?.rewind?.asOf && report?.rewind?.currentAsOf && report.rewind.asOf !== report.rewind.currentAsOf)
   const findings = historical ? report?.rewind?.findings || report?.repositories || [] : report?.repositories || []
   const selectedFinding = findings[selectedIndex] || findings[0]
@@ -530,11 +522,13 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : 'fixes verified'}</span></div></section>
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} />
-    <CaseNavigator finding={selectedFinding} />
-    <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} challenges={historical ? [] : report?.challenge || []} historical={historical} /></div>
-    <RouteProof finding={selectedFinding} challenge={challenge} />
-    <TemporalProof report={report} onRewind={onRewind} />
-    <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />
+    <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
+    <div className="case-tab-panel">
+      {activeTab === 'graph' && <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div>}
+      {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
+      {activeTab === 'history' && <TemporalProof report={report} onRewind={onRewind} />}
+      {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
+    </div>
   </main>
 }
 

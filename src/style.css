@@ -564,8 +564,11 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-navigator-selection strong { overflow: hidden; color: var(--text); font: 600 12px/1.2 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .case-navigator-links { display: flex; align-items: center; gap: 3px; }
 .case-navigator-links button { padding: 7px 9px; border-radius: 4px; color: var(--muted); background: transparent; font-size: 11px; }
+.case-navigator-links button.active { color: var(--text); background: var(--surface-raised); box-shadow: inset 0 -2px 0 var(--accent); }
 .case-navigator-links button:hover, .case-navigator-links button:focus-visible { color: var(--text); background: var(--surface-raised); outline: none; }
 .case-navigator-links button:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.case-tab-panel { min-height: 420px; }
+.case-tab-panel > .route-proof, .case-tab-panel > .temporal-proof, .case-tab-panel > .integrity-details { margin-top: 0; }
 
 @media (max-width: 720px) {
   .case-navigator { top: 89px; align-items: flex-start; flex-direction: column; gap: 6px; padding: 10px 0; }
