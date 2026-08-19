@@ -223,7 +223,8 @@ the doctor reports `ENOTFOUND` for OSV, GitHub, or HydraDB, the recording gate m
 returns; cached or partial evidence is never promoted to a recording receipt. Strict recording also performs a
 bounded connectivity preflight before collection, so a disconnected run exits without spending collector or
 HydraDB requests. There is no bypass for this preflight in strict mode; use the non-strict `smoke:real` command
-for local diagnostics or replay work.
+for local diagnostics or replay work. The CLI's `--recording` mode performs the same connectivity preflight
+before starting the API-backed investigation.
 
 The OpenTUI console remains available for local operator use:
 
