@@ -1095,7 +1095,6 @@ function traceKind(part, index, finding) {
 
 function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
   if (!finding) return null
-  const parts = findingParts(finding)
   const title = finding.verdict === 'REACHED'
     ? 'A source-backed route exists'
     : finding.verdict === 'DECLARED_ONLY'
@@ -1107,7 +1106,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
   const fixTitle = historical
     ? 'Current fix proof is hidden in this view'
     : challenge?.status === 'FIX_SURVIVES'
-      ? `${finding.packageName} ${finding.resolvedVersion || 'current'} → ${challenge.proposedVersion}`
+      ? 'The proposed version cuts the path'
       : challenge?.status === 'ALREADY_SAFE'
         ? 'No version change required'
         : challenge?.status === 'NO_REACHABLE_PATH'
@@ -1119,24 +1118,46 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
     ? 'Return to Current evidence to inspect remediation against the present lockfile.'
     : challenge?.detail || 'The advisory did not provide enough evidence for a fix proof.'
   const verified = challenge?.status === 'FIX_SURVIVES' || challenge?.status === 'ALREADY_SAFE'
+  const importer = finding.imports?.[0]
+  const importCount = finding.imports?.length || 0
+  const sourceTitle = finding.verdict === 'REACHED'
+    ? `${importCount} sampled import site${importCount === 1 ? '' : 's'}`
+    : finding.verdict === 'DECLARED_ONLY'
+      ? 'No sampled import'
+      : finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'Resolution unavailable'
+  const sourceDetail = finding.verdict === 'REACHED'
+    ? importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'The source location was not collected.'
+    : finding.verdict === 'DECLARED_ONLY'
+      ? 'The affected package is present in the lockfile, but no sampled source file imports it.'
+      : finding.verdict === 'NOT_AFFECTED'
+        ? 'The resolved version is outside the advisory’s affected ranges.'
+        : 'The available source evidence needs review.'
+  const sourceUrl = importer?.sourceUrl || finding.lockfileSource || finding.evidenceSources?.[0]
+  const currentVersion = finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'
+  const proposedVersion = challenge?.proposedVersion
+  const fixVersionLine = proposedVersion
+    ? challenge?.status === 'ALREADY_SAFE'
+      ? `${finding.packageName} ${currentVersion} · no change required`
+      : `${finding.packageName} ${currentVersion} → ${proposedVersion}`
+    : 'No advisory-backed version change established'
   return <section className="evidence-trace" aria-label="Source-backed evidence trace">
     <div className="evidence-trace-heading"><div><span className="section-kicker">Selected route</span><h2>{title}</h2><p>{detail}</p></div><Verdict value={finding.verdict} /></div>
-    <div className="trace-path" aria-label="Observed evidence hops">
-      {parts.map((part, index) => {
-        const source = traceSourceForPart(part, finding)
-        const kind = traceKind(part, index, finding)
-        return <div className="trace-hop-wrap" key={`${part}-${index}`}>
-          <article className={`trace-hop trace-hop-${kind}`}>
-            <span className="trace-hop-index">0{index + 1}</span>
-            <span className="trace-hop-kind">{kind}</span>
-            <strong>{shorten(routeDisplayPart(part, finding), 33)}</strong>
-            {source ? <SourceLink href={source} /> : <span className="trace-source-missing">not collected</span>}
-          </article>
-          {index < parts.length - 1 && <span className="trace-arrow" aria-hidden="true">→</span>}
-        </div>
-      })}
+    <div className="evidence-trace-proof-grid">
+      <article className="evidence-trace-proof evidence-trace-source">
+        <span className="section-kicker">Source evidence</span>
+        <strong>{sourceTitle}</strong>
+        <code>{sourceDetail}</code>
+        {importer?.snippet && <pre>{importer.snippet}</pre>}
+        {sourceUrl ? <SourceLink href={sourceUrl}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink> : <span className="trace-source-missing">source citation unavailable</span>}
+      </article>
+      <article className="evidence-trace-proof evidence-trace-fix">
+        <span className="section-kicker">Fix check</span>
+        <strong>{fixTitle}</strong>
+        <code>{fixVersionLine}</code>
+        <p>{fixDetail}</p>
+        <div className="trace-defense-actions"><span className={`trace-fix-status ${verified ? 'is-verified' : ''}`}>{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : historical ? 'historical view' : 'review required'}</span>{!historical && <button className="case-proof-link" type="button" onClick={onInspectProof}>Open fix details <ArrowUpRight size={13} /></button>}</div>
+      </article>
     </div>
-    <div className="trace-defense"><div><span className="section-kicker">Fix check</span><strong>{fixTitle}</strong><p>{fixDetail}</p></div><div className="trace-defense-actions"><span className={`trace-fix-status ${verified ? 'is-verified' : ''}`}>{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : historical ? 'historical view' : 'review required'}</span>{!historical && <button className="case-proof-link" type="button" onClick={onInspectProof}>Open fix details <ArrowUpRight size={13} /></button>}</div></div>
   </section>
 }
 
