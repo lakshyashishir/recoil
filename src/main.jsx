@@ -262,10 +262,18 @@ function nodeVerdict(node, report) {
   return null
 }
 
-function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], live = false, graphProgress = null }) {
+function GraphInspector({ node, report }) {
+  if (!node) return <div className="graph-inspector graph-inspector-empty"><span>Select a node to inspect its evidence.</span></div>
+  const verdict = nodeVerdict(node, report)
+  const metadata = node.meta?.resolvedVersions?.length ? `resolved versions: ${node.meta.resolvedVersions.join(', ')}` : node.meta?.role || node.type
+  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected evidence</span><strong>{node.label}</strong><small>{metadata}</small></div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}{node.sourceUrl && <SourceLink href={node.sourceUrl}>Open source</SourceLink>}</div></div>
+}
+
+function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, selectedNodeId, events = [], live = false, graphProgress = null }) {
   const graph = report?.graph || { nodes: [], edges: [] }
   const layout = useMemo(() => graphLayout(graph, selectedFinding), [graph, selectedFinding])
   const selected = layout.selected
+  const selectedNode = layout.nodes.find((node) => node.id === selectedNodeId) || layout.nodes.find((node) => node.type === 'repository' && node.label === selectedFinding?.repository) || null
   const selectedEdges = new Set(layout.edges.filter(([from, to]) => selected.has(from) && selected.has(to)).map(([from, to]) => `${from}>${to}`))
   const layerLabels = [{ label: 'Advisory', type: 'advisory' }, { label: 'Dependency', type: 'package' }, { label: 'Repository', type: 'repository' }, { label: 'Source', type: 'code' }]
   if (!layout.nodes.length) {
@@ -302,8 +310,8 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
             const verdict = nodeVerdict(node, report)
             const isSelected = selected.has(node.id)
             const findingIndex = node.type === 'repository' ? (report?.repositories || []).findIndex((finding) => finding.repository === node.label) : -1
-            const selectable = findingIndex >= 0 && onSelectFinding
-            const selectNode = () => { if (selectable) onSelectFinding(findingIndex) }
+            const selectable = Boolean(onSelectNode || (findingIndex >= 0 && onSelectFinding))
+            const selectNode = () => { if (findingIndex >= 0 && onSelectFinding) onSelectFinding(findingIndex); if (onSelectNode) onSelectNode(node.id) }
             return <g className={`map-node node-${node.type} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} aria-label={selectable ? `${node.type}: ${node.label}` : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
               <title>{node.label}</title>
               <rect width="154" height="48" rx="6" />
@@ -314,6 +322,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
         </g>
       </svg>
       <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-declared" /> declared only</span><span><i className="legend-dot legend-safe" /> safe</span><span className="map-direction">arrows follow the evidence</span></div>
+      {!live && onSelectNode && <GraphInspector node={selectedNode} report={report} />}
     </div>
   </section>
 }
@@ -504,6 +513,7 @@ function CaseNavigator({ finding, activeTab, onTabChange }) {
 
 function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
   const historical = Boolean(report?.rewind?.asOf && report?.rewind?.currentAsOf && report.rewind.asOf !== report.rewind.currentAsOf)
   const findings = historical ? report?.rewind?.findings || report?.repositories || [] : report?.repositories || []
@@ -524,7 +534,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel">
-      {activeTab === 'graph' && <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div>}
+      {activeTab === 'graph' && <div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <TemporalProof report={report} onRewind={onRewind} />}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
