@@ -331,6 +331,25 @@ function nodeVerdict(node, report) {
   return null
 }
 
+function findingIndexForNode(node, findings = []) {
+  if (!node) return -1
+  if (node.type === 'repository') return findings.findIndex((finding) => finding.repository === node.label)
+  if (node.meta?.repository) return findings.findIndex((finding) => finding.repository === node.meta.repository)
+  const scopedPrefix = node.type === 'code' ? 'code:' : node.type === 'symbol' ? 'symbol:' : node.type === 'lockfile' ? 'lock:' : null
+  if (scopedPrefix) {
+    const index = findings.findIndex((finding) => node.id?.startsWith(`${scopedPrefix}${finding.repository}:`))
+    if (index >= 0) return index
+  }
+  if (node.type !== 'package') return -1
+  const candidates = findings
+    .map((finding, index) => ({ finding, index }))
+    .filter(({ finding }) => {
+      const label = node.label || ''
+      return label.startsWith(`${finding.packageName}@`) && (finding.resolvedVersions || [finding.resolvedVersion]).includes(label.slice(finding.packageName.length + 1))
+    })
+  return candidates.length === 1 ? candidates[0].index : -1
+}
+
 function nodeDescription(node, report) {
   if (node.type === 'advisory') return 'Public advisory record'
   if (node.type === 'package') return node.meta?.role === 'affected-dependency' ? 'Resolved dependency in the repository lockfile' : node.meta?.role === 'transitive-dependency' ? 'Observed transitive lockfile dependency' : 'Resolved package version'
@@ -354,7 +373,11 @@ function GraphInspector({ node, report, graph, selectedFinding }) {
     return []
   }).filter((relation) => relation.node)
   const metadata = node.meta?.resolvedVersions?.length ? `resolved versions: ${node.meta.resolvedVersions.join(', ')}` : nodeDescription(node, report)
-  const importer = selectedFinding?.imports?.[0]
+  const importer = node.type === 'repository'
+    ? selectedFinding?.imports?.[0]
+    : node.type === 'code'
+      ? selectedFinding?.imports?.find((item) => item.path === node.label)
+      : null
   const routeEvidence = selectedFinding && node.type === 'repository'
     ? importer
       ? `${importer.path}${importer.line ? `:${importer.line}` : ''}`
@@ -463,7 +486,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
             if (!position) return null
             const verdict = nodeVerdict(node, report)
             const isSelected = selected.has(node.id)
-            const findingIndex = node.type === 'repository' ? (report?.repositories || []).findIndex((finding) => finding.repository === node.label) : -1
+            const findingIndex = findingIndexForNode(node, report?.repositories || [])
             const selectable = Boolean(onSelectNode || (findingIndex >= 0 && onSelectFinding))
             const selectNode = () => { if (findingIndex >= 0 && onSelectFinding) onSelectFinding(findingIndex); if (onSelectNode) onSelectNode(node.id) }
             return <g className={`map-node node-${node.type} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} aria-label={selectable ? `${node.type}: ${node.label}` : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
