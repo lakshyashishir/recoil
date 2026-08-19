@@ -63,6 +63,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Repeat the resolved dependency chain in HydraDB's dated reachability memory for explainable temporal recall.
 - [x] Print observed transitive package chains in the default CLI summary for a legible terminal demo.
 - [x] Retain a sanitized, git-ignored recording receipt when the strict real smoke gate passes.
+- [x] Bring the OpenTUI report pane to parity with browser/CLI evidence paths, proof coverage, and transitive chains.
 - [x] Surface API startup failures in the browser landing state instead of silently rendering an empty product.
 - [x] Skip HydraDB writes for incomplete evidence by default so failed/unknown runs do not consume credits or become durable precedent.
 - [x] Expose the recording contract and evidence-proof capabilities through `/api/health` for operator and demo readiness checks.
