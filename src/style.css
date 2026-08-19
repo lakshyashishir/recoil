@@ -41,6 +41,7 @@
 }
 
 * { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 html, body, #root { min-height: 100%; margin: 0; }
 body { min-width: 320px; overflow-x: hidden; background: var(--bg); color: var(--text); }
 button, textarea { font: inherit; }

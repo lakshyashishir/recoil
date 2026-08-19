@@ -143,15 +143,23 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
   </header>
 }
 
+function currentInvestigationActivity(events = [], investigationStatus) {
+  const working = events.find((event) => event.status === 'working')
+  if (working) return working
+  if (investigationStatus === 'finalizing') return { title: 'Storing evidence history', detail: 'Writing the dated graph to HydraDB and recalling related context.' }
+  if (investigationStatus === 'running') return { title: 'Collecting public evidence', detail: 'Reading advisory, registry, lockfile, and source records.' }
+  return null
+}
+
 function EventStream({ events = [], investigationStatus }) {
   const [expanded, setExpanded] = useState(false)
   const eventCurrent = events.find((event) => event.status === 'working')
-  const current = eventCurrent || (investigationStatus === 'finalizing' ? { title: 'Storing evidence history', detail: 'Writing the dated graph to HydraDB and recalling related context.' } : investigationStatus === 'running' ? { title: 'Collecting public evidence', detail: 'Reading advisory, registry, lockfile, and source records.' } : null)
+  const current = currentInvestigationActivity(events, investigationStatus)
   const active = Boolean(eventCurrent || ['running', 'finalizing'].includes(investigationStatus))
   const recentKeys = new Set(events.slice(-5).map((event) => event.key))
   const visibleEvents = expanded ? events : events.filter((event) => recentKeys.has(event.key) || event.key === eventCurrent?.key)
-  return <section className="event-journal" aria-label="Investigation progress">
-    <div className="journal-heading"><div><span className="section-kicker">Progress</span><h2>{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state">{active ? 'working' : 'up to date'}</span></div>
+  return <section className="event-journal" aria-label="Investigation progress" aria-busy={active}>
+    <div className="journal-heading"><div><span className="section-kicker">Progress</span><h2 aria-live="polite" aria-atomic="true">{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state" role="status" aria-live="polite">{active ? 'working' : 'up to date'}</span></div>
     <div className="journal-activity-heading"><span>Recent activity</span>{events.length > 5 && <button type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show recent' : `Show all ${events.length}`}</button>}</div>
     <div className="event-list">
       {!eventCurrent && current && <article className="event-row event-working event-current-fallback"><div className="event-status"><StatusIcon status="working" /></div><div className="event-copy"><div className="event-title"><strong>{current.title}</strong></div><p>{current.detail}</p></div><span className="event-now">now</span></article>}
@@ -180,13 +188,14 @@ function EvidencePhaseRail({ events = [], live = false, investigationStatus, inv
     { key: 'proof', label: 'Prove the fix', detail: 'Range and residual path', keys: ['fix-plan'], icon: <PackageCheck size={16} /> },
     { key: 'memory', label: 'Store history', detail: 'HydraDB temporal record', keys: ['hydra'], icon: <Database size={16} /> },
   ]
-  return <div className={`phase-rail ${live ? 'phase-rail-live' : ''}`} aria-label="Investigation stages">
+  return <div className={`phase-rail ${live ? 'phase-rail-live' : ''}`} aria-label="Investigation stages" role="list">
     {phases.map((phase, index) => {
       const eventPhaseStatus = eventStatus(events, phase.keys)
       const status = phase.key === 'memory' && investigationStep === 'hydra' && investigationStatus === 'finalizing'
         ? 'working'
         : eventPhaseStatus
-      return <div className={`phase ${status}`} key={phase.key}>
+      const statusLabel = status === 'complete' ? 'complete' : status === 'working' ? 'working now' : status === 'failed' ? 'needs attention' : 'waiting'
+      return <div className={`phase ${status}`} key={phase.key} role="listitem" aria-label={`${phase.label}: ${statusLabel}`}>
         <div className="phase-icon">{status === 'complete' ? <Check size={15} /> : status === 'working' ? <LoaderCircle className="spin" size={15} /> : phase.icon}</div>
         <div className="phase-copy"><strong>{phase.label}</strong><span>{phase.detail}</span></div>
         {index < phases.length - 1 && <i className="phase-connector" aria-hidden="true" />}
@@ -887,6 +896,7 @@ function RunningView({ snapshot }) {
   const investigation = snapshot?.investigation
   const events = investigation?.events || []
   const finalizing = investigation?.status === 'finalizing'
+  const activity = currentInvestigationActivity(events, investigation?.status)
   const query = snapshot?.scenario?.query || investigation?.query || ''
   const advisory = query.match(/(?:GHSA|CVE)-[A-Z0-9-]+/i)?.[0] || query.split(/\s+/).find(Boolean) || 'public evidence'
   const repositoryCount = (query.match(/https?:\/\/github\.com\/[^\s]+/gi) || []).length
@@ -894,7 +904,9 @@ function RunningView({ snapshot }) {
   const graphReport = { graph, repositories: investigation?.report?.repositories || [] }
   const progress = snapshot?.graphProgress || investigation?.graphProgress
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1>{finalizing ? 'Storing the case.' : 'Building the proof.'}</h1><p>{finalizing ? `${progressLabel}. The observed graph is complete; Recoil is writing dated history and recalling related context.` : `${progressLabel}. Recoil adds only relationships supported by public evidence.`}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
+  const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function App() {
