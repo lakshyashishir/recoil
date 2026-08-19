@@ -26,7 +26,9 @@ function initialTheme() {
   if (typeof window === 'undefined') return 'light'
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'dark' || stored === 'light') return stored
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  // Light is the product default. A deliberate user choice is persisted, so
+  // the OS preference cannot make a first visit unexpectedly look different.
+  return 'light'
 }
 
 function useTheme() {
@@ -107,7 +109,7 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
       <div className="landing-form-wrap">
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
           <label htmlFor="investigation-input">Advisory and repositories</label>
-          <textarea id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="GHSA-xvch-5gv4-984h\nhttps://github.com/org/repository" rows={5} />
+          <textarea id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder={'GHSA-xvch-5gv4-984h\nhttps://github.com/org/repository'} rows={5} />
           <div className="form-footer">
             <span>Public records only</span>
             <button type="submit" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button>
@@ -127,21 +129,25 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
 function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleTheme }) {
   const report = investigation?.report
   const id = report?.advisory?.id || investigation?.evidence?.target?.advisoryId || 'investigation'
-  const state = investigation?.status === 'complete' ? 'Complete' : investigation?.status === 'failed' ? 'Incomplete' : 'Reading'
+  const state = investigation?.status === 'complete' ? 'Complete' : investigation?.status === 'failed' ? 'Incomplete' : investigation?.status === 'finalizing' ? 'Storing history' : 'Reading'
   const hydraReadFailed = hydra?.recall?.status === 'failed'
-  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
+  const hydraRecalled = hydra?.recall?.status === 'recalled'
+  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? 'HydraDB evidence recalled' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
     <div className="header-case"><strong>{id}</strong><span>{report?.package ? `${report.package} · ${state.toLowerCase()}` : state}</span></div>
-    <div className="header-actions"><div className="header-status"><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydraLabel}</div><ThemeToggle theme={theme} onToggle={onToggleTheme} />{onNewCase && <button className="header-new-case" type="button" onClick={onNewCase}>New case <RotateCcw size={13} /></button>}</div>
+    <div className="header-actions"><div className="header-status"><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydraRecalled || hydra?.status === 'persisted' ? 'is-live' : ''}`} /> {hydraLabel}</div><ThemeToggle theme={theme} onToggle={onToggleTheme} />{onNewCase && <button className="header-new-case" type="button" onClick={onNewCase}>New case <RotateCcw size={13} /></button>}</div>
   </header>
 }
 
-function EventStream({ events = [] }) {
-  const current = events.find((event) => event.status === 'working')
+function EventStream({ events = [], investigationStatus }) {
+  const eventCurrent = events.find((event) => event.status === 'working')
+  const current = eventCurrent || (investigationStatus === 'finalizing' ? { title: 'Storing evidence history', detail: 'Writing the dated graph to HydraDB and recalling related context.' } : investigationStatus === 'running' ? { title: 'Collecting public evidence', detail: 'Reading advisory, registry, lockfile, and source records.' } : null)
+  const active = Boolean(eventCurrent || ['running', 'finalizing'].includes(investigationStatus))
   return <section className="event-journal" aria-label="Investigation progress">
-    <div className="journal-heading"><div><span className="section-kicker">Progress</span><h2>{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state">{current ? 'working' : 'up to date'}</span></div>
+    <div className="journal-heading"><div><span className="section-kicker">Progress</span><h2>{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state">{active ? 'working' : 'up to date'}</span></div>
     <div className="event-list">
+      {!eventCurrent && current && <article className="event-row event-working event-current-fallback"><div className="event-status"><StatusIcon status="working" /></div><div className="event-copy"><div className="event-title"><strong>{current.title}</strong></div><p>{current.detail}</p></div><span className="event-now">now</span></article>}
       {events.map((event) => <article className={`event-row event-${event.status}`} key={event.id || event.key}>
         <div className="event-status"><StatusIcon status={event.status} /></div>
         <div className="event-copy"><div className="event-title"><strong>{event.title}</strong>{event.repository && <span>{event.repository}</span>}</div><p>{event.detail}</p>{event.graphProgress && <span className="event-evidence-count">{event.graphProgress.completedRepositories}/{event.graphProgress.totalRepositories} repositories mapped · {event.graph?.nodes?.length || 0} nodes · {event.graph?.edges?.length || 0} edges</span>}{event.sourceUrls?.[0] && <SourceLink href={event.sourceUrls[0]} />}</div>
@@ -160,7 +166,7 @@ function eventStatus(events, keys = []) {
   return 'waiting'
 }
 
-function EvidencePhaseRail({ events = [], live = false }) {
+function EvidencePhaseRail({ events = [], live = false, investigationStatus, investigationStep }) {
   const phases = [
     { key: 'records', label: 'Read records', detail: 'OSV, registry, repositories', keys: ['public-records', 'repository:', 'registry'], icon: <SearchIcon /> },
     { key: 'route', label: 'Trace routes', detail: 'Lockfiles and source imports', keys: ['classification', 'proving-paths'], icon: <Waypoints size={16} /> },
@@ -169,7 +175,10 @@ function EvidencePhaseRail({ events = [], live = false }) {
   ]
   return <div className={`phase-rail ${live ? 'phase-rail-live' : ''}`} aria-label="Investigation stages">
     {phases.map((phase, index) => {
-      const status = eventStatus(events, phase.keys)
+      const eventPhaseStatus = eventStatus(events, phase.keys)
+      const status = phase.key === 'memory' && investigationStep === 'hydra' && investigationStatus === 'finalizing'
+        ? 'working'
+        : eventPhaseStatus
       return <div className={`phase ${status}`} key={phase.key}>
         <div className="phase-icon">{status === 'complete' ? <Check size={15} /> : status === 'working' ? <LoaderCircle className="spin" size={15} /> : phase.icon}</div>
         <div className="phase-copy"><strong>{phase.label}</strong><span>{phase.detail}</span></div>
@@ -284,7 +293,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
     </section>
   }
   return <section className="evidence-map" aria-label="Observed evidence map">
-    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? 'Evidence arriving' : 'Follow the path to code'}</h2></div><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
+    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : 'Follow the path to code'}</h2></div><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
     <div className="map-canvas">
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
         <defs><marker id="recoil-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="currentColor" strokeWidth="1.2" /></marker></defs>
@@ -581,7 +590,13 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
-  const historical = Boolean(report?.rewind?.asOf && report?.rewind?.currentAsOf && report.rewind.asOf !== report.rewind.currentAsOf)
+  // A freshly built report uses `now` as its requested rewind timestamp while
+  // the collectors finish a few milliseconds earlier. That is still the
+  // current report. Only an as-of date before the collected evidence should
+  // enter the historical state and hide current remediation proof.
+  const rewindAt = report?.rewind?.asOf ? new Date(report.rewind.asOf).getTime() : NaN
+  const currentAt = report?.rewind?.currentAsOf ? new Date(report.rewind.currentAsOf).getTime() : NaN
+  const historical = Number.isFinite(rewindAt) && Number.isFinite(currentAt) && rewindAt < currentAt - 1000
   const findings = historical ? report?.rewind?.findings || report?.repositories || [] : report?.repositories || []
   const selectedFinding = findings[selectedIndex] || findings[0]
   const challenge = historical ? null : report?.challenge?.find((item) => item.repository === selectedFinding?.repository)
@@ -600,7 +615,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel">
-      {activeTab === 'graph' && <><ProofLoop finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div></>}
+      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} historical={historical} onInspectProof={() => setActiveTab('proof')} /></div><ProofLoop finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => setActiveTab('proof')} /></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <TemporalProof report={report} onRewind={onRewind} />}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
@@ -615,7 +630,7 @@ function RunningView({ snapshot }) {
   const graphReport = { graph, repositories: investigation?.report?.repositories || [] }
   const progress = snapshot?.graphProgress || investigation?.graphProgress
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>Building the proof.</h1><p>{progressLabel}. Recoil adds only relationships supported by public evidence.</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live /><div className="live-workspace"><EventStream events={events} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><h1>Building the proof.</h1><p>{progressLabel}. Recoil adds only relationships supported by public evidence.</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function App() {
