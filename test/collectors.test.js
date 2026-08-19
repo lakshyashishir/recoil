@@ -121,6 +121,8 @@ packages:
     resolution: {integrity: sha512-test}
   '@scope/parser@2.1.0(peer@1.0.0)':
     resolution: {integrity: sha512-test}
+snapshots:
+  '@scope/parser@2.1.0(peer@1.0.0)':
     dependencies:
       minimist: 1.2.5
 `)

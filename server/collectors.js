@@ -461,10 +461,19 @@ function parsePnpmPackageSelector(selector = '') {
  */
 export function parsePnpmLock(text = '') {
   const entries = []
+  const snapshotDependencies = new Map()
   let section = null
   let block = null
   const flush = () => {
-    if (block?.entry) entries.push({ ...block.entry, dependencies: [...new Set(block.dependencies)].slice(0, 12) })
+    if (!block?.packageInfo) return
+    const key = `${block.packageInfo.name}@${block.packageInfo.version}`
+    if (section === 'snapshots') {
+      snapshotDependencies.set(key, [...new Set(block.dependencies)].slice(0, 12))
+      return
+    }
+    if (section === 'packages') {
+      entries.push({ ...block.packageInfo, path: `pnpm:${block.header}`, resolved: block.resolved || null, dependencies: [...new Set(block.dependencies)].slice(0, 12) })
+    }
   }
   for (const line of String(text).split(/\r?\n/)) {
     if (!line.trim() || line.trim().startsWith('#')) continue
@@ -475,20 +484,18 @@ export function parsePnpmLock(text = '') {
       section = topLevel
       continue
     }
-    if (section !== 'packages') continue
+    if (!['packages', 'snapshots'].includes(section)) continue
     const packageHeader = line.match(/^\s{2}([^\s].*):\s*$/)?.[1]
     if (packageHeader) {
       flush()
       const packageInfo = parsePnpmPackageSelector(packageHeader)
-      block = packageInfo
-        ? { entry: { ...packageInfo, path: `pnpm:${packageHeader}`, resolved: null }, dependencies: [], inDependencies: false }
-        : null
+      block = packageInfo ? { header: packageHeader, packageInfo, resolved: null, dependencies: [], inDependencies: false } : null
       continue
     }
     if (!block) continue
     const resolved = line.match(/^\s{4}resolution:\s*(?:\{[^}]*)?(?:tarball:\s*)?["']?([^,"'}\s]+)["']?/)?.[1]
-    if (resolved) {
-      block.entry.resolved = resolved
+    if (resolved && section === 'packages') {
+      block.resolved = resolved
       block.inDependencies = false
       continue
     }
@@ -502,6 +509,10 @@ export function parsePnpmLock(text = '') {
     }
   }
   flush()
+  for (const entry of entries) {
+    const snapshot = snapshotDependencies.get(`${entry.name}@${entry.version}`) || []
+    entry.dependencies = [...new Set([...entry.dependencies, ...snapshot])].slice(0, 12)
+  }
   return entries.filter((entry) => entry.name && entry.version).slice(0, 240)
 }
 
