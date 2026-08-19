@@ -173,7 +173,7 @@ test('HydraDB adapter persists memories and filters temporal recall locally', as
       return {
         ok: true,
         status: 200,
-        json: async () => ({ data: { inner: { results: memories.map((memory) => ({ source_id: memory.id, status: 'completed' })) } } }),
+        json: async () => ({ data: { inner: { indexingPending: true, results: memories.map((memory) => ({ source_id: memory.id, status: 'completed' })) } } }),
       }
     }
     if (url.endsWith('/query')) {
@@ -223,6 +223,8 @@ test('HydraDB adapter persists memories and filters temporal recall locally', as
     assert.equal(persisted.status, 'persisted')
     assert.ok(persisted.memoryCount > 0)
     assert.equal(persisted.sourceIds.length, persisted.memoryCount)
+    assert.equal(persisted.indexingPending, false)
+    assert.equal(persisted.indexingError, null)
     const recalled = await recallTemporal('minimist', '2023-01-01T00:00:00.000Z', undefined, { excludeScenarioId: 'current-case' })
     assert.equal(recalled.datedChunkCount, 1)
     assert.deepEqual(recalled.priorScenarioIds, ['prior-case'])
@@ -335,6 +337,48 @@ test('HydraDB recall retries an empty post-index result before declaring no hist
     else process.env.HYDRADB_RECALL_WAIT_MS = previousWait
     if (previousPoll === undefined) delete process.env.HYDRADB_RECALL_POLL_MS
     else process.env.HYDRADB_RECALL_POLL_MS = previousPoll
+  }
+})
+
+test('HydraDB temporal recall focuses on dated reachability facts when graph memories dominate', async () => {
+  const previousFetch = globalThis.fetch
+  const previousKey = process.env.HYDRA_DB_API_KEY
+  const previousDatabase = process.env.HYDRADB_DATABASE_ID
+  const previousWait = process.env.HYDRADB_RECALL_WAIT_MS
+  let requests = []
+  process.env.HYDRA_DB_API_KEY = 'test-key'
+  process.env.HYDRADB_DATABASE_ID = 'test-database'
+  process.env.HYDRADB_RECALL_WAIT_MS = '0'
+  globalThis.fetch = async (input, options) => {
+    assert.match(String(input), /\/query$/)
+    const request = JSON.parse(options.body)
+    requests.push(request)
+    const focused = request.query.startsWith('Reachability fact')
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { inner: focused
+        ? { chunks: [{ id: 'dated-fact', additional_metadata: { app: 'recoil', recoil_kind: 'temporal_fact', valid_from: '2022-01-01T00:00:00Z' } }], graph_context: { triplets: [{ source: 'package', target: 'repository', predicate: 'RESOLVED_IN' }] } }
+        : { chunks: [{ id: 'graph-fact', additional_metadata: { app: 'recoil', recoil_kind: 'observed_graph' } }], graph_context: { query_paths: [], chunk_relations: [] } } } }),
+    }
+  }
+  try {
+    const recalled = await recallTemporal('minimist GHSA-test https://github.com/example/app https://github.com/example/other', '2023-01-01T00:00:00.000Z')
+    assert.equal(requests.length, 2)
+    assert.match(requests[1].query, /^Reachability fact minimist GHSA-test/)
+    assert.doesNotMatch(requests[1].query, /https?:\/\//)
+    assert.equal(recalled.focusedRecall, true)
+    assert.equal(recalled.rawChunkCount, 2)
+    assert.equal(recalled.datedChunkCount, 1)
+    assert.deepEqual(recalled.graphContext.triplets, [{ source: 'package', target: 'repository', predicate: 'RESOLVED_IN' }])
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
+    else process.env.HYDRA_DB_API_KEY = previousKey
+    if (previousDatabase === undefined) delete process.env.HYDRADB_DATABASE_ID
+    else process.env.HYDRADB_DATABASE_ID = previousDatabase
+    if (previousWait === undefined) delete process.env.HYDRADB_RECALL_WAIT_MS
+    else process.env.HYDRADB_RECALL_WAIT_MS = previousWait
   }
 })
 

@@ -911,6 +911,23 @@ body { font-family: var(--sans); line-height: 1.45; }
   .temporal-highlight-action { justify-items: start; }
 }
 
+/* The report offers two honest readings of the same graph: cited paths first,
+   then the entity view when the reviewer wants to inspect relationships. */
+.map-heading-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex: 0 0 auto; min-width: 0; }
+.map-view-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: transparent; font-size: 11px; white-space: nowrap; transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease; }
+.map-view-toggle:hover { border-color: var(--accent); color: var(--text); background: var(--surface-raised); }
+.map-view-toggle:active { transform: translateY(1px) scale(.99); }
+.case-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+@media (max-width: 720px) {
+  .map-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .map-heading-actions { width: 100%; justify-content: space-between; }
+  .case-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .case-summary div { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .case-summary div:nth-child(even) { border-right: 0; }
+  .case-summary div:last-child { grid-column: 1 / -1; border-right: 0; border-bottom: 0; }
+}
+
 /* The completed report leads with cited routes. The full graph remains
    available for inspection, but it no longer makes the reviewer decode a
    dense entity map before seeing the repository-level decision. */

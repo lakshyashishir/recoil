@@ -426,13 +426,12 @@ function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historica
   </div>
 }
 
-function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, selectedNodeId, events = [], live = false, graphProgress = null, proofFirst = false, historical = false }) {
+function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, selectedNodeId, events = [], live = false, graphProgress = null, proofFirst = false, historical = false, onToggleGraph }) {
   const graph = report?.graph || { nodes: [], edges: [] }
   if (!live && proofFirst) {
     return <section className="evidence-map proof-map-shell" aria-label="Cited evidence paths">
-      <div className="map-heading"><div><span className="section-kicker">Evidence graph</span><h2>One cited path per repository</h2><p className="map-heading-detail">The result starts with the paths that decide the case. Select a repository, then open any source link to inspect the record behind that hop.</p></div><span className="map-count">{report?.repositories?.length || 0} paths · {graph.nodes.length} entities</span></div>
+      <div className="map-heading"><div><span className="section-kicker">Evidence paths</span><h2>One cited path per repository</h2><p className="map-heading-detail">Start with the relationships that decide the case. Select a repository, then open any source link to inspect the record behind that hop.</p></div><div className="map-heading-actions"><span className="map-count">{report?.repositories?.length || 0} paths · {graph.nodes.length} entities</span>{onToggleGraph && <button className="map-view-toggle" type="button" onClick={onToggleGraph}><Waypoints size={13} /> Open graph view</button>}</div></div>
       <ProofMap findings={report?.repositories || []} selectedIndex={Math.max(0, report?.repositories?.findIndex((finding) => finding.repository === selectedFinding?.repository) ?? 0)} onSelectFinding={onSelectFinding} historical={historical} />
-      <details className="full-graph-disclosure"><summary>Inspect all observed graph entities <span>{graph.nodes.length} nodes · {graph.edges.length} relationships</span></summary><div className="full-graph-disclosure-body"><EvidenceMap report={report} selectedFinding={selectedFinding} onSelectFinding={onSelectFinding} onSelectNode={onSelectNode} selectedNodeId={selectedNodeId} events={events} live={false} graphProgress={graphProgress} /></div></details>
     </section>
   }
   const layout = useMemo(() => graphLayout(graph, selectedFinding), [graph, selectedFinding])
@@ -448,7 +447,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
     </section>
   }
   return <section className="evidence-map" aria-label="Observed evidence map">
-    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : 'Follow the path to code'}</h2><p className="map-heading-detail">{live ? 'Each edge is added from a public record as it is collected.' : 'Read left to right: advisory → dependency → lockfile → repository → sampled source. Select a node to inspect its cited relationship.'}</p></div><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
+    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : 'Follow the path to code'}</h2><p className="map-heading-detail">{live ? 'Each edge is added from a public record as it is collected.' : 'Read left to right: advisory → dependency → lockfile → repository → sampled source. Select a node to inspect its cited relationship.'}</p></div><div className="map-heading-actions"><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span>{!live && !historical && onToggleGraph && <button className="map-view-toggle" type="button" onClick={onToggleGraph}><Waypoints size={13} /> Show cited paths</button>}</div></div>
     <div className="map-canvas">
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
         <defs><marker id="recoil-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="currentColor" strokeWidth="1.2" /></marker></defs>
@@ -1084,6 +1083,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
+  const [graphView, setGraphView] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   // A freshly built report uses `now` as its requested rewind timestamp while
   // the collectors finish a few milliseconds earlier. That is still the
@@ -1134,7 +1134,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <TemporalHighlight report={report} summary={summary} earliestReached={earliestReached} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
-      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst historical={historical} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
+      {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => onRewind(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={onRewind} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}

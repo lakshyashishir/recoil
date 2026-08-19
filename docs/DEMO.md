@@ -65,10 +65,10 @@ GHSA-xvch-5gv4-984h
   tweenjs/tween.js                → DECLARED_ONLY
   axios/axios@v1.x                → NOT_AFFECTED
 
-HydraDB: persisted · 8 memories · 1 dated fact · 12 graph triplets
+HydraDB: persisted · 8 memories · 17 dated facts · 12 graph triplets
 Sources: 84 public URLs
 Boundary: no install · no repository execution · no exploit payload
-Receipt: .recoil-recordings/real-1787175175601.json
+Receipt: .recoil-recordings/real-1787176142283.json
 ```
 
 This is a real source-backed contrast, not a fixture: the first repository has a sampled import,

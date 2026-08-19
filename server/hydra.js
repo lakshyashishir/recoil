@@ -284,6 +284,35 @@ function hasRecallResults(result) {
   return (result?.chunks || result?.results || []).length > 0
 }
 
+function recallChunks(result) {
+  return result?.chunks || result?.results || []
+}
+
+function recallChunkId(chunk, index) {
+  return chunk?.id || chunk?.chunk_uuid || chunk?.source_id || `${chunk?.source_title || 'chunk'}:${index}`
+}
+
+function mergeRecallChunks(primary, focused) {
+  const chunks = [...recallChunks(primary), ...recallChunks(focused)]
+  return [...new Map(chunks.map((chunk, index) => [recallChunkId(chunk, index), chunk])).values()]
+}
+
+function graphContextScore(context) {
+  if (!context || typeof context !== 'object') return 0
+  const triplets = Array.isArray(context.triplets) ? context.triplets.length : 0
+  const paths = Array.isArray(context.query_paths || context.queryPaths) ? (context.query_paths || context.queryPaths).length : 0
+  const relations = Array.isArray(context.chunk_relations || context.chunkRelations) ? (context.chunk_relations || context.chunkRelations).length : 0
+  return triplets + paths + relations
+}
+
+function focusedRecallText(queryText) {
+  return String(queryText || '')
+    .replace(/https?:\/\/\S+/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 600)
+}
+
 async function queryAfterIndexing(body, signal) {
   let result = await query(body, signal)
   if (hasRecallResults(result) || recallWaitMs() === 0) return result
@@ -556,19 +585,20 @@ export async function persistInvestigation(ingestion, report, signal) {
   }
   const sourceIds = [...new Set((result.results || []).map(resultId).filter(Boolean))]
   const acknowledgedAll = sourceIds.length >= memories.length
+  const persisted = result.indexingStatus === 'completed' && acknowledgedAll
   return {
-    status: result.indexingStatus === 'completed' && acknowledgedAll ? 'persisted' : 'queued',
+    status: persisted ? 'persisted' : 'queued',
     memoryCount: memories.length,
     sourceIds,
-    indexingError: result.indexingError || (acknowledgedAll ? null : `HydraDB acknowledged ${sourceIds.length}/${memories.length} evidence memories`),
-    indexingPending: result.indexingPending || !acknowledgedAll,
+    indexingError: persisted ? null : result.indexingError || (acknowledgedAll ? null : `HydraDB acknowledged ${sourceIds.length}/${memories.length} evidence memories`),
+    indexingPending: persisted ? false : result.indexingPending || !acknowledgedAll,
     result,
   }
 }
 
 export async function recallTemporal(queryText, asOf, signal, { excludeScenarioId = null } = {}) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', chunks: [], graphContext: null, asOf }
-  const result = await queryAfterIndexing({
+  const request = {
     database: databaseId(),
     collection: collectionId(),
     type: 'all',
@@ -579,9 +609,32 @@ export async function recallTemporal(queryText, asOf, signal, { excludeScenarioI
     graph_context: true,
     metadata_filters: { additional_metadata: { app: 'recoil' } },
     additional_context: `Return only Recoil evidence facts that were valid on or before ${asOf}. Each fact has valid_from and valid_until metadata; preserve dates and source URLs.`,
-  }, signal)
-  const rawChunks = result?.chunks || result?.results || []
-  const chunks = temporalChunks(rawChunks, asOf)
+  }
+  const result = await queryAfterIndexing(request, signal)
+  let focusedResult = null
+  let focusedError = null
+  let rawChunks = recallChunks(result)
+  let chunks = temporalChunks(rawChunks, asOf)
+  const hasDatedFacts = chunks.some((chunk) => {
+    const metadata = chunkMetadata(chunk)
+    return Boolean(metadata.valid_from || metadata.valid_until)
+  })
+  // Graph memories can dominate a broad hybrid query. Ask for the durable
+  // reachability records by their stable memory heading when the first pass
+  // contains no dated fact. This is still a read-only HydraDB query and keeps
+  // the graph-oriented first pass intact for relationships and prior cases.
+  if (!hasDatedFacts) {
+    try {
+      focusedResult = await queryAfterIndexing({
+        ...request,
+        query: `Reachability fact ${focusedRecallText(queryText)} as of ${asOf}`,
+      }, signal)
+      rawChunks = mergeRecallChunks(result, focusedResult)
+      chunks = temporalChunks(rawChunks, asOf)
+    } catch (error) {
+      focusedError = error.message
+    }
+  }
   const datedChunkCount = chunks.filter((chunk) => {
     const metadata = chunkMetadata(chunk)
     return Boolean(metadata.valid_from || metadata.valid_until)
@@ -589,5 +642,9 @@ export async function recallTemporal(queryText, asOf, signal, { excludeScenarioI
   const relatedScenarioIds = [...new Set(chunks.map((chunk) => chunkMetadata(chunk).recoil_scenario_id).filter(Boolean))]
   const priorCases = priorScenarioIds(chunks, excludeScenarioId)
   const relatedCases = summarizeRelatedCases(chunks, excludeScenarioId)
-  return { status: 'recalled', asOf, chunks, rawChunkCount: rawChunks.length, datedChunkCount, relatedScenarioIds, priorScenarioIds: priorCases, relatedCases, sources: result?.sources || result?.documents || [], graphContext: result?.graph_context || result?.graphContext || null, raw: result }
+  const primaryGraph = result?.graph_context || result?.graphContext || null
+  const focusedGraph = focusedResult?.graph_context || focusedResult?.graphContext || null
+  const graphContext = graphContextScore(focusedGraph) > graphContextScore(primaryGraph) ? focusedGraph : primaryGraph
+  const sources = [...new Set([...(result?.sources || result?.documents || []), ...(focusedResult?.sources || focusedResult?.documents || [])])]
+  return { status: 'recalled', asOf, chunks, rawChunkCount: rawChunks.length, datedChunkCount, relatedScenarioIds, priorScenarioIds: priorCases, relatedCases, sources, graphContext, focusedRecall: Boolean(focusedResult), focusedRecallError: focusedError, raw: { ...result, chunks: result?.chunks ? rawChunks : undefined, results: result?.results ? rawChunks : undefined, graph_context: graphContext } }
 }
