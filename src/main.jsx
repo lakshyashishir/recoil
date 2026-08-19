@@ -170,6 +170,32 @@ function currentInvestigationActivity(events = [], investigationStatus) {
   return null
 }
 
+function liveProgressSummary(events = [], investigationStatus, graphProgress = null, report = null) {
+  const current = currentInvestigationActivity(events, investigationStatus)
+  const graph = events.find((event) => event.graphProgress)?.graph || null
+  const nodes = graph?.nodes?.length || 0
+  const edges = graph?.edges?.length || 0
+  const mapped = graphProgress?.totalRepositories
+    ? `${graphProgress.completedRepositories || 0}/${graphProgress.totalRepositories} repositories mapped`
+    : nodes || edges
+      ? `${nodes} entities · ${edges} relationships`
+      : 'Waiting for the first record'
+
+  if (investigationStatus === 'finalizing') {
+    return { label: 'Local proof complete', detail: 'The repository classifications are ready. Recoil is confirming the dated HydraDB record.', metric: mapped }
+  }
+  if (investigationStatus === 'complete' && report?.summary) {
+    const summary = report.summary
+    const result = `${summary.reached || 0} reached · ${summary.declaredOnly || 0} declared only · ${summary.notAffected || 0} outside range`
+    return { label: 'Case ready to inspect', detail: result, metric: mapped }
+  }
+  if (current) {
+    const repository = current.repository ? ` · ${repositoryName(current.repository)}` : ''
+    return { label: current.title, detail: `${current.detail || 'Reading public evidence.'}${repository}`, metric: mapped }
+  }
+  return { label: 'Preparing the case', detail: 'Recoil adds only relationships supported by public evidence.', metric: mapped }
+}
+
 function liveStageStatus(stage, events = [], investigationStatus) {
   const relevant = events.filter((event) => stage.keys.some((key) => key === event.key || key.endsWith(':') && event.key?.startsWith(key)))
   if (relevant.some((event) => event.status === 'failed')) return 'failed'
@@ -189,10 +215,14 @@ function LiveStageRail({ events = [], investigationStatus }) {
     { id: 'fix', label: 'Check the fix', detail: 'fixed version · semver challenge', keys: ['fix-plan'] },
     { id: 'memory', label: 'Store history', detail: 'dated graph · HydraDB recall', keys: ['hydra', 'complete'] },
   ]
-  return <section className="live-stage-rail" aria-label="Investigation stages"><div className="live-stage-rail-heading"><span>What Recoil is doing</span><span>static public evidence</span></div><ol>{stages.map((stage) => { const status = liveStageStatus(stage, events, investigationStatus); const detail = status === 'review' ? 'accepted · indexing unconfirmed' : status === 'failed' ? 'provider follow-up failed' : stage.detail; const iconStatus = status === 'waiting' ? 'idle' : status === 'review' ? 'failed' : status; return <li className={`live-stage live-stage-${status}`} key={stage.id}><span className="live-stage-marker"><StatusIcon status={iconStatus} /></span><span className="live-stage-copy"><strong>{stage.label}</strong><small>{detail}</small></span></li> })}</ol></section>
+  const statuses = stages.map((stage) => liveStageStatus(stage, events, investigationStatus))
+  const completed = statuses.filter((status) => status === 'complete').length
+  const activeIndex = statuses.findIndex((status) => ['working', 'review', 'failed'].includes(status))
+  const currentIndex = activeIndex >= 0 ? activeIndex : Math.min(completed, stages.length - 1)
+  return <section className="live-stage-rail" aria-label="Investigation stages"><div className="live-stage-rail-heading"><span>Investigation path</span><span>{investigationStatus === 'complete' ? 'complete' : `step ${Math.min(currentIndex + 1, stages.length)} of ${stages.length}`}</span></div><ol>{stages.map((stage, index) => { const status = statuses[index]; const detail = status === 'review' ? 'accepted · indexing unconfirmed' : status === 'failed' ? 'provider follow-up failed' : stage.detail; const iconStatus = status === 'waiting' ? 'idle' : status === 'review' ? 'failed' : status; return <li className={`live-stage live-stage-${status}`} key={stage.id}><span className="live-stage-marker"><StatusIcon status={iconStatus} /></span><span className="live-stage-copy"><strong>{stage.label}</strong><small>{detail}</small></span></li> })}</ol></section>
 }
 
-function LiveRepositoryProgress({ query, events = [] }) {
+function LiveRepositoryProgress({ query, events = [], report = null }) {
   const repositories = queryRepositories(query)
   if (!repositories.length) return null
   const latestByRepository = new Map()
@@ -202,11 +232,15 @@ function LiveRepositoryProgress({ query, events = [] }) {
     <div className="live-repository-list">
       {repositories.map((repository, index) => {
         const event = latestByRepository.get(repositoryKey(repository))
-        const status = event?.status || 'waiting'
-        const statusLabel = status === 'complete' ? 'read' : status === 'working' ? 'reading' : status === 'failed' ? 'failed' : 'queued'
-        return <div className={`live-repository live-repository-${status}`} key={repository}>
+        const finding = report?.repositories?.find((item) => repositoryKey(item.repository) === repositoryKey(repository))
+        const status = finding ? 'complete' : event?.status || 'waiting'
+        const statusLabel = finding ? String(finding.verdict || 'classified').replaceAll('_', ' ').toLowerCase() : status === 'complete' ? 'read' : status === 'working' ? 'reading' : status === 'failed' ? 'failed' : 'queued'
+        const detail = finding
+          ? routeEvidenceLabel(finding)
+          : event?.detail || 'Waiting for the public lockfile and source sample.'
+        return <div className={`live-repository live-repository-${status} ${finding ? `live-repository-verdict-${String(finding.verdict || 'UNKNOWN').toLowerCase()}` : ''}`} key={repository}>
           <span className="live-repository-index">0{index + 1}</span>
-          <div><strong>{repository}</strong><small>{event?.detail || 'Waiting for the public lockfile and source sample.'}</small></div>
+          <div><strong>{repository}</strong><small>{detail}</small></div>
           <span className="live-repository-status">{statusLabel}</span>
         </div>
       })}
@@ -214,16 +248,18 @@ function LiveRepositoryProgress({ query, events = [] }) {
   </section>
 }
 
-function EventStream({ events = [], investigationStatus, query }) {
+function EventStream({ events = [], investigationStatus, query, graphProgress = null, report = null }) {
   const [expanded, setExpanded] = useState(false)
   const eventCurrent = events.find((event) => event.status === 'working')
   const current = currentInvestigationActivity(events, investigationStatus)
   const active = Boolean(eventCurrent || ['running', 'finalizing'].includes(investigationStatus))
+  const readout = liveProgressSummary(events, investigationStatus, graphProgress, report)
   const recentKeys = new Set(events.slice(-5).map((event) => event.key))
   const visibleEvents = expanded ? events : events.filter((event) => recentKeys.has(event.key) || event.key === eventCurrent?.key)
   return <section className="event-journal" aria-label="Investigation progress" aria-busy={active}>
-    <div className="journal-heading"><div><span className="section-kicker">Progress</span><h2 aria-live="polite" aria-atomic="true">{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state" role="status" aria-live="polite">{active ? 'working' : 'up to date'}</span></div>
-    <LiveRepositoryProgress query={query} events={events} />
+    <div className="journal-heading"><div><span className="section-kicker">What is happening</span><h2 aria-live="polite" aria-atomic="true">{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state" role="status" aria-live="polite">{active ? 'working' : 'up to date'}</span></div>
+    <div className="journal-readout" aria-live="polite"><div><span>Current read</span><strong>{readout.label}</strong><p>{readout.detail}</p></div><span className="journal-readout-metric">{readout.metric}</span></div>
+    <LiveRepositoryProgress query={query} events={events} report={report} />
     <div className="journal-activity-heading"><span>Recent activity</span>{events.length > 5 && <button type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show recent' : `Show all ${events.length}`}</button>}</div>
     <div className="event-list">
       {!eventCurrent && current && <article className="event-row event-working event-current-fallback"><div className="event-status"><StatusIcon status="working" /></div><div className="event-copy"><div className="event-title"><strong>{current.title}</strong></div><p>{current.detail}</p></div><span className="event-now">now</span></article>}
@@ -237,7 +273,7 @@ function EventStream({ events = [], investigationStatus, query }) {
   </section>
 }
 
-function LiveEvidenceCheckpoint({ report, onOpenReport }) {
+function LiveEvidenceCheckpoint({ report, hydra, onOpenReport }) {
   if (!report) return null
   const summary = report.summary || {}
   const reached = report.repositories?.find((finding) => finding.verdict === 'REACHED')
@@ -246,8 +282,13 @@ function LiveEvidenceCheckpoint({ report, onOpenReport }) {
   const path = reached && importer
     ? `${reached.packageName}@${reached.resolvedVersion || 'unresolved'} → ${importer.path}${importer.line ? `:${importer.line}` : ''}`
     : null
+  const hydraCopy = hydra?.status === 'queued'
+    ? 'HydraDB accepted the batch; Recoil is waiting for indexing confirmation.'
+    : hydra?.status === 'failed'
+      ? 'HydraDB did not confirm persistence, so this remains a local evidence record.'
+      : 'Recoil is writing the dated memory and will show its final status here.'
   return <section className="live-evidence-checkpoint" aria-live="polite">
-    <div className="live-evidence-checkpoint-copy"><span className="section-kicker">Local evidence ready</span><strong>{ready ? 'The source paths are classified.' : 'A partial report is available for review.'}</strong><p>{ready ? 'HydraDB is the only remaining step: Recoil is waiting for the dated memory write and recall to settle.' : report.evidenceQuality?.reason || 'The report is not ready for a final recording.'}</p>{ready && onOpenReport && <button className="live-open-report" type="button" onClick={onOpenReport}>Open local report <ArrowUpRight size={13} /></button>}</div>
+    <div className="live-evidence-checkpoint-copy"><span className="section-kicker">Local proof ready</span><strong>{ready ? 'The repository paths are classified.' : 'A partial report is available for review.'}</strong><p>{ready ? hydraCopy : report.evidenceQuality?.reason || 'The report is not ready for a final recording.'}</p>{ready && onOpenReport && <button className="live-open-report" type="button" onClick={onOpenReport}>Open local report <ArrowUpRight size={13} /></button>}</div>
     <div className="live-evidence-checkpoint-result"><div className="live-evidence-checkpoint-stats"><span><strong>{summary.reached || 0}</strong><small>source path{summary.reached === 1 ? '' : 's'}</small></span><span><strong>{summary.declaredOnly || 0}</strong><small>listed only</small></span><span><strong>{summary.notAffected || 0}</strong><small>outside range</small></span></div>{path ? <div className="live-evidence-checkpoint-path"><span>Observed route</span><code>{path}</code>{importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div> : <span className="live-evidence-checkpoint-path-empty">No source-backed route was collected.</span>}</div>
   </section>
 }
@@ -1464,7 +1505,7 @@ function RunningView({ snapshot, onOpenReport }) {
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} onOpenReport={onOpenReport} />}<div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} selectedFinding={selectedLiveFinding} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} hydra={snapshot?.hydra || investigation?.hydra} onOpenReport={onOpenReport} />}<div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} graphProgress={progress} report={investigation?.report} /><EvidenceMap report={graphReport} selectedFinding={selectedLiveFinding} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} events={events} live graphProgress={progress} /></div></main>
 }
 
 function FailedView({ snapshot, onNewCase }) {
