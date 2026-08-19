@@ -26,6 +26,9 @@ dependency scanners collapse into one alert:
 - **A model with a narrow job:** when enabled, the OpenAI step extracts a likely affected symbol from
   advisory prose. Recoil validates that name against indexed source and appends the matched symbol to
   the evidence path; an invalid model answer cannot create a finding.
+- **An actionable handoff:** the fix proof includes a package-manager-aware command for the observed
+  lockfile, plus a copyable evidence note. The command is only a suggestion; Recoil never edits or
+  executes the repository.
 - **HydraDB as the evidence timeline:** HydraDB stores the advisory, observed paths, graph provenance,
   change impact, and fix proofs as dated memories. Recoil recalls prior related cases, while the local
   source-cited classifier remains the verdict authority.

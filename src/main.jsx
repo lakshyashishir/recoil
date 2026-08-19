@@ -582,6 +582,17 @@ function ImportProof({ finding }) {
   return <div className="import-proof"><FileCode2 size={16} /><div><span className="section-kicker">Observed in source</span><strong>{importer.path}{importer.line ? `:${importer.line}` : ''}</strong><code>{importer.snippet || `imports ${importer.specifier || finding.packageName}`}</code><SourceLink href={importer.sourceUrl}>Open source line</SourceLink></div></div>
 }
 
+function packageFixCommand(finding, challenge) {
+  const version = challenge?.proposedVersion
+  const packageName = finding?.packageName
+  if (!version || !packageName) return null
+  const lockfile = (finding.path || []).find((part) => /(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock)/i.test(part)) || ''
+  if (/Cargo\.lock/i.test(lockfile)) return `cargo update -p ${packageName} --precise ${version}`
+  if (/yarn\.lock/i.test(lockfile)) return `yarn add ${packageName}@${version}`
+  if (/pnpm-lock\.yaml/i.test(lockfile)) return `pnpm add ${packageName}@${version}`
+  return `npm install ${packageName}@${version}`
+}
+
 function remediationNote(finding, challenge) {
   const path = findingParts(finding).map((part) => routeDisplayPart(part, finding)).join(' -> ')
   const sources = [...new Set([
@@ -598,6 +609,7 @@ function remediationNote(finding, challenge) {
     `Evidence path: ${path || 'no observed path'}`,
     `Recommendation: ${challenge.detail || 'Review the available evidence before changing the dependency.'}`,
     `Proposed resolution: ${finding.packageName || 'package'}@${challenge.proposedVersion || 'not established'}`,
+    `Suggested command: ${packageFixCommand(finding, challenge) || 'not established'}`,
     'Boundary: static public evidence only; Recoil did not install packages, execute code, or apply a change.',
     'Sources:',
     ...sources.map((source) => `- ${source}`),
@@ -637,6 +649,38 @@ function CopyRemediationNote({ finding, challenge }) {
   return <button className="copy-remediation-note" type="button" onClick={copy} aria-live="polite"><span>{status === 'copied' ? <Check size={13} /> : <Copy size={13} />}{label}</span><small>evidence-derived</small></button>
 }
 
+function CopyFixCommand({ command }) {
+  const [status, setStatus] = useState('idle')
+  useEffect(() => {
+    if (status !== 'copied') return undefined
+    const timer = window.setTimeout(() => setStatus('idle'), 1800)
+    return () => window.clearTimeout(timer)
+  }, [status])
+  if (!command) return null
+  const copy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(command)
+      } else {
+        const field = document.createElement('textarea')
+        field.value = command
+        field.setAttribute('readonly', '')
+        field.style.position = 'fixed'
+        field.style.opacity = '0'
+        document.body.appendChild(field)
+        field.select()
+        const copied = document.execCommand('copy')
+        field.remove()
+        if (!copied) throw new Error('clipboard unavailable')
+      }
+      setStatus('copied')
+    } catch {
+      setStatus('failed')
+    }
+  }
+  return <div className="fix-proof-command"><div><span>Suggested local change</span><code>{command}</code></div><button type="button" onClick={copy} aria-live="polite">{status === 'copied' ? <Check size={13} /> : <Copy size={13} />}{status === 'copied' ? 'Copied' : status === 'failed' ? 'Copy unavailable' : 'Copy command'}</button></div>
+}
+
 function FixProof({ finding, challenge }) {
   if (!finding || !challenge) return null
   const currentVersion = finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'
@@ -655,6 +699,7 @@ function FixProof({ finding, challenge }) {
   const boundary = challenge.status === 'ALREADY_SAFE'
     ? 'No version change is required for this observed resolution. The repository was not modified or executed.'
     : 'The repository was not modified or executed. Recoil proves the advisory range and declared-range relationship; the lockfile still needs to be updated and reviewed.'
+  const command = packageFixCommand(finding, challenge)
   return <section className={`fix-proof fix-proof-${verified ? 'verified' : 'review'}`}>
     <div className="fix-proof-heading"><div><span className="section-kicker">Remediation</span><h3>{statusLabel}</h3></div><span className="fix-proof-badge">{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : 'not verified'}</span></div>
     <div className="fix-proof-compare">
@@ -664,6 +709,7 @@ function FixProof({ finding, challenge }) {
     </div>
     <p className="fix-proof-detail">{challenge.detail}</p>
     <div className="fix-proof-boundary"><PackageCheck size={15} /><span>{boundary}</span>{lockfileSource && <SourceLink href={lockfileSource}>Open lockfile evidence</SourceLink>}</div>
+    <CopyFixCommand command={command} />
     <div className="fix-proof-actions"><CopyRemediationNote finding={finding} challenge={challenge} /><span>Copies the finding, proposed resolution, boundary, and source links.</span></div>
   </section>
 }

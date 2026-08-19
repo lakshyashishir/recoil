@@ -557,6 +557,12 @@ body { font-family: var(--sans); line-height: 1.45; }
 .fix-proof-boundary .source-link { flex: 0 0 auto; margin-left: auto; }
 .fix-proof-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .fix-proof-actions > span { color: var(--faint); font-size: 10px; line-height: 1.35; }
+.fix-proof-command { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding: 10px 12px; border-left: 2px solid var(--accent); background: var(--surface); }
+.fix-proof-command > div { display: grid; gap: 5px; min-width: 0; }
+.fix-proof-command span { color: var(--muted); font-size: 10px; }
+.fix-proof-command code { overflow: hidden; color: var(--text); font: 11px/1.35 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.fix-proof-command button { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: transparent; font-size: 10px; }
+.fix-proof-command button:hover { border-color: var(--accent); color: var(--text); background: var(--surface-raised); }
 .copy-remediation-note { display: inline-flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: transparent; font-size: 11px; transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease; }
 .copy-remediation-note > span { display: inline-flex; align-items: center; gap: 6px; }
 .copy-remediation-note small { color: var(--faint); font: 9px/1 var(--mono); }
@@ -657,6 +663,8 @@ body { font-family: var(--sans); line-height: 1.45; }
   .fix-proof-arrow { transform: rotate(90deg); }
   .fix-proof-boundary { flex-wrap: wrap; }
   .fix-proof-boundary .source-link { margin-left: 23px; }
+  .fix-proof-command { align-items: flex-start; flex-direction: column; }
+  .fix-proof-command button { align-self: flex-start; }
   .change-proof-heading { align-items: flex-start; flex-direction: column; gap: 9px; }
   .case-conclusion-facts { grid-template-columns: 1fr; gap: 12px; }
 }
