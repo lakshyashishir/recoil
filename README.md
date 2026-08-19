@@ -237,6 +237,7 @@ npm run tui -- --recording "GHSA-xxxx-yyyy-zzzz https://github.com/owner/reposit
 ```
 
 The primary browser and CLI flows are autonomous: one investigation request starts collection, classification, temporal proof, HydraDB persistence/recall, and the final report. There are no run-loop or step buttons in this path.
+Strict TUI recording mode performs the same connectivity check before starting its investigation.
 
 ## API flow
 

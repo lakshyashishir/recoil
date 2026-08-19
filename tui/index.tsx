@@ -3,10 +3,11 @@
 import { createCliRenderer } from '@opentui/core'
 import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
 import { useEffect, useState } from 'react'
-import { startInvestigation } from '../server/investigation.js'
 import { parseGitHubRepositories, parseInvestigationInput } from '../server/collectors.js'
-import { recordingBlockers } from '../src/core/recording.js'
-import { recordingPreflight } from '../src/core/recording.js'
+import { hydraStatus } from '../server/hydra.js'
+import { startInvestigation } from '../server/investigation.js'
+import { recordingNetworkFailures } from '../src/core/network-preflight.js'
+import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
 
 const C = {
   bg: '#0b0e0c',
@@ -68,13 +69,20 @@ function verdictColor(verdict) {
 function App() {
   const renderer = useRenderer()
   const compact = renderer.width < 125
-  const [state, setState] = useState({ status: recordingPreflightBlockers.length ? 'failed' : query ? 'starting' : 'idle', evidenceStatus: 'unknown', events: [], report: null, hydra: null, error: recordingPreflightBlockers.length ? recordingPreflightBlockers.join(' · ') : null })
+  const [state, setState] = useState({ status: recordingPreflightBlockers.length ? 'failed' : query ? recordingMode ? 'preflight' : 'starting' : 'idle', evidenceStatus: 'unknown', events: [], report: null, hydra: null, error: recordingPreflightBlockers.length ? recordingPreflightBlockers.join(' · ') : null })
 
   useEffect(() => {
     if (!query || recordingPreflightBlockers.length) return undefined
     let cancelled = false
     async function run() {
       try {
+        if (recordingMode) {
+          const networkFailures = await recordingNetworkFailures({ hydraApiBase: hydraStatus().apiBase })
+          if (networkFailures.length) {
+            if (!cancelled) setState((current) => ({ ...current, status: 'failed', error: `Recording network preflight failed: ${networkFailures.join(' · ')}` }))
+            return
+          }
+        }
         if (directMode) startInvestigation(directRecord, query)
         else await request(`/api/scenarios/${caseId}/investigate`, { method: 'POST', body: JSON.stringify({ query }) })
         while (!cancelled) {
@@ -116,7 +124,7 @@ function App() {
   return <box style={{ width: '100%', height: '100%', backgroundColor: C.bg, padding: 1, flexDirection: 'column', gap: 1 }}>
     <box style={{ height: 2, flexDirection: 'row', justifyContent: 'space-between' }}>
       <box style={{ flexDirection: 'row', gap: 2 }}><text fg={C.amber}>▣ RECOIL</text><text fg={C.muted}>EVIDENCE OPERATOR CONSOLE</text><text fg={C.faint}>/</text><text fg={C.muted}>PATH PROOF</text></box>
-      <text fg={state.status === 'complete' ? completeColor : state.status === 'failed' ? C.red : C.amber}>{state.status === 'idle' ? '○ WAITING FOR QUERY' : state.status === 'complete' ? completeLabel : state.status === 'failed' ? '× CASE FAILED' : '● INVESTIGATION RUNNING'}</text>
+      <text fg={state.status === 'complete' ? completeColor : state.status === 'failed' ? C.red : C.amber}>{state.status === 'idle' ? '○ WAITING FOR QUERY' : state.status === 'preflight' ? '● CHECKING SERVICES' : state.status === 'complete' ? completeLabel : state.status === 'failed' ? '× CASE FAILED' : '● INVESTIGATION RUNNING'}</text>
     </box>
     <box style={{ flexDirection: 'row', gap: 1, flexGrow: 1 }}>
       <Panel title="CASE" style={{ width: compact ? 31 : 38 }}>
