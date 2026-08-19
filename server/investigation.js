@@ -86,7 +86,7 @@ export async function executeInvestigation(record) {
     const recall = persisted.status === 'persisted' || persisted.status === 'queued'
       ? await recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
       : { status: persisted.status, reason: persisted.reason, chunks: [] }
-    state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0, recall: { ...recall, chunkCount: recall.chunks?.length || 0, datedChunkCount: recall.datedChunkCount || 0, relatedCaseCount: recall.priorScenarioIds?.length || 0, priorScenarioIds: recall.priorScenarioIds || [] } }
+    state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0, recall: { ...recall, chunkCount: recall.chunks?.length || 0, datedChunkCount: recall.datedChunkCount || 0, relatedCaseCount: recall.priorScenarioIds?.length || recall.relatedCases?.length || 0, priorScenarioIds: recall.priorScenarioIds || [], relatedCases: recall.relatedCases || [] } }
     record.hydra = state.hydra
     report = attachHydraRewind(report, recall)
     state.report = report

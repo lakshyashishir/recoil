@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildInvestigationMemories, persistInvestigation, priorScenarioIds, recallTemporal } from '../server/hydra.js'
+import { buildInvestigationMemories, persistInvestigation, priorScenarioIds, recallTemporal, summarizeRelatedCases } from '../server/hydra.js'
 
 test('HydraDB recall distinguishes prior cases from the current case', () => {
   const chunks = [
@@ -10,6 +10,19 @@ test('HydraDB recall distinguishes prior cases from the current case', () => {
     { additional_metadata: { recoil_scenario_id: 'prior-a' } },
   ]
   assert.deepEqual(priorScenarioIds(chunks, 'current'), ['prior-a', 'prior-b'])
+})
+
+test('HydraDB recall summarizes prior case metadata without exposing chunks', () => {
+  const summaries = summarizeRelatedCases([
+    { additional_metadata: { recoil_scenario_id: 'prior-b', recoil_kind: 'temporal_fact', recoil_repository: 'example/b', valid_from: '2024-02-01T00:00:00Z', source_urls: '["https://example.com/b"]' } },
+    { additional_metadata: { recoil_scenario_id: 'prior-a', recoil_kind: 'observed_graph', recoil_repository: 'example/a', valid_from: '2023-01-01T00:00:00Z', source_urls: '["https://example.com/a"]' } },
+    { additional_metadata: { recoil_scenario_id: 'prior-a', recoil_kind: 'temporal_fact', recoil_repository: 'example/a', valid_from: '2023-02-01T00:00:00Z', source_urls: '["https://example.com/a/path"]' } },
+    { additional_metadata: { recoil_scenario_id: 'current', recoil_kind: 'temporal_fact', recoil_repository: 'example/current' } },
+  ], 'current')
+  assert.deepEqual(summaries, [
+    { scenarioId: 'prior-a', kinds: ['observed_graph', 'temporal_fact'], repositories: ['example/a'], validFrom: '2023-01-01T00:00:00Z', sourceUrls: ['https://example.com/a', 'https://example.com/a/path'] },
+    { scenarioId: 'prior-b', kinds: ['temporal_fact'], repositories: ['example/b'], validFrom: '2024-02-01T00:00:00Z', sourceUrls: ['https://example.com/b'] },
+  ])
 })
 
 test('HydraDB investigation memories preserve graph topology and temporal evidence', () => {

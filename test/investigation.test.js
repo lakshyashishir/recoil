@@ -116,6 +116,7 @@ test('HydraDB rewind context is summarized without replacing local verdicts', ()
     datedChunkCount: 3,
     relatedCaseCount: 1,
     priorScenarioIds: ['prior-case'],
+    relatedCases: [],
     sourceUrls: ['https://osv.dev/vulnerability/GHSA-test'],
     graphContext: { queryPathCount: 1, chunkRelationCount: 0, tripletCount: 1, triplets: [{ source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: 'byog' }] },
     reason: null,

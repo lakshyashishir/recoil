@@ -74,6 +74,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Require strict recording to account for every HydraDB memory acknowledgement, not just HTTP success.
 - [x] Keep ordinary HydraDB status queued until the complete memory batch is acknowledged across all clients.
 - [x] Cache bounded raw GitHub source reads so repeat recordings reduce public requests without changing evidence semantics.
+- [x] Surface sanitized prior-case summaries from HydraDB recall so memory is inspectable without exposing raw chunks.
 
 ### Still required before calling the hackathon build complete
 

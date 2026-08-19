@@ -81,8 +81,10 @@ history and uses HydraDB’s dated evidence as the durable investigation record.
 the same local evidence proof remains available and is labelled local replay.
 
 The rewind report also carries a sanitized temporal-read receipt: the as-of timestamp, HydraDB status,
-dated fact count, related prior-case IDs, and returned source URLs. Raw retrieved chunks are never copied
-into the browser report or downloadable receipt, and HydraDB retrieval cannot change a local verdict.
+dated fact count, related prior-case IDs, prior-case evidence kinds/repositories, and returned source URLs.
+Raw retrieved chunks are never copied into the browser report or downloadable receipt, and HydraDB retrieval
+cannot change a local verdict. The report keeps this prior-evidence summary collapsed until the reviewer
+chooses to inspect it.
 
 ## Run locally
 

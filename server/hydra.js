@@ -84,6 +84,50 @@ export function priorScenarioIds(chunks = [], excludeScenarioId = null) {
     .filter((scenarioId) => scenarioId !== excludeScenarioId)
 }
 
+function metadataSourceUrls(metadata) {
+  const value = metadata?.source_urls || metadata?.sourceUrls
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (typeof value !== 'string') return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Expose useful cross-case memory context without returning raw HydraDB chunks.
+ * A summary is only created when the returned chunk identifies its source case.
+ */
+export function summarizeRelatedCases(chunks = [], excludeScenarioId = null) {
+  const groups = new Map()
+  for (const chunk of chunks) {
+    const metadata = chunkMetadata(chunk)
+    const scenarioId = metadata.recoil_scenario_id
+    if (!scenarioId || scenarioId === excludeScenarioId) continue
+    const group = groups.get(scenarioId) || {
+      scenarioId,
+      kinds: new Set(),
+      repositories: new Set(),
+      validFrom: [],
+      sourceUrls: new Set(),
+    }
+    if (metadata.recoil_kind) group.kinds.add(metadata.recoil_kind)
+    if (metadata.recoil_repository) group.repositories.add(metadata.recoil_repository)
+    if (metadata.valid_from) group.validFrom.push(metadata.valid_from)
+    for (const sourceUrl of metadataSourceUrls(metadata)) group.sourceUrls.add(sourceUrl)
+    groups.set(scenarioId, group)
+  }
+  return [...groups.values()].map((group) => ({
+    scenarioId: group.scenarioId,
+    kinds: [...group.kinds].sort(),
+    repositories: [...group.repositories].sort(),
+    validFrom: group.validFrom.sort()[0] || null,
+    sourceUrls: [...group.sourceUrls].slice(0, 8),
+  })).sort((left, right) => left.scenarioId.localeCompare(right.scenarioId))
+}
+
 function temporalChunks(chunks, asOf) {
   const cutoff = new Date(asOf).getTime()
   if (Number.isNaN(cutoff)) return chunks
@@ -471,5 +515,6 @@ export async function recallTemporal(queryText, asOf, signal, { excludeScenarioI
   }).length
   const relatedScenarioIds = [...new Set(chunks.map((chunk) => chunkMetadata(chunk).recoil_scenario_id).filter(Boolean))]
   const priorCases = priorScenarioIds(chunks, excludeScenarioId)
-  return { status: 'recalled', asOf, chunks, rawChunkCount: rawChunks.length, datedChunkCount, relatedScenarioIds, priorScenarioIds: priorCases, sources: result?.sources || result?.documents || [], graphContext: result?.graph_context || result?.graphContext || null, raw: result }
+  const relatedCases = summarizeRelatedCases(chunks, excludeScenarioId)
+  return { status: 'recalled', asOf, chunks, rawChunkCount: rawChunks.length, datedChunkCount, relatedScenarioIds, priorScenarioIds: priorCases, relatedCases, sources: result?.sources || result?.documents || [], graphContext: result?.graph_context || result?.graphContext || null, raw: result }
 }

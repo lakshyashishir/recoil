@@ -100,6 +100,7 @@ export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) 
         datedChunkCount: hydra.recall.datedChunkCount || 0,
         relatedCaseCount: hydra.recall.relatedCaseCount ?? hydra.recall.priorScenarioIds?.length ?? hydra.recall.relatedScenarioIds?.length ?? 0,
         priorScenarioIds: hydra.recall.priorScenarioIds || [],
+        relatedCases: hydra.recall.relatedCases || [],
       } : null,
     },
     sources: [...new Set(report.sources || [])],
