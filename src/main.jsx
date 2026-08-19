@@ -132,7 +132,7 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
   const state = investigation?.status === 'complete' ? 'Complete' : investigation?.status === 'failed' ? 'Incomplete' : investigation?.status === 'finalizing' ? 'Storing history' : 'Reading'
   const hydraReadFailed = hydra?.recall?.status === 'failed'
   const hydraRecalled = hydra?.recall?.status === 'recalled'
-  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? 'HydraDB evidence recalled' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
+  const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? 'HydraDB context recalled' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydra?.status === 'queued' ? 'HydraDB indexing' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
     <div className="header-case"><strong>{id}</strong><span>{report?.package ? `${report.package} · ${state.toLowerCase()}` : state}</span></div>
@@ -355,7 +355,7 @@ function RouteList({ findings, selectedIndex, onSelect, challenges = [], histori
   return <aside className="route-panel">
     <div className="route-panel-heading"><div><span className="section-kicker">Repository comparison</span><h2>What the evidence says</h2></div><span>{findings.length} checked</span></div>
     <p className="route-panel-note">Select a repository to inspect the exact path behind its decision.</p>
-    {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} repository{reached === 1 ? '' : 'ies'} reach the affected code in sampled source.</span></div>}
+    {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} {reached === 1 ? 'repository reaches' : 'repositories reach'} the affected code in sampled source.</span></div>}
     {selected && <div className="route-selected" aria-live="polite">
       <div className="route-selected-heading"><span>Selected repository</span><Verdict value={selected.verdict} compact /></div>
       <strong>{repositoryName(selected.repository)}</strong>
@@ -511,7 +511,7 @@ function CaseConclusion({ report, findings, summary, historical }) {
       : 'not available'
   const remediation = historical
     ? 'current evidence'
-    : [verified ? `${verified} fix verified` : null, alreadySafe ? `${alreadySafe} already safe` : null, noReachablePath ? `${noReachablePath} unreachable` : null].filter(Boolean).join(' · ') || 'review required'
+    : [verified ? `${verified} fix verified` : null, alreadySafe ? `${alreadySafe} already safe` : null, noReachablePath ? `${noReachablePath} no reachable path` : null].filter(Boolean).join(' · ') || 'review required'
   return <section className="case-conclusion" aria-label="Case decision">
     <div className="case-conclusion-copy"><h2>Why this verdict holds</h2><p>{historical ? 'This is a dated reconstruction. The current report keeps reachability, timing, and remediation as separate evidence rather than collapsing them into one score.' : `Recoil compared ${report?.package || 'the affected package'} across the supplied repositories. A lockfile entry becomes a reachable path only when a sampled source import supports it.`}</p></div>
     <dl className="case-conclusion-facts"><div><dt>Reachability</dt><dd>{imports} sampled import{imports === 1 ? '' : 's'}</dd></div><div><dt>History</dt><dd>{history}</dd></div><div><dt>Remediation</dt><dd>{remediation}</dd></div><div><dt>Memory</dt><dd>{memoryLabel}</dd></div></dl>
@@ -604,14 +604,15 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const recordingReady = report?.evidenceQuality?.readyForRecording
   const total = summary.totalRepositories || findings.length
   const historicalDate = report?.rewind?.asOf?.slice(0, 10)
+  const reachedPhrase = summary.reached === 1 ? 'repository reaches' : 'repositories reach'
   const headline = historical
     ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `${summary.reached} of ${total} repositories still reached sampled code by ${historicalDate}.` : 'No repository reached sampled code at this date.'
-    : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} repositories reach sampled code.` : total ? 'No repository reaches sampled code.' : 'No repository was checked.'
+    : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} ${reachedPhrase} sampled code.` : total ? 'No repository reaches sampled code.' : 'No repository was checked.'
   const summaryLine = report?.advisory?.summary ? `${report.advisory.summary} · ${report.package || 'package identity unavailable'}` : `The report compares ${report.package || 'the affected package'} across the collected repositories.`
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
-    <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : 'fixes verified'}</span></div></section>
+    <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={setActiveTab} />
     <div className="case-tab-panel">
@@ -650,7 +651,9 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!busy) return undefined
+    const activeStatus = snapshot?.investigation?.status
+    const shouldPoll = busy || ['running', 'finalizing'].includes(activeStatus)
+    if (!shouldPoll) return undefined
     let cancelled = false
     const poll = async () => {
       try {
@@ -671,7 +674,7 @@ function App() {
     }
     const timer = window.setTimeout(poll, 100)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [busy])
+  }, [busy, snapshot?.investigation?.status])
 
   const activeReport = report || investigation?.report
   const hasInvestigation = Boolean(investigation && investigation.status !== 'idle')
