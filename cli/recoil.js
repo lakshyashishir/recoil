@@ -133,6 +133,7 @@ async function main() {
   if (quality.ambiguousVersions?.length) line(`ambiguity ${quality.ambiguousVersions.map((item) => `${item.repository}: ${item.versions.join(', ')}`).join(' · ')}`)
   if (quality.collectorIssues?.length) line(`blocker  ${quality.collectorIssues.map((item) => `${item.collector}: ${item.status}`).join(' · ')}`)
   if (quality.sourceCoverage?.boundedRepositories) line(`sampling ${quality.sourceCoverage.sampledFiles}/${quality.sourceCoverage.candidateFiles} eligible source files across ${quality.sourceCoverage.boundedRepositories} bounded repos`)
+  for (const correlation of result.report.crossRepositoryCorrelations || []) line(`shared  ${correlation.packageName}@${correlation.version} · ${correlation.repositories.map((item) => `${item.repository} (${item.verdict})`).join(' · ')}`)
   for (const finding of result.report.repositories || []) {
     line(`repo    ${finding.verdict.padEnd(14)} ${finding.repository || 'unknown'} · ${finding.packageName || 'package'}@${finding.resolvedVersion || 'unresolved'}`)
     const proof = finding.proof || []

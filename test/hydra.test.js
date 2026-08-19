@@ -44,10 +44,20 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
       evidenceSources: ['https://github.com/example/app/blob/HEAD/src/cli.js'],
     }],
     challenge: [{ repository: 'example/app', status: 'FIX_SURVIVES', proposedVersion: '1.2.6', detail: 'fixed', residualPath: [] }],
+    crossRepositoryCorrelations: [{
+      packageName: 'minimist',
+      version: '1.2.5',
+      repositoryCount: 2,
+      repositories: [{ repository: 'example/app', verdict: 'REACHED', pathObservedAt: '2022-01-01T00:00:00Z' }, { repository: 'example/other', verdict: 'DECLARED_ONLY', pathObservedAt: '2022-02-01T00:00:00Z' }],
+      sourceUrls: ['https://github.com/example/app/blob/HEAD/package-lock.json'],
+    }],
   }
   const memories = buildInvestigationMemories(ingestion, report)
   assert.ok(memories.some((memory) => memory.additional_metadata.recoil_kind === 'observed_graph'))
   assert.ok(memories.some((memory) => memory.additional_metadata.recoil_kind === 'temporal_fact' && memory.additional_metadata.valid_from === '2022-01-01T00:00:00Z'))
+  const correlationMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'cross_repository_correlation')
+  assert.equal(correlationMemory.additional_metadata.valid_from, '2022-01-01T00:00:00Z')
+  assert.match(correlationMemory.text, /minimist@1\.2\.5/)
   const graphMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'observed_graph')
   assert.match(graphMemory.text, /advisory:GHSA-test → repo:example\/app/)
   assert.equal(graphMemory._recoilGraphPayload.entities.node_0.name, 'GHSA-test')

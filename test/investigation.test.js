@@ -42,8 +42,31 @@ test('investigation report preserves the three-way repository contrast and fix c
     fixSurvives: 1,
     alreadySafe: 1,
     residualPaths: 0,
+    sharedResolutions: 1,
     exposureDays: 441,
   })
+  assert.deepEqual(report.crossRepositoryCorrelations, [{
+    packageName: 'minimist',
+    version: '1.2.5',
+    repositories: [
+      {
+        repository: 'example/reached',
+        repositoryUrl: 'https://github.com/example/reached',
+        verdict: 'REACHED',
+        pathObservedAt: '2021-01-01T00:00:00.000Z',
+        sourceUrls: ['https://github.com/example/reached', 'https://github.com/example/reached/blob/HEAD/package-lock.json'],
+      },
+      {
+        repository: 'example/declared',
+        repositoryUrl: 'https://github.com/example/declared',
+        verdict: 'DECLARED_ONLY',
+        pathObservedAt: '2021-01-01T00:00:00.000Z',
+        sourceUrls: ['https://github.com/example/declared'],
+      },
+    ],
+    repositoryCount: 2,
+    sourceUrls: ['https://github.com/example/reached', 'https://github.com/example/reached/blob/HEAD/package-lock.json', 'https://github.com/example/declared'],
+  }])
   assert.equal(report.challenge.find((item) => item.repository === 'example/reached').status, 'FIX_SURVIVES')
   assert.equal(report.challenge.find((item) => item.repository === 'example/declared').status, 'NO_REACHABLE_PATH')
   assert.equal(report.challenge.find((item) => item.repository === 'example/fixed').status, 'ALREADY_SAFE')

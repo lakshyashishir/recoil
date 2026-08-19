@@ -371,6 +371,19 @@ export function buildInvestigationMemories(ingestion, report) {
     },
     graphPayload: buildGraphPayload(graph, report.generatedAt),
   }))
+  for (const correlation of report.crossRepositoryCorrelations || []) {
+    const datedObservations = (correlation.repositories || []).map((item) => item.pathObservedAt).filter(Boolean).sort()
+    const repositories = (correlation.repositories || []).map((item) => `${item.repository} (${item.verdict})`).join(', ')
+    memories.push(temporalMemory({
+      id: `recoil:temporal:correlation:${stableId(`${scenarioId}:${correlation.packageName}:${correlation.version}`)}`,
+      title: `Recoil shared resolution · ${correlation.packageName}@${correlation.version}`,
+      kind: 'cross_repository_correlation',
+      scenarioId,
+      validFrom: datedObservations[0] || null,
+      sourceUrls: correlation.sourceUrls || [],
+      text: `# Cross-repository resolution\n\n- Package: ${correlation.packageName}@${correlation.version}\n- Repositories: ${repositories || 'none'}\n- Repository count: ${correlation.repositoryCount || correlation.repositories?.length || 0}\n- Evidence: the same resolved package version was observed in each listed repository. This is a dependency correlation, not proof of runtime execution.\n- Sources: ${(correlation.sourceUrls || []).join(', ') || 'not available'}`,
+    }))
+  }
   for (const finding of report.repositories || []) {
     memories.push(temporalMemory({
       id: `recoil:temporal:path:${stableId(`${scenarioId}:${finding.repository}:${finding.packageName}:${finding.resolvedVersion}`)}`,

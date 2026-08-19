@@ -136,6 +136,15 @@ function EvidenceQuality({ quality }) {
   </section>
 }
 
+function CrossRepositoryEvidence({ correlations = [] }) {
+  if (!correlations.length) return null
+  return <section className="correlation-section" aria-label="Cross-repository evidence">
+    <div className="section-heading"><div><p className="eyebrow">CROSS-REPOSITORY EVIDENCE</p><h2>Where the same version appears</h2></div><span>{correlations.length} shared resolution{correlations.length === 1 ? '' : 's'}</span></div>
+    <p className="correlation-lede">These links come from observed lockfile resolutions across the repositories in this case. They show dependency overlap, not runtime compromise.</p>
+    <div className="correlation-list">{correlations.map((correlation) => <div className="correlation-row" key={`${correlation.packageName}@${correlation.version}`}><strong>{correlation.packageName}@{correlation.version}</strong><div>{correlation.repositories.map((repository) => <span key={repository.repository}><Verdict value={repository.verdict} /> {repository.repository}</span>)}</div></div>)}</div>
+  </section>
+}
+
 function Rewind({ report, activeReport, onSelect }) {
   const before = report?.rewind?.beforeAdvisory
   const current = report?.rewind?.currentAsOf || report?.rewind?.asOf || new Date().toISOString()
@@ -178,6 +187,7 @@ function FinalReport({ report, hydra, onRewind }) {
   return <main className="report-page">
     <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{confirmedHeadline}<br /><i>{quality.readyForRecording ? 'reach vulnerable code.' : 'found so far.'}</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.{summary.unknown ? ` ${summary.unknown} repository${summary.unknown === 1 ? '' : 'ies'} remain unclassified and are not counted as safe.` : ''}</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p><ReceiptLink /></section>
     <EvidenceQuality quality={quality} />
+    <CrossRepositoryEvidence correlations={report?.crossRepositoryCorrelations} />
     <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
     <Rewind report={report} activeReport={report} onSelect={onRewind} />
     <HydraProof hydra={hydra} graphContext={report?.rewind?.memory?.graphContext} />

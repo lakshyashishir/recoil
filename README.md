@@ -29,6 +29,9 @@ dependency scanners collapse into one alert:
 - **HydraDB as the evidence timeline:** HydraDB stores the advisory, observed paths, graph provenance,
   change impact, and fix proofs as dated memories. Recoil recalls prior related cases, while the local
   source-cited classifier remains the verdict authority.
+- **Cross-repository overlap:** when multiple repositories resolve the same package version, Recoil
+  surfaces that observed overlap and stores it as a separate HydraDB correlation memory instead of
+  hiding the blast-radius relationship inside a graph dump.
 
 This positions Recoil as a **cross-ecosystem reachability and remediation proof layer** for Track 2:
 Track 2A’s supply-chain blast radius is the entry point, while Cargo/Rust source proof, changed-symbol

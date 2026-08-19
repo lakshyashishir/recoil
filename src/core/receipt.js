@@ -83,6 +83,7 @@ export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) 
     advisoryScope: report.advisoryScope || { status: 'not_requested', affectedSymbols: [] },
     evidenceQuality: report.evidenceQuality || null,
     repositories: (report.repositories || []).map(compactFinding),
+    crossRepositoryCorrelations: report.crossRepositoryCorrelations || [],
     temporal: report.rewind || null,
     fixProof: report.challenge || [],
     graph: compactGraph(report.graph),

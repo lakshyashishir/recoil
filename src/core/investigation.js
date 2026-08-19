@@ -146,6 +146,40 @@ function challengeFinding(finding, advisory) {
   }
 }
 
+/**
+ * Surface only correlations that can be read directly from repository
+ * resolution evidence. A repository with multiple unresolved versions is
+ * excluded rather than collapsed into a misleading shared-version claim.
+ */
+export function buildCrossRepositoryCorrelations(findings = []) {
+  const groups = new Map()
+  for (const finding of findings) {
+    const versions = [...new Set((finding.resolvedVersions?.length ? finding.resolvedVersions : [finding.resolvedVersion]).filter(Boolean))]
+    if (!finding.repository || !finding.packageName || versions.length !== 1) continue
+    const version = versions[0]
+    const key = `${finding.packageName}@${version}`
+    const group = groups.get(key) || { packageName: finding.packageName, version, repositories: [] }
+    if (!group.repositories.some((item) => item.repository === finding.repository)) {
+      group.repositories.push({
+        repository: finding.repository,
+        repositoryUrl: finding.repositoryUrl || null,
+        verdict: finding.verdict || 'UNKNOWN',
+        pathObservedAt: finding.pathObservedAt || null,
+        sourceUrls: [...new Set([finding.repositoryUrl, ...(finding.evidenceSources || [])].filter(Boolean))],
+      })
+    }
+    groups.set(key, group)
+  }
+  return [...groups.values()]
+    .filter((group) => group.repositories.length > 1)
+    .map((group) => ({
+      ...group,
+      repositoryCount: group.repositories.length,
+      sourceUrls: [...new Set(group.repositories.flatMap((item) => item.sourceUrls || []))],
+    }))
+    .sort((left, right) => right.repositoryCount - left.repositoryCount || left.packageName.localeCompare(right.packageName) || left.version.localeCompare(right.version))
+}
+
 function hydraRewindSummary(recall, asOf) {
   const priorScenarioIds = recall?.priorScenarioIds || recall?.relatedScenarioIds || []
   const graphContext = summarizeGraphContext(recall?.graphContext)
@@ -191,6 +225,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
   const unaffected = currentFindings.filter((finding) => finding.verdict === 'NOT_AFFECTED')
   const fixSurvives = challenge.filter((item) => item.status === 'FIX_SURVIVES')
   const residual = challenge.filter((item) => !['FIX_SURVIVES', 'ALREADY_SAFE', 'NO_FIXED_VERSION', 'NO_REACHABLE_PATH'].includes(item.status))
+  const crossRepositoryCorrelations = buildCrossRepositoryCorrelations(currentFindings)
   const evidenceQuality = buildEvidenceQuality({
     status: ingestion?.status || 'partial',
     collectors: ingestion?.collectors || [],
@@ -211,6 +246,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
     advisoryScope: ingestion?.advisoryScope || { status: 'not_requested', affectedSymbols: [] },
     evidenceQuality,
     repositories: currentFindings,
+    crossRepositoryCorrelations,
     challenge,
     rewind: {
       asOf: requestedAsOf,
@@ -228,6 +264,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       fixSurvives: fixSurvives.length,
       alreadySafe: challenge.filter((item) => item.status === 'ALREADY_SAFE').length,
       residualPaths: residual.length,
+      sharedResolutions: crossRepositoryCorrelations.length,
       exposureDays: reached.map((finding) => finding.exposureDays).filter((value) => value !== null).sort((a, b) => b - a)[0] || null,
     },
     graph: ingestion?.graph || { nodes: [], edges: [] },
