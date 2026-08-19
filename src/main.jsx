@@ -870,6 +870,7 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   const unknown = findings.filter((finding) => ['UNKNOWN', 'NOT_YET_OBSERVED'].includes(finding.verdict))
   const primaryFinding = reached[0]
   const primaryChallenge = challenges.find((item) => item.repository === primaryFinding?.repository)
+  const suggestedCommand = primaryChallenge?.status === 'FIX_SURVIVES' ? packageFixCommand(primaryFinding, primaryChallenge) : null
   const importer = primaryFinding?.imports?.[0]
   const repositoryWord = (count) => count === 1 ? 'repository' : 'repositories'
   const evidenceBasis = `${reached.length} reached · ${declaredOnly.length} declared only · ${notAffected.length} outside range${unknown.length ? ` · ${unknown.length} needs review` : ''}`
@@ -898,7 +899,7 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   return <section className={`case-decision-callout ${historical ? 'case-decision-callout-historical' : ''}`} aria-label="Case decision">
     <div className="case-decision-label"><span className="section-kicker">Decision</span><span>from collected evidence</span></div>
     <div className="case-decision-copy"><h2>{title}</h2><p>{detail}</p></div>
-    <div className="case-decision-meta"><span>Evidence basis</span><strong>{evidenceBasis}</strong>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}</div>
+    <div className="case-decision-meta"><span>Evidence basis</span><strong>{evidenceBasis}</strong>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}{suggestedCommand && <CopyFixCommand command={suggestedCommand} />}</div>
   </section>
 }
 
