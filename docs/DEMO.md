@@ -20,6 +20,9 @@ Open `http://127.0.0.1:5173`. The API and browser are started together.
 
 Use a verified advisory and real public repositories. Do not use placeholder repository URLs in the recording.
 
+The prepared candidate case is documented in [RECORDING-CASE.md](RECORDING-CASE.md). It is intentionally
+only a live-run input: do not replace the strict gate with its candidate roles or with cached output.
+
 ```text
 <verified GHSA/CVE identifier>
 https://github.com/<owner>/<repository-a>

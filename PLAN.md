@@ -107,6 +107,7 @@ observed path → proposed fix → residual re-check
 - [x] Give the TUI the same explicit direct transport as the CLI for API-free terminal operation.
 - [x] Surface the strict recording gate and blockers in the TUI as well as the browser and CLI.
 - [x] Run the shared strict connectivity preflight before TUI recording collection.
+- [x] Prepare a source-linked candidate recording case without freezing synthetic verdicts.
 
 ### Still required before calling the hackathon build complete
 
