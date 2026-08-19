@@ -225,6 +225,7 @@ Manual checks:
 
 ## Checkpoint history
 
+- `2a83f36` — make the browser's new-case action reset server state
 - `4313dcd` — surface evidence paths in the OpenTUI report pane
 - `b080e77` — retain verified smoke receipts outside version control
 - `f46817d` — explain resolved dependency paths in HydraDB temporal memories
