@@ -427,6 +427,7 @@ function graphPredicate(from, to) {
   if (pair === 'lockfile:repository') return 'BELONGS_TO'
   if (pair === 'lockfile:code') return 'IMPORTS'
   if (pair === 'repository:code') return 'CONTAINS_SOURCE'
+  if (pair === 'code:code') return 'IMPORTS'
   if (pair === 'code:symbol') return 'INDEXES_SYMBOL'
   return 'CONNECTED_TO'
 }
@@ -534,7 +535,7 @@ export function buildInvestigationMemories(ingestion, report) {
   memories.push(memory({
     id: `recoil:observed-graph:${stableId(`${scenarioId}:${ingestion.package || advisory?.id || 'unknown'}`)}`,
     title: `Recoil observed graph · ${ingestion.package || advisory?.id || 'unknown'}`,
-    text: `# Observed evidence graph\n\n- Case: ${scenarioId}\n- Package: ${ingestion.package || 'unknown'}\n- Nodes: ${graph.nodes.length}\n- Edges: ${graph.edges.length}\n\n## Nodes\n${graph.nodes.map((node) => `- ${node.id} · ${node.label} · ${node.type}`).join('\n') || '- none'}\n\n## Edges\n${graph.edges.map(([from, to]) => `- ${from} → ${to}`).join('\n') || '- none'}\n\nThis topology contains only observed advisory, package, repository, lockfile, and sampled source evidence. It does not imply runtime execution.`,
+    text: `# Observed evidence graph\n\n- Case: ${scenarioId}\n- Package: ${ingestion.package || 'unknown'}\n- Nodes: ${graph.nodes.length}\n- Edges: ${graph.edges.length}\n\n## Nodes\n${graph.nodes.map((node) => `- ${node.id} · ${node.label} · ${node.type}`).join('\n') || '- none'}\n\n## Edges\n${graph.edges.map(([from, to]) => `- ${from} → ${to}`).join('\n') || '- none'}\n\nThis topology contains only observed advisory, package, repository, lockfile, and sampled source evidence. Local source edges mean resolved imports within the sampled files; they do not imply runtime execution.`,
     additionalMetadata: {
       recoil_kind: 'observed_graph',
       recoil_scenario_id: scenarioId,
@@ -588,7 +589,7 @@ export function buildInvestigationMemories(ingestion, report) {
         fixStatus: challenge?.status || null,
         proposedVersion: challenge?.proposedVersion || null,
       },
-      text: `# Reachability fact\n\n- Repository: ${finding.repository}\n- Verdict: ${finding.verdict}\n- Package: ${finding.packageName}@${finding.resolvedVersion || 'unresolved'}\n- Declared range: ${finding.declaredRange || 'not found'}\n- Resolved dependency path: ${(finding.dependencyPath || []).map((item) => `${item.name}@${item.version}`).join(' -> ') || 'direct or not resolved'}\n- Imports: ${(finding.imports || []).map((item) => `${item.path}:${item.line || '?'}`).join(', ') || 'none in sampled files'}\n- Advisory symbol scope: ${finding.advisoryScope?.status || 'not requested'}\n- Validated symbols: ${(finding.advisoryScope?.symbols || []).map((item) => `${item.name} (${item.path}:${item.line})`).join(', ') || 'none'}\n- Path observed from: ${finding.pathObservedAt || 'unknown'}\n- Evidence path: ${finding.path.join(' -> ')}\n- Reason: ${finding.reason}\n- Sources: ${(finding.evidenceSources || []).join(', ')}`,
+      text: `# Reachability fact\n\n- Repository: ${finding.repository}\n- Verdict: ${finding.verdict}\n- Package: ${finding.packageName}@${finding.resolvedVersion || 'unresolved'}\n- Declared range: ${finding.declaredRange || 'not found'}\n- Resolved dependency path: ${(finding.dependencyPath || []).map((item) => `${item.name}@${item.version}`).join(' -> ') || 'direct or not resolved'}\n- Imports: ${(finding.imports || []).map((item) => `${item.path}:${item.line || '?'}`).join(', ') || 'none in sampled files'}\n- Local source cone: ${finding.sourceImpact ? `${finding.sourceImpact.sampledFileCount} sampled files · ${finding.sourceImpact.observedEdgeCount} resolved local import edges` : 'not available'}\n- Local source files: ${(finding.sourceImpact?.files || []).map((item) => `${item.path} (depth ${item.depth})`).join(', ') || 'none'}\n- Advisory symbol scope: ${finding.advisoryScope?.status || 'not requested'}\n- Validated symbols: ${(finding.advisoryScope?.symbols || []).map((item) => `${item.name} (${item.path}:${item.line})`).join(', ') || 'none'}\n- Path observed from: ${finding.pathObservedAt || 'unknown'}\n- Evidence path: ${finding.path.join(' -> ')}\n- Reason: ${finding.reason}\n- Sources: ${(finding.evidenceSources || []).join(', ')}`,
     }))
     if (finding.changeEvidence?.importerFilesChanged?.length) memories.push(temporalMemory({
       id: `recoil:temporal:change:${stableId(`${scenarioId}:${finding.repository}:${finding.changeEvidence.sha || finding.changeEvidence.committedAt}`)}`,

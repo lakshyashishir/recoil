@@ -216,6 +216,8 @@ async function main() {
     const cited = proof.filter((step) => ['observed', 'validated'].includes(step.status) && step.source).length
     if (proof.length) line(`proof   ${cited}/${proof.length} hops have cited public evidence`)
     if (finding.dependencyPath?.length > 1) line(`chain   ${finding.dependencyPath.map((item) => `${item.name}@${item.version}`).join(' -> ')}`)
+    if (finding.sourceImpact?.files?.length) line(`impact  ${finding.sourceImpact.sampledFileCount} sampled source files · ${finding.sourceImpact.observedEdgeCount} local import edges · bounded depth ${finding.sourceImpact.maxDepth}`)
+    if (proofOutput && finding.sourceImpact?.edges?.length) for (const [from, to] of finding.sourceImpact.edges.slice(0, 12)) line(`        local-import ${from} -> ${to}`)
     if (proofOutput) for (const step of proof) line(`        ${step.status.padEnd(12)} ${step.kind.padEnd(10)} ${step.label}${step.detail ? ` · ${step.detail}` : ''}${step.source ? ` · ${step.source}` : ''}`)
   }
   for (const item of result.report.challenge || []) {

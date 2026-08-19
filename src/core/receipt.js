@@ -20,6 +20,21 @@ function sourceUrlsForFinding(finding) {
   ].filter(Boolean))]
 }
 
+function compactSourceImpact(sourceImpact) {
+  if (!sourceImpact) return null
+  return {
+    bounded: Boolean(sourceImpact.bounded),
+    sampledFileCount: sourceImpact.sampledFileCount || 0,
+    observedEdgeCount: sourceImpact.observedEdgeCount || 0,
+    maxFiles: sourceImpact.maxFiles || null,
+    maxDepth: sourceImpact.maxDepth || null,
+    note: sourceImpact.note || null,
+    entryFiles: (sourceImpact.entryFiles || []).map((file) => ({ path: file.path, line: file.line || null, sourceUrl: file.sourceUrl || null })),
+    files: (sourceImpact.files || []).map((file) => ({ path: file.path, sourceUrl: file.sourceUrl || null, language: file.language || null, depth: file.depth, role: file.role })),
+    edges: sourceImpact.edges || [],
+  }
+}
+
 function compactFinding(finding) {
   return {
     repository: finding.repository || null,
@@ -37,6 +52,7 @@ function compactFinding(finding) {
     sourceCandidateCount: finding.sourceCandidateCount ?? null,
     sourceSampleLimit: finding.sourceSampleLimit ?? null,
     sourceBound: finding.sourceBound || null,
+    sourceImpact: compactSourceImpact(finding.sourceImpact),
     lockfileSource: finding.lockfileSource || null,
     advisoryScope: finding.advisoryScope || { status: 'not_requested', symbols: [] },
     pathObservedAt: finding.pathObservedAt || null,

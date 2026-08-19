@@ -282,6 +282,14 @@ function routeNodeIds(graph, finding) {
     const match = (graph?.nodes || []).find((node) => nodeMatchesPart(node, part, finding))
     if (match) ids.add(match.id)
   }
+  // The cited path ends at the package importer, but the observed source
+  // cone continues through resolved local imports. Highlight those real
+  // source nodes and edges together so the graph does not hide the impact
+  // context we collected for the selected repository.
+  for (const file of finding.sourceImpact?.files || []) {
+    const sourceNode = (graph?.nodes || []).find((node) => node.id === `code:${finding.repository}:${file.path}`)
+    if (sourceNode) ids.add(sourceNode.id)
+  }
   return ids
 }
 
@@ -358,7 +366,9 @@ function nodeDescription(node, report) {
     const finding = report?.repositories?.find((item) => item.repository === node.label)
     return finding ? `${finding.verdict === 'REACHED' ? 'Source-backed path' : finding.verdict === 'DECLARED_ONLY' ? 'Declared without sampled import' : finding.verdict === 'NOT_AFFECTED' ? 'Outside affected range' : 'Evidence needs review'} · repository record` : 'Repository record'
   }
-  if (node.type === 'code') return 'Sampled source file'
+  if (node.type === 'code') return node.meta?.role === 'local-import'
+    ? `Resolved local import at depth ${node.meta.depth ?? 1} · sampled source file`
+    : 'Sampled source file'
   if (node.type === 'symbol') return 'Validated advisory symbol'
   return 'Observed evidence entity'
 }
@@ -416,6 +426,7 @@ function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historica
     {findings.map((finding, index) => {
       const parts = findingParts(finding)
       const selected = index === selectedIndex
+      const sourceImpact = finding.sourceImpact
       return <article className={`proof-map-lane ${selected ? 'proof-map-lane-selected' : ''}`} key={finding.repository || index}>
         <button className="proof-map-repository" type="button" onClick={() => onSelectFinding?.(index)} aria-pressed={selected}>
           <span className="proof-map-index">0{index + 1}</span>
@@ -436,6 +447,7 @@ function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historica
             </div>
           })}
         </div> : <div className="proof-map-no-path"><span>No observed path</span><small>{finding.reason || 'The available evidence does not support a stronger conclusion.'}</small></div>}
+        {sourceImpact?.files?.length > 0 && <div className="proof-map-source-context"><span>Source context</span><strong>{sourceImpact.sampledFileCount} sampled file{sourceImpact.sampledFileCount === 1 ? '' : 's'} · {sourceImpact.observedEdgeCount} local import edge{sourceImpact.observedEdgeCount === 1 ? '' : 's'}</strong><small>{sourceImpact.files.slice(0, 4).map((file) => file.path).join(' → ')}{sourceImpact.files.length > 4 ? ' → …' : ''}</small></div>}
         <p className="proof-map-lane-note">{historical ? 'Dated reconstruction; current remediation is shown in the present case.' : finding.reason || 'Every displayed hop is taken from the collected public evidence.'}</p>
       </article>
     })}
@@ -491,10 +503,10 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
             const findingIndex = findingIndexForNode(node, report?.repositories || [])
             const selectable = Boolean(onSelectNode || (findingIndex >= 0 && onSelectFinding))
             const selectNode = () => { if (findingIndex >= 0 && onSelectFinding) onSelectFinding(findingIndex); if (onSelectNode) onSelectNode(node.id) }
-            return <g className={`map-node node-${node.type} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} aria-label={selectable ? `${node.type}: ${node.label}` : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
+            return <g className={`map-node node-${node.type} ${node.meta?.role ? `node-${node.meta.role}` : ''} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} aria-label={selectable ? `${node.type}: ${node.label}` : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
               <title>{node.label}</title>
               <rect width="154" height="48" rx="6" />
-              <text className="map-node-type" x="10" y="15">{node.type}</text>
+              <text className="map-node-type" x="10" y="15">{node.meta?.role === 'local-import' ? 'local import' : node.type}</text>
               <text className="map-node-label" x="10" y="33">{shorten(node.label, 23)}</text>
             </g>
           })}

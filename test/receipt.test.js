@@ -16,6 +16,20 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
       ],
       verdict: 'REACHED', path: ['GHSA-test', 'minimist@1.2.5', 'example/app', 'src/cli.js'],
       imports: [{ path: 'src/cli.js', line: 1, specifier: 'minimist', packageName: 'minimist', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' }],
+      sourceImpact: {
+        bounded: true,
+        sampledFileCount: 2,
+        observedEdgeCount: 1,
+        maxFiles: 12,
+        maxDepth: 3,
+        note: 'Bounded local-import cone over 2 sampled source files; not a runtime call graph.',
+        entryFiles: [{ path: 'src/cli.js', line: 1, sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' }],
+        files: [
+          { path: 'src/cli.js', language: 'javascript', depth: 0, role: 'importer', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' },
+          { path: 'src/parse.js', language: 'javascript', depth: 1, role: 'local-import', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/parse.js' },
+        ],
+        edges: [['src/cli.js', 'src/parse.js']],
+      },
       advisoryScope: { status: 'VALIDATED_SYMBOL', symbols: [{ name: 'parseArgs', path: 'src/cli.js', line: 4 }] },
       evidenceSources: ['https://github.com/example/app/blob/HEAD/package-lock.json'], sourceSampleSize: 3,
       proof: [
@@ -46,6 +60,8 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.equal(receipt.repositories[0].verdict, 'REACHED')
   assert.equal(receipt.repositories[0].imports[0].sourceUrl, 'https://github.com/example/app/blob/HEAD/src/cli.js')
   assert.equal(receipt.repositories[0].imports[0].packageName, 'minimist')
+  assert.deepEqual(receipt.repositories[0].sourceImpact.edges, [['src/cli.js', 'src/parse.js']])
+  assert.equal(receipt.repositories[0].sourceImpact.bounded, true)
   assert.deepEqual(receipt.repositories[0].dependencyPath.map((item) => item.name), ['parent', 'minimist'])
   assert.equal(receipt.repositories[0].advisoryScope.status, 'VALIDATED_SYMBOL')
   assert.equal(receipt.repositories[0].proof.length, 6)

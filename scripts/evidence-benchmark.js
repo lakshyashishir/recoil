@@ -24,6 +24,11 @@ function repository(name, { version, imports, sourceStatus = 'collected', firstC
       codeGraph: {
         fileCount: imports.length ? 2 : 3,
         externalImports: imports.map((path) => ({ packageName: 'minimist', path, line: 1, sourceUrl: `https://github.com/benchmark/${name}/blob/HEAD/${path}` })),
+        files: imports.length ? [
+          { path: imports[0], language: 'javascript', sourceUrl: `https://github.com/benchmark/${name}/blob/HEAD/${imports[0]}` },
+          { path: 'src/parse.js', language: 'javascript', sourceUrl: `https://github.com/benchmark/${name}/blob/HEAD/src/parse.js` },
+        ] : [],
+        edges: imports.length ? [[`code:${imports[0]}`, 'code:src/parse.js']] : [],
       },
     },
   }
@@ -59,12 +64,16 @@ assert.equal(report.summary.sharedResolutions, 1)
 assert.deepEqual(report.crossRepositoryCorrelations[0].repositories.map((item) => `${item.repository}:${item.verdict}`), ['benchmark/reached:REACHED', 'benchmark/declared-only:DECLARED_ONLY', 'benchmark/incomplete:UNKNOWN'])
 assert.equal(report.challenge.find((item) => item.repository === 'benchmark/reached').status, 'FIX_SURVIVES')
 assert.equal(report.challenge.find((item) => item.repository === 'benchmark/not-affected').status, 'ALREADY_SAFE')
-assert.equal(buildInvestigationReport({
+assert.deepEqual(findings[0].sourceImpact.files.map((file) => file.path), ['src/cli.js', 'src/parse.js'])
+assert.ok(graph.edges.some(([from, to]) => from === 'code:benchmark/reached:src/cli.js' && to === 'code:benchmark/reached:src/parse.js'))
+const historicalReport = buildInvestigationReport({
   ...report,
   findings,
   advisory,
   temporal: { advisoryPublishedAt: advisory.published, collectedAt: '2022-04-01T00:00:00Z' },
-}, { asOf: '2020-01-01T00:00:00Z' }).rewind.findings[0].verdict, 'NOT_YET_OBSERVED')
+}, { asOf: '2020-01-01T00:00:00Z' })
+assert.equal(historicalReport.rewind.findings[0].verdict, 'NOT_YET_OBSERVED')
+assert.equal(historicalReport.rewind.findings[0].sourceImpact, null)
 assert.equal(graph.nodes.some((node) => node.label === 'customer database'), false)
 
 console.log(JSON.stringify({

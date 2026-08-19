@@ -81,6 +81,11 @@ sends its internal graph helper field as a memory property. Raw HTTP queries use
 `query_by`, `metadata_filters`, and `graph_context: true`; the report keeps only a bounded summary of
 returned triplets so the receipt proves graph retrieval without copying raw chunks.
 
+Local source-to-source edges from the bounded cone are persisted as typed `IMPORTS` relations in the
+HydraDB graph payload, and the same bounded source context is included in the browser proof, CLI/TUI
+summary, and portable receipt. Historical rewind removes that context when the source evidence was not
+yet observed.
+
 The report exposes the write and recall result. Recoil polls HydraDB's asynchronous indexing status for a
 bounded window before recalling, so `persisted` means the submitted memories reached `completed`; a timeout
 remains visibly `queued` with its indexing error. Temporal rewind is computed from the collected lockfile

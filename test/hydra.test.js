@@ -131,6 +131,23 @@ test('HydraDB graph payload preserves observed package dependency edges', () => 
   assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'DEPENDS_ON')
 })
 
+test('HydraDB graph payload preserves local source imports as typed edges', () => {
+  const memories = buildInvestigationMemories({
+    scenarioId: 'source-cone-graph-test',
+    package: 'minimist',
+    graph: {
+      nodes: [
+        { id: 'code:example/app:src/cli.js', label: 'src/cli.js', type: 'code' },
+        { id: 'code:example/app:src/parse.js', label: 'src/parse.js', type: 'code', meta: { role: 'local-import', depth: 1 } },
+      ],
+      edges: [['code:example/app:src/cli.js', 'code:example/app:src/parse.js']],
+    },
+  }, { advisory: { id: 'GHSA-test' }, repositories: [], challenge: [] })
+  const graphMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'observed_graph')
+  assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'IMPORTS')
+  assert.match(graphMemory.text, /Local source edges mean resolved imports/)
+})
+
 test('HydraDB metadata keeps large source collections under the cloud limit', () => {
   const memories = buildInvestigationMemories({
     scenarioId: 'metadata-bound-test',

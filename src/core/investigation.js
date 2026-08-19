@@ -117,6 +117,7 @@ function findingAsOf(finding, asOf) {
       verdict: 'NOT_YET_OBSERVED',
       reason: `The relevant lockfile/source evidence was first observed after ${asOf.slice(0, 10)}.`,
       imports: [],
+      sourceImpact: null,
       dependencyPath: [],
       changeEvidence: null,
       path: [finding.advisoryId || 'advisory', finding.repository || 'repository'],

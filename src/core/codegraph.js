@@ -162,6 +162,8 @@ export function buildChangeImpact(codeGraph, commit) {
  * execution trace, or claim that every file in the repository was inspected.
  */
 export function buildSourceImpact(codeGraph = {}, imports = [], { maxFiles = 12, maxDepth = 3 } = {}) {
+  const fileLimit = Math.max(1, Number(maxFiles) || 12)
+  const depthLimit = Math.max(0, Number(maxDepth) || 0)
   const files = new Map((codeGraph.files || [])
     .filter((file) => file?.path)
     .map((file) => [normalizePath(file.path), file]))
@@ -173,7 +175,7 @@ export function buildSourceImpact(codeGraph = {}, imports = [], { maxFiles = 12,
       specifier: item.specifier || null,
       sourceUrl: item.sourceUrl || files.get(normalizePath(item.path))?.sourceUrl || null,
       snippet: item.snippet || null,
-    }])).values()].slice(0, 4)
+    }])).values()].slice(0, Math.min(4, fileLimit))
   if (!entryFiles.length) return null
 
   const adjacency = new Map()
@@ -193,9 +195,9 @@ export function buildSourceImpact(codeGraph = {}, imports = [], { maxFiles = 12,
     const current = queue.shift()
     for (const target of adjacency.get(current.path) || []) {
       const nextDepth = current.depth + 1
-      if (nextDepth > maxDepth) continue
+      if (nextDepth > depthLimit) continue
       if (!selected.has(target)) {
-        if (selected.size >= maxFiles) continue
+        if (selected.size >= fileLimit) continue
         selected.set(target, { depth: nextDepth, entry: false })
         queue.push({ path: target, depth: nextDepth })
       }
@@ -229,8 +231,8 @@ export function buildSourceImpact(codeGraph = {}, imports = [], { maxFiles = 12,
     symbols,
     sampledFileCount: sourceFiles.length,
     observedEdgeCount: observedEdges.size,
-    maxFiles,
-    maxDepth,
+    maxFiles: fileLimit,
+    maxDepth: depthLimit,
     note: `Bounded local-import cone over ${sourceFiles.length} sampled source file${sourceFiles.length === 1 ? '' : 's'}; not a runtime call graph.`,
   }
 }

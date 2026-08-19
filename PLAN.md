@@ -30,6 +30,7 @@ observed path → proposed fix → residual re-check
 - [x] GitHub API caching with explicit rate-limit and partial-collection errors.
 - [x] Bounded JavaScript/TypeScript/Rust source graph with local imports, external package imports, symbols, and source URLs.
 - [x] Expose a bounded local-import cone behind each reached package import, with source links and an explicit non-runtime boundary.
+- [x] Persist bounded local source edges as typed `IMPORTS` relations and carry the cone through browser, CLI, TUI, receipt, and temporal rewind.
 - [x] Include bounded `bin/`, `cmd/`, and `cli/` entrypoints, including extensionless Node executables, in source reachability sampling.
 - [x] Lockfile resolution for npm and Cargo evidence.
 - [x] OSV affected-range and fixed-version evaluation.
