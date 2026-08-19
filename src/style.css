@@ -888,6 +888,21 @@ body { font-family: var(--sans); line-height: 1.45; }
 .proof-loop-heading-actions button { display: inline-flex; align-items: center; gap: 5px; padding: 0; color: var(--accent); background: transparent; font-size: 11px; white-space: nowrap; }
 .proof-loop-heading-actions button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 .proof-loop-heading-actions button:disabled { color: var(--faint); cursor: wait; text-decoration: none; }
+.proof-loop-path-block { margin-top: 15px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.proof-loop-path-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 9px 0; color: var(--muted); font: 10px/1 var(--mono); }
+.proof-loop-path-heading > span:last-child { color: var(--faint); }
+.proof-loop-path { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; padding: 0 0 12px; scrollbar-width: thin; }
+.proof-loop-hop-wrap { display: flex; align-items: center; flex: 1 1 0; min-width: 0; }
+.proof-loop-hop { width: 100%; min-width: 0; min-height: 66px; display: grid; align-content: start; gap: 5px; padding: 10px 11px; border-top: 2px solid var(--line); border-right: 1px solid var(--line-soft); background: var(--surface); }
+.proof-loop-hop-advisory, .proof-loop-hop-lockfile { border-top-color: var(--accent); }
+.proof-loop-hop-resolved, .proof-loop-hop-source, .proof-loop-hop-symbol { border-top-color: var(--red); }
+.proof-loop-hop-repository { border-top-color: var(--green); }
+.proof-loop-hop > span { overflow: hidden; color: var(--muted); font-size: 9px; text-transform: lowercase; text-overflow: ellipsis; white-space: nowrap; }
+.proof-loop-hop strong { overflow: hidden; color: var(--text); font: 600 10px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.proof-loop-hop .source-link, .proof-loop-hop small { width: max-content; margin-top: auto; color: var(--accent); font-size: 9px; }
+.proof-loop-hop small { color: var(--faint); }
+.proof-loop-hop-arrow { display: grid; place-items: center; width: 25px; color: var(--faint); font-size: 15px; }
+.proof-loop-path-empty { margin: 0; padding: 12px 0 14px; color: var(--muted); font-size: 11px; }
 .proof-loop-grid { display: grid; grid-template-columns: minmax(0, 1fr) 25px minmax(0, 1fr) 25px minmax(0, 1fr); gap: 0; align-items: stretch; margin-top: 15px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .proof-loop-step { display: grid; align-content: start; gap: 6px; min-width: 0; padding: 13px 15px 14px 0; border-top: 2px solid var(--line); }
 .proof-loop-step + .proof-loop-step { padding-left: 15px; border-left: 1px solid var(--line-soft); }
@@ -897,6 +912,7 @@ body { font-family: var(--sans); line-height: 1.45; }
 .proof-loop-index { color: var(--muted); font: 10px/1 var(--sans); }
 .proof-loop-step strong { overflow: hidden; color: var(--text); font-size: 12px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; }
 .proof-loop-step code { overflow: hidden; color: var(--text); font: 600 11px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.proof-loop-step .proof-loop-snippet { display: block; overflow-x: auto; padding: 7px 8px; border-left: 2px solid var(--red); color: var(--muted); background: var(--surface-raised); font-size: 9px; font-weight: 400; line-height: 1.45; text-overflow: clip; white-space: pre; }
 .proof-loop-step p { min-height: 32px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .proof-loop-step .source-link { width: max-content; font-size: 9px; }
 .proof-loop-muted { color: var(--faint); font: 9px/1.4 var(--sans); }
@@ -912,6 +928,9 @@ body { font-family: var(--sans); line-height: 1.45; }
   .case-decision-callout-historical .case-decision-meta { border-top-color: var(--faint); }
   .proof-loop-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
   .proof-loop-heading-actions { width: 100%; justify-content: flex-start; }
+  .proof-loop-path-heading { padding-top: 8px; }
+  .proof-loop-hop-wrap { flex: 0 0 auto; }
+  .proof-loop-hop { width: 142px; }
   .proof-loop-grid { grid-template-columns: 1fr; }
   .proof-loop-step, .proof-loop-step + .proof-loop-step { padding: 12px 0; border-left: 0; border-top: 1px solid var(--line-soft); }
   .proof-loop-step:first-child { border-top: 2px solid var(--red); }
