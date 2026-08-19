@@ -878,10 +878,29 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-decision-callout-historical .case-decision-label .section-kicker { color: var(--muted); }
 .case-decision-callout-historical .case-decision-meta { border-left-color: var(--faint); }
 
+.temporal-highlight { display: grid; grid-template-columns: minmax(220px, 1.05fr) minmax(245px, .95fr) auto; gap: 22px; align-items: center; margin: 0 0 18px; padding: 14px 0 16px; border-bottom: 1px solid var(--line); }
+.temporal-highlight-copy { min-width: 0; }
+.temporal-highlight-copy .section-kicker { margin: 0 0 5px; color: var(--accent); }
+.temporal-highlight-copy h2 { margin: 0 0 5px; color: var(--text); font-size: 17px; font-weight: 600; letter-spacing: -.025em; }
+.temporal-highlight-copy p { max-width: 430px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.temporal-highlight-track { display: grid; grid-template-columns: minmax(0, 1fr) 25px minmax(0, 1fr); align-items: center; min-width: 0; padding: 10px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.temporal-highlight-track div { display: grid; gap: 4px; min-width: 0; }
+.temporal-highlight-track strong { color: var(--text); font: 600 12px/1.2 var(--mono); }
+.temporal-highlight-track span { color: var(--muted); font-size: 10px; line-height: 1.25; }
+.temporal-highlight-track i { color: var(--accent); font-size: 15px; font-style: normal; text-align: center; }
+.temporal-highlight-action { display: grid; justify-items: end; gap: 8px; min-width: 155px; }
+.temporal-highlight-action > span { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.memory-mark-muted { background: var(--faint); }
+.temporal-highlight-action button { display: inline-flex; align-items: center; gap: 5px; padding: 0; color: var(--accent); background: transparent; font-size: 11px; white-space: nowrap; }
+.temporal-highlight-action button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.temporal-highlight-action button:disabled { color: var(--faint); cursor: wait; text-decoration: none; }
+
 @media (max-width: 720px) {
   .case-decision-callout { grid-template-columns: 1fr; gap: 9px; padding-top: 13px; }
   .case-decision-meta { padding-top: 10px; padding-left: 0; border-top: 2px solid var(--accent); border-left: 0; }
   .case-decision-callout-historical .case-decision-meta { border-top-color: var(--faint); }
+  .temporal-highlight { grid-template-columns: 1fr; gap: 12px; align-items: start; }
+  .temporal-highlight-action { justify-items: start; }
 }
 
 /* The completed report leads with cited routes. The full graph remains
