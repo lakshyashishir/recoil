@@ -230,6 +230,8 @@ Manual checks:
 
 ## Checkpoint history
 
+- `a755e08` — expose the Red → Blue → Red proof loop across browser, CLI, and TUI
+- `d8534c7` — add offline SHA-256 receipt verification
 - `fc5fdbe` — print observed proof excerpts and prior-case summaries in the CLI
 - `f0f76d9` — show bounded observed import excerpts in evidence proof chains
 - `29fe29e` — surface sanitized prior evidence from HydraDB recall
