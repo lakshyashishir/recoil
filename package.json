@@ -7,6 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "start": "node scripts/start.js",
     "build": "vite build",
+    "build:tui": "node scripts/verify-tui.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "cli": "node --env-file-if-exists=.env cli/recoil.js",
     "test": "node --test --import ./scripts/test-cache.mjs test/*.test.js",

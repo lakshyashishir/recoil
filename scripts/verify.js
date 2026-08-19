@@ -4,6 +4,7 @@ const checks = [
   ['tests', ['run', 'test']],
   ['evidence benchmark', ['run', 'benchmark']],
   ['production build', ['run', 'build']],
+  ['TUI build', ['run', 'build:tui']],
 ]
 
 for (const [label, args] of checks) {
@@ -20,4 +21,3 @@ for (const [label, args] of checks) {
 }
 
 console.log('\n[verify] all checks passed')
-

@@ -85,6 +85,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Make strict recording require an actual HydraDB graph triplet, not only a successful memory write and dated recall.
 - [x] Reuse one recursive GitHub tree for source and workflow discovery, keeping the workflow directory API as a failure fallback.
 - [x] Allow the CLI to target a caller-supplied case ID so browser and terminal clients can inspect the same API-backed investigation.
+- [x] Include OpenTUI compilation in the reproducible `npm run verify` gate.
 
 ### Still required before calling the hackathon build complete
 
@@ -305,4 +306,4 @@ Manual checks:
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
-The reproducible local gate is `npm run verify`; it runs the regression suite, evidence benchmark, and production build in order.
+The reproducible local gate is `npm run verify`; it runs the regression suite, evidence benchmark, browser production build, and OpenTUI compilation in order.
