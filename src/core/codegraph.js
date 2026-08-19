@@ -154,6 +154,87 @@ export function buildChangeImpact(codeGraph, commit) {
   }
 }
 
+/**
+ * Return the bounded local-import cone behind an observed external import.
+ *
+ * This deliberately stays at the level the collector can prove: sampled
+ * source files and resolved relative imports. It is not a runtime call graph,
+ * execution trace, or claim that every file in the repository was inspected.
+ */
+export function buildSourceImpact(codeGraph = {}, imports = [], { maxFiles = 12, maxDepth = 3 } = {}) {
+  const files = new Map((codeGraph.files || [])
+    .filter((file) => file?.path)
+    .map((file) => [normalizePath(file.path), file]))
+  const entryFiles = [...new Map((imports || [])
+    .filter((item) => item?.path && files.has(normalizePath(item.path)))
+    .map((item) => [normalizePath(item.path), {
+      path: normalizePath(item.path),
+      line: item.line || null,
+      specifier: item.specifier || null,
+      sourceUrl: item.sourceUrl || files.get(normalizePath(item.path))?.sourceUrl || null,
+      snippet: item.snippet || null,
+    }])).values()].slice(0, 4)
+  if (!entryFiles.length) return null
+
+  const adjacency = new Map()
+  for (const [from, to] of codeGraph.edges || []) {
+    const fromPath = String(from || '').replace(/^code:/, '')
+    const toPath = String(to || '').replace(/^code:/, '')
+    if (!files.has(fromPath) || !files.has(toPath)) continue
+    const next = adjacency.get(fromPath) || []
+    next.push(toPath)
+    adjacency.set(fromPath, [...new Set(next)].sort())
+  }
+
+  const selected = new Map(entryFiles.map((entry) => [entry.path, { depth: 0, entry: true }]))
+  const queue = entryFiles.map((entry) => ({ path: entry.path, depth: 0 }))
+  const observedEdges = new Set()
+  while (queue.length) {
+    const current = queue.shift()
+    for (const target of adjacency.get(current.path) || []) {
+      const nextDepth = current.depth + 1
+      if (nextDepth > maxDepth) continue
+      if (!selected.has(target)) {
+        if (selected.size >= maxFiles) continue
+        selected.set(target, { depth: nextDepth, entry: false })
+        queue.push({ path: target, depth: nextDepth })
+      }
+      observedEdges.add(`${current.path}>${target}`)
+    }
+  }
+
+  const sourceFiles = [...selected.entries()]
+    .sort((left, right) => left[1].depth - right[1].depth || left[0].localeCompare(right[0]))
+    .map(([path, meta]) => {
+      const file = files.get(path) || {}
+      return {
+        path,
+        sourceUrl: file.sourceUrl || null,
+        language: file.language || languageFor(path),
+        depth: meta.depth,
+        role: meta.entry ? 'importer' : 'local-import',
+      }
+    })
+  const sourcePaths = new Set(sourceFiles.map((file) => file.path))
+  const symbols = (codeGraph.symbols || [])
+    .filter((symbol) => sourcePaths.has(symbol.path))
+    .slice(0, 80)
+    .map((symbol) => ({ ...symbol }))
+
+  return {
+    bounded: true,
+    entryFiles,
+    files: sourceFiles,
+    edges: [...observedEdges].map((edge) => edge.split('>')),
+    symbols,
+    sampledFileCount: sourceFiles.length,
+    observedEdgeCount: observedEdges.size,
+    maxFiles,
+    maxDepth,
+    note: `Bounded local-import cone over ${sourceFiles.length} sampled source file${sourceFiles.length === 1 ? '' : 's'}; not a runtime call graph.`,
+  }
+}
+
 function codeownersRegex(pattern) {
   const normalized = pattern.trim().replace(/^\//, '')
   const escaped = normalized.replace(/[.+^${}()|[\]\\]/g, '\\$&')

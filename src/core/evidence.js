@@ -1,3 +1,5 @@
+import { buildSourceImpact } from './codegraph.js'
+
 const VERSION_PATTERN = /^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?/
 
 function parseVersion(value) {
@@ -218,6 +220,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   const resolvedVersions = [...new Set(manifest.resolvedVersions?.[packageName] || [resolvedVersion].filter(Boolean))]
   const declaredRange = manifest.dependencies?.[packageName] || manifest.devDependencies?.[packageName] || null
   const imports = (codeGraph.externalImports || []).filter((item) => item.packageName === packageName)
+  const sourceImpact = buildSourceImpact(codeGraph, imports)
   const recentChange = codeGraph.recentChange || null
   const changedFiles = recentChange?.files || []
   const changedImportFiles = imports
@@ -312,8 +315,10 @@ export function classifyRepository({ repository, packageName, advisory, advisory
       manifest.lockfile ? (repository?.sources || []).find((source) => source.path === manifest.lockfile)?.url : null,
       manifest.temporal?.sourceUrl,
       ...imports.map((item) => item.sourceUrl),
+      ...(sourceImpact?.files || []).map((file) => file.sourceUrl),
     ].filter(Boolean))],
     changeEvidence,
+    sourceImpact,
   }
 }
 
@@ -365,6 +370,22 @@ export function buildObservedGraph({ advisoryId, advisorySourceUrl = null, packa
       const codeId = `code:${finding.repository}:${item.path}`
       nodes.push({ id: codeId, label: item.path, type: 'code', sourceUrl: item.sourceUrl })
       edges.push([repoId, codeId])
+    }
+    for (const file of finding.sourceImpact?.files || []) {
+      const codeId = `code:${finding.repository}:${file.path}`
+      nodes.push({
+        id: codeId,
+        label: file.path,
+        type: 'code',
+        sourceUrl: file.sourceUrl || null,
+        meta: { role: file.role, depth: file.depth },
+      })
+    }
+    for (const [from, to] of finding.sourceImpact?.edges || []) {
+      edges.push([
+        `code:${finding.repository}:${from}`,
+        `code:${finding.repository}:${to}`,
+      ])
     }
     for (const symbol of finding.advisoryScope?.symbols || []) {
       const codeId = `code:${finding.repository}:${symbol.path}`

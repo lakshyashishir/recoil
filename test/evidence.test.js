@@ -91,6 +91,25 @@ test('reachability can attach latest importer change evidence without changing t
   assert.deepEqual(finding.changeEvidence.importerFilesChanged[0].owners, ['@security'])
 })
 
+test('reachability includes a bounded source-import cone and its citations', () => {
+  const sourceRepository = repository()
+  sourceRepository.manifest.codeGraph.files = [
+    { path: 'src/cli.js', language: 'javascript', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js' },
+    { path: 'src/parse.js', language: 'javascript', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/parse.js' },
+  ]
+  sourceRepository.manifest.codeGraph.edges = [['code:src/cli.js', 'code:src/parse.js']]
+  const finding = classifyRepository({ repository: sourceRepository, packageName: 'minimist', advisory, advisoryId: advisory.id })
+
+  assert.equal(finding.verdict, 'REACHED')
+  assert.deepEqual(finding.sourceImpact.files.map((file) => file.path), ['src/cli.js', 'src/parse.js'])
+  assert.deepEqual(finding.sourceImpact.edges, [['src/cli.js', 'src/parse.js']])
+  assert.equal(finding.sourceImpact.files[1].role, 'local-import')
+  assert.ok(finding.evidenceSources.includes('https://github.com/example/app/blob/HEAD/src/parse.js'))
+
+  const graph = buildObservedGraph({ advisoryId: advisory.id, packageName: 'minimist', repositoryFindings: [finding] })
+  assert.ok(graph.edges.some(([from, to]) => from === 'code:example/app:src/cli.js' && to === 'code:example/app:src/parse.js'))
+})
+
 test('observed graph contains only advisory, repository, lockfile, and source evidence nodes', () => {
   const finding = classifyRepository({ repository: repository(), packageName: 'minimist', advisory, advisoryId: advisory.id })
   const graph = buildObservedGraph({ advisoryId: advisory.id, advisorySourceUrl: 'https://osv.dev/vulnerability/GHSA-test', packageName: 'minimist', repositoryFindings: [finding] })

@@ -17,6 +17,9 @@ dependency scanners collapse into one alert:
 
 - **Reachability, not declaration:** an affected lockfile entry is separated from an observed import in
   application source. The same proof works across npm/JavaScript and Cargo/Rust repositories.
+- **Source impact, not just package presence:** for a reached import, Recoil follows a bounded cone of
+  resolved local-import edges through the sampled files and links each observed file back to its public
+  source. It labels this precisely as static source context—not a runtime call graph or execution trace.
 - **A dated answer:** the lockfile’s public history and the advisory publication date produce a
   pre-disclosure rewind. The question becomes “was this path already present when the advisory was
   published?” rather than “is this package somewhere in the tree?”
@@ -65,6 +68,7 @@ HydraDB stores the investigation as dated evidence memories rather than as a fin
 - repository reachability facts with `valid_from`, source URLs, and verdicts;
 - fix proofs and residual-path results;
 - observed graph topology and provenance;
+- bounded local-import cones behind reached package imports, including source URLs and indexed symbols;
 - latest public commit impact on sampled importers, with CODEOWNERS attribution when available;
 - cross-case retrieval of related package/repository evidence.
 

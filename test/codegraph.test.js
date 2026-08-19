@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildChangeImpact, buildCodeGraph, enrichChangeEvidence, parseCodeowners, parseSourceSymbols } from '../src/core/codegraph.js'
+import { buildChangeImpact, buildCodeGraph, buildSourceImpact, enrichChangeEvidence, parseCodeowners, parseSourceSymbols } from '../src/core/codegraph.js'
 
 test('JavaScript code graph resolves relative imports without executing source', () => {
   const graph = buildCodeGraph([
@@ -93,6 +93,30 @@ test('source graph preserves external package imports for reachability proof', (
   assert.deepEqual(graph.externalImports.map((item) => ({ packageName: item.packageName, path: item.path, line: item.line })), [
     { packageName: 'minimist', path: 'src/cli.js', line: 1 },
   ])
+})
+
+test('source impact follows only bounded local imports behind an observed package import', () => {
+  const graph = buildCodeGraph([
+    { path: 'src/cli.js', sourceUrl: 'https://raw.example/src/cli.js', text: "import minimist from 'minimist'\nimport { parse } from './parse.js'" },
+    { path: 'src/parse.js', sourceUrl: 'https://raw.example/src/parse.js', text: "import { normalize } from './normalize.js'\nexport function parse(value) { return normalize(value) }" },
+    { path: 'src/normalize.js', sourceUrl: 'https://raw.example/src/normalize.js', text: 'export function normalize(value) { return value }' },
+    { path: 'src/unrelated.js', sourceUrl: 'https://raw.example/src/unrelated.js', text: 'export const unrelated = true' },
+  ])
+  const impact = buildSourceImpact(graph, graph.externalImports.filter((item) => item.packageName === 'minimist'))
+
+  assert.deepEqual(impact.entryFiles.map((file) => file.path), ['src/cli.js'])
+  assert.deepEqual(impact.files.map((file) => ({ path: file.path, depth: file.depth, role: file.role })), [
+    { path: 'src/cli.js', depth: 0, role: 'importer' },
+    { path: 'src/parse.js', depth: 1, role: 'local-import' },
+    { path: 'src/normalize.js', depth: 2, role: 'local-import' },
+  ])
+  assert.deepEqual(impact.edges, [
+    ['src/cli.js', 'src/parse.js'],
+    ['src/parse.js', 'src/normalize.js'],
+  ])
+  assert.equal(impact.files.some((file) => file.path === 'src/unrelated.js'), false)
+  assert.equal(impact.bounded, true)
+  assert.match(impact.note, /not a runtime call graph/)
 })
 
 test('source graph includes extensionless executable entrypoints', () => {

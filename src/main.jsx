@@ -612,6 +612,21 @@ function ImportProof({ finding }) {
   return <div className="import-proof"><FileCode2 size={16} /><div><span className="section-kicker">Observed in source</span><strong>{importLabel}</strong>{imports.length === 1 ? <ImportSite importer={imports[0]} packageName={finding.packageName} /> : <details className="import-proof-details"><summary>Inspect all source sites</summary><div className="import-proof-list">{imports.map((importer, index) => <ImportSite key={`${importer.path}-${importer.line || index}`} importer={importer} packageName={finding.packageName} />)}</div></details>}</div></div>
 }
 
+function SourceImpactEvidence({ finding }) {
+  const impact = finding?.sourceImpact
+  if (!impact?.files?.length) return null
+  const files = impact.files.slice(0, 8)
+  const omittedFiles = Math.max(0, impact.files.length - files.length)
+  return <div className="source-impact-evidence">
+    <div className="source-impact-heading"><div><span className="section-kicker">Observed source cone</span><strong>{impact.sampledFileCount} sampled file{impact.sampledFileCount === 1 ? '' : 's'} · {impact.observedEdgeCount} local import edge{impact.observedEdgeCount === 1 ? '' : 's'}</strong><p>{impact.note}</p></div><Waypoints size={16} /></div>
+    <div className="source-impact-files" aria-label="Observed local source files">
+      {files.map((file) => <div className={`source-impact-file source-impact-file-${file.role}`} key={file.path}><span className="source-impact-depth">{file.depth}</span><div><strong>{file.path}</strong><small>{file.role === 'importer' ? `imports ${finding.packageName || 'the selected package'}` : 'resolved local import'}</small></div>{file.sourceUrl && <SourceLink href={file.sourceUrl}>Open source</SourceLink>}</div>)}
+    </div>
+    {omittedFiles > 0 && <p className="source-impact-omitted">+ {omittedFiles} more sampled file{omittedFiles === 1 ? '' : 's'} in the bounded cone</p>}
+    {!!impact.edges?.length && <details className="source-impact-details"><summary>Inspect local import edges</summary><div className="source-impact-edge-list">{impact.edges.slice(0, 12).map(([from, to]) => <div key={`${from}>${to}`}><code>{from}</code><span>→</span><code>{to}</code></div>)}</div></details>}
+  </div>
+}
+
 function packageFixCommand(finding, challenge) {
   const version = challenge?.proposedVersion
   const packageName = finding?.packageName
@@ -781,6 +796,7 @@ function RouteProof({ finding, challenge }) {
     <p className="proof-reason">{finding.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
     <div className="route-steps">{parts.map((part, index) => <div className="route-step" key={`${part}-${index}`}><span>{index + 1}</span><strong>{shorten(routeDisplayPart(part, finding), 38)}</strong><small>{index === 0 ? 'advisory' : index === parts.length - 1 ? 'source' : 'observed hop'}</small></div>)}</div>
     <ImportProof finding={finding} />
+    <SourceImpactEvidence finding={finding} />
     <ChangeProof finding={finding} />
     <FixProof finding={finding} challenge={challenge} />
     <div className="proof-bottom">
@@ -1279,6 +1295,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
         <div className="trace-defense-actions"><span className={`trace-fix-status ${verified ? 'is-verified' : ''}`}>{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : historical ? 'historical view' : 'review required'}</span>{!historical && <button className="case-proof-link" type="button" onClick={onInspectProof}>Open fix details <ArrowUpRight size={13} /></button>}</div>
       </article>
     </div>
+    <SourceImpactEvidence finding={finding} />
     <AdvisoryScopeEvidence finding={finding} />
     <ChangeProof finding={finding} />
   </section>
