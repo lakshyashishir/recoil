@@ -263,6 +263,32 @@ function pollTimeoutMs() {
   return Number.isFinite(configured) ? Math.min(Math.max(configured, 1000), 300000) : 20000
 }
 
+function recallWaitMs() {
+  const configured = Number.parseInt(process.env.HYDRADB_RECALL_WAIT_MS || '15000', 10)
+  return Number.isFinite(configured) ? Math.min(Math.max(configured, 0), 120000) : 15000
+}
+
+function recallPollMs() {
+  const configured = Number.parseInt(process.env.HYDRADB_RECALL_POLL_MS || '1500', 10)
+  return Number.isFinite(configured) ? Math.min(Math.max(configured, 0), 10000) : 1500
+}
+
+function hasRecallResults(result) {
+  return (result?.chunks || result?.results || []).length > 0
+}
+
+async function queryAfterIndexing(body, signal) {
+  let result = await query(body, signal)
+  if (hasRecallResults(result) || recallWaitMs() === 0) return result
+  const deadline = Date.now() + recallWaitMs()
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, recallPollMs()))
+    result = await query(body, signal)
+    if (hasRecallResults(result)) return result
+  }
+  return result
+}
+
 async function waitForIndexing(result, signal) {
   if (result.indexingStatus === 'completed') return result
   const sourceIds = [...new Set((result.results || []).map(resultId).filter(Boolean))]
@@ -535,7 +561,7 @@ export async function persistInvestigation(ingestion, report, signal) {
 
 export async function recallTemporal(queryText, asOf, signal, { excludeScenarioId = null } = {}) {
   if (!enabled()) return { status: 'skipped', reason: 'HydraDB credentials are not configured', chunks: [], graphContext: null, asOf }
-  const result = await query({
+  const result = await queryAfterIndexing({
     database: databaseId(),
     collection: collectionId(),
     type: 'all',

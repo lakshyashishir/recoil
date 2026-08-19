@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import { parseGitHubRepositories, parseInvestigationInput, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 import { summarizeGraphContext } from '../src/core/graph-context.js'
-import { hydraStatus, persistInvestigation, recallTemporal } from '../server/hydra.js'
+import { hydraStatus, persistInvestigation, recallTemporal, settleHydraIndexing } from '../server/hydra.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
 import { recordingNetworkFailures } from '../src/core/network-preflight.js'
@@ -56,7 +56,20 @@ if (strictMode) {
 
 const ingestion = await runMultiRepositoryIngestion({ query, scenarioId })
 const report = buildInvestigationReport(ingestion)
-const hydra = await persistInvestigation(ingestion, report).catch((error) => ({ status: 'failed', error: error.message, memoryCount: 0 }))
+let hydra = await persistInvestigation(ingestion, report).catch((error) => ({ status: 'failed', error: error.message, memoryCount: 0 }))
+if (hydra.status === 'queued' && hydra.result) {
+  const settled = await settleHydraIndexing(hydra.result).catch((error) => ({ ...hydra.result, indexingStatus: 'queued', indexingPending: false, indexingError: error.message }))
+  const sourceIds = [...new Set((settled.results || []).map((item) => item.id || item.source_id || item.sourceId).filter(Boolean))]
+  const complete = settled.indexingStatus === 'completed' && sourceIds.length >= (hydra.memoryCount || 0)
+  hydra = {
+    ...hydra,
+    status: complete ? 'persisted' : 'queued',
+    sourceIds,
+    indexingPending: !complete,
+    indexingError: complete ? null : settled.indexingError || `HydraDB acknowledged ${sourceIds.length}/${hydra.memoryCount || 0} evidence memories`,
+    result: settled,
+  }
+}
 const recall = ['persisted', 'queued'].includes(hydra.status)
   ? await recallTemporal([query, report.package, report.advisory?.id].filter(Boolean).join(' '), report.rewind.currentAsOf, undefined, { excludeScenarioId: scenarioId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
   : { status: hydra.status, chunks: [] }

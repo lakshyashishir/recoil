@@ -300,6 +300,46 @@ test('HydraDB adapter waits for asynchronous graph indexing before recall', asyn
   }
 })
 
+test('HydraDB recall retries an empty post-index result before declaring no history', async () => {
+  const previousFetch = globalThis.fetch
+  const previousKey = process.env.HYDRA_DB_API_KEY
+  const previousDatabase = process.env.HYDRADB_DATABASE_ID
+  const previousWait = process.env.HYDRADB_RECALL_WAIT_MS
+  const previousPoll = process.env.HYDRADB_RECALL_POLL_MS
+  let queryCalls = 0
+  process.env.HYDRA_DB_API_KEY = 'test-key'
+  process.env.HYDRADB_DATABASE_ID = 'test-database'
+  process.env.HYDRADB_RECALL_WAIT_MS = '1000'
+  process.env.HYDRADB_RECALL_POLL_MS = '0'
+  globalThis.fetch = async (input) => {
+    assert.match(String(input), /\/query$/)
+    queryCalls += 1
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { inner: queryCalls === 1
+        ? { chunks: [], graph_context: { query_paths: [], chunk_relations: [] } }
+        : { chunks: [{ additional_metadata: { app: 'recoil', valid_from: '2022-01-01T00:00:00Z' } }], graph_context: { triplets: [{ source: 'a', target: 'b', predicate: 'AFFECTS' }] } } } }),
+    }
+  }
+  try {
+    const recalled = await recallTemporal('minimist', '2023-01-01T00:00:00.000Z')
+    assert.equal(queryCalls, 2)
+    assert.equal(recalled.rawChunkCount, 1)
+    assert.equal(recalled.datedChunkCount, 1)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
+    else process.env.HYDRA_DB_API_KEY = previousKey
+    if (previousDatabase === undefined) delete process.env.HYDRADB_DATABASE_ID
+    else process.env.HYDRADB_DATABASE_ID = previousDatabase
+    if (previousWait === undefined) delete process.env.HYDRADB_RECALL_WAIT_MS
+    else process.env.HYDRADB_RECALL_WAIT_MS = previousWait
+    if (previousPoll === undefined) delete process.env.HYDRADB_RECALL_POLL_MS
+    else process.env.HYDRADB_RECALL_POLL_MS = previousPoll
+  }
+})
+
 test('HydraDB queued batches can settle after the report is already available', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.HYDRA_DB_API_KEY
