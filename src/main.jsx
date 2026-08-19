@@ -732,7 +732,7 @@ function RouteProof({ finding, challenge }) {
   </section>
 }
 
-function TemporalProof({ report, onRewind }) {
+function TemporalProof({ report, onRewind, loading = false, loadingTarget = null }) {
   const before = report?.rewind?.beforeAdvisory
   const current = report?.rewind?.currentAsOf || report?.rewind?.asOf
   const memory = report?.rewind?.memory
@@ -743,7 +743,9 @@ function TemporalProof({ report, onRewind }) {
   const currentSummary = summarizeFindings(currentFindings)
   const beforeSummary = summarizeFindings(beforeFindings)
   const currentLabel = temporalSummaryLabel(currentSummary)
-  const beforeLabel = beforeActive ? temporalSummaryLabel(beforeSummary) : 'Not loaded'
+  const beforeLoading = loading && loadingTarget === before
+  const currentLoading = loading && loadingTarget === current
+  const beforeLabel = beforeActive ? temporalSummaryLabel(beforeSummary) : beforeLoading ? 'Rebuilding…' : 'Not loaded'
   const changes = beforeActive
     ? currentFindings
       .map((finding) => {
@@ -760,7 +762,9 @@ function TemporalProof({ report, onRewind }) {
       : currentSummary.reached > 0
         ? 'The sampled reachable path was already evidenced before disclosure.'
         : 'The sampled repository classifications stayed the same across the disclosure boundary.'
-    : 'Rewind once to rebuild the graph at the day before disclosure.'
+    : loading
+      ? 'Rebuilding the graph from dated evidence…'
+      : 'Rewind once to rebuild the graph at the day before disclosure.'
   const triplets = [...new Map((memory?.graphContext?.triplets || []).map((triplet) => {
     const key = [triplet.source, triplet.predicate, triplet.target].map((value) => String(value || '').trim().toLowerCase()).join('|')
     return [key, triplet]
@@ -768,16 +772,16 @@ function TemporalProof({ report, onRewind }) {
   const relatedCases = memory?.relatedCases?.length
     ? memory.relatedCases
     : (memory?.priorScenarioIds || []).map((scenarioId) => ({ scenarioId }))
-  return <section className="temporal-proof" id="case-history">
+  return <section className="temporal-proof" id="case-history" aria-busy={loading}>
     <div className="temporal-copy"><span className="section-kicker">HydraDB history</span><h2>See the case at two points in time.</h2><p>The advisory was published {report.advisory?.published?.slice(0, 10) || 'on an unknown date'}. Recoil uses dated lockfile evidence and HydraDB recall to keep the timeline inspectable.</p><div className={`memory-line ${memory?.status === 'recalled' ? '' : 'memory-line-muted'}`}><span className="memory-mark" /> {memory?.status === 'recalled' ? 'Dated context returned from HydraDB.' : memory?.status === 'queued' ? 'Memory is indexing in HydraDB.' : 'HydraDB history is unavailable.'}</div></div>
-    <div className="temporal-controls"><button className={beforeActive ? 'active' : ''} onClick={() => onRewind(before)}><Clock3 size={15} /><span>Before disclosure</span><small>{before.slice(0, 10)}</small></button><button className={!beforeActive ? 'active' : ''} onClick={() => onRewind(current)}><ShieldCheck size={15} /><span>Current evidence</span><small>{current?.slice(0, 10) || 'today'}</small></button></div>
+    <div className="temporal-controls"><button className={beforeActive ? 'active' : ''} disabled={loading} aria-busy={beforeLoading} onClick={() => onRewind(before)}>{beforeLoading ? <LoaderCircle className="spin" size={15} /> : <Clock3 size={15} />}<span>{beforeLoading ? 'Rebuilding…' : 'Before disclosure'}</span><small>{before.slice(0, 10)}</small></button><button className={!beforeActive ? 'active' : ''} disabled={loading} aria-busy={currentLoading} onClick={() => onRewind(current)}>{currentLoading ? <LoaderCircle className="spin" size={15} /> : <ShieldCheck size={15} />}<span>{currentLoading ? 'Restoring…' : 'Current evidence'}</span><small>{current?.slice(0, 10) || 'today'}</small></button></div>
     <div className="temporal-compare" aria-live="polite">
       <div className="temporal-compare-heading"><span>Disclosure boundary</span><strong>{temporalConclusion}</strong></div>
       <div className="temporal-compare-points">
         <div className={`temporal-point ${beforeActive ? 'temporal-point-active' : ''}`}>
           <span>Before disclosure</span>
           <strong>{beforeLabel}</strong>
-          <small>{beforeActive ? `${before.slice(0, 10)} · reconstructed from dated evidence` : 'Select the left control to load this snapshot'}</small>
+          <small>{beforeActive ? `${before.slice(0, 10)} · reconstructed from dated evidence` : beforeLoading ? 'Reading dated repository evidence…' : 'Select the left control to load this snapshot'}</small>
         </div>
         <span className="temporal-compare-arrow" aria-hidden="true">→</span>
         <div className={`temporal-point ${!beforeActive ? 'temporal-point-active' : ''}`}>
@@ -1122,6 +1126,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const [activeTab, setActiveTab] = useState('graph')
   const [graphView, setGraphView] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyTarget, setHistoryTarget] = useState(null)
   // A freshly built report uses `now` as its requested rewind timestamp while
   // the collectors finish a few milliseconds earlier. That is still the
   // current report. Only an as-of date before the collected evidence should
@@ -1164,16 +1169,20 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     setActiveTab('proof')
     window.requestAnimationFrame(() => document.getElementById('case-proof')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
+  const rewindTo = async (asOf) => {
+    if (!onRewind || !asOf || historyLoading) return
+    setHistoryLoading(true)
+    setHistoryTarget(asOf)
+    try {
+      await onRewind(asOf)
+    } finally {
+      setHistoryLoading(false)
+      setHistoryTarget(null)
+    }
+  }
   const openHistory = async () => {
     setActiveTab('history')
-    if (!historical && report?.rewind?.beforeAdvisory && onRewind) {
-      setHistoryLoading(true)
-      try {
-        await onRewind(report.rewind.beforeAdvisory)
-      } finally {
-        setHistoryLoading(false)
-      }
-    }
+    if (!historical && report?.rewind?.beforeAdvisory) await rewindTo(report.rewind.beforeAdvisory)
     window.requestAnimationFrame(() => document.getElementById('case-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   const changeTab = (tab) => {
@@ -1183,13 +1192,13 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}<CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>source path found</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>listed, not imported</span></div><div><strong>{summary.notAffected || 0}</strong><span>already outside range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix proof' : 'fix proofs'}</span></div></section>
-    <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => onRewind(report?.rewind?.currentAsOf) : null} />
+    <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} />
     <TemporalHighlight report={report} summary={summary} finding={primaryFinding} challenge={primaryChallenge} earliestReached={earliestReached} onInspectProof={() => inspectProof(primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <RouteProof finding={selectedFinding} challenge={challenge} />}
-      {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => onRewind(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={onRewind} /></>}
+      {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
     </div>
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} hydra={hydra} />
