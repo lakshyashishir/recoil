@@ -144,14 +144,18 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
 }
 
 function EventStream({ events = [], investigationStatus }) {
+  const [expanded, setExpanded] = useState(false)
   const eventCurrent = events.find((event) => event.status === 'working')
   const current = eventCurrent || (investigationStatus === 'finalizing' ? { title: 'Storing evidence history', detail: 'Writing the dated graph to HydraDB and recalling related context.' } : investigationStatus === 'running' ? { title: 'Collecting public evidence', detail: 'Reading advisory, registry, lockfile, and source records.' } : null)
   const active = Boolean(eventCurrent || ['running', 'finalizing'].includes(investigationStatus))
+  const recentKeys = new Set(events.slice(-5).map((event) => event.key))
+  const visibleEvents = expanded ? events : events.filter((event) => recentKeys.has(event.key) || event.key === eventCurrent?.key)
   return <section className="event-journal" aria-label="Investigation progress">
     <div className="journal-heading"><div><span className="section-kicker">Progress</span><h2>{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state">{active ? 'working' : 'up to date'}</span></div>
+    <div className="journal-activity-heading"><span>Recent activity</span>{events.length > 5 && <button type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show recent' : `Show all ${events.length}`}</button>}</div>
     <div className="event-list">
       {!eventCurrent && current && <article className="event-row event-working event-current-fallback"><div className="event-status"><StatusIcon status="working" /></div><div className="event-copy"><div className="event-title"><strong>{current.title}</strong></div><p>{current.detail}</p></div><span className="event-now">now</span></article>}
-      {events.map((event) => <article className={`event-row event-${event.status}`} key={event.id || event.key}>
+      {visibleEvents.map((event) => <article className={`event-row event-${event.status}`} key={event.id || event.key}>
         <div className="event-status"><StatusIcon status={event.status} /></div>
         <div className="event-copy"><div className="event-title"><strong>{event.title}</strong>{event.repository && <span>{event.repository}</span>}</div><p>{event.detail}</p>{event.graphProgress && <span className="event-evidence-count">{event.graphProgress.completedRepositories}/{event.graphProgress.totalRepositories} repositories mapped · {event.graph?.nodes?.length || 0} nodes · {event.graph?.edges?.length || 0} edges</span>}{event.sourceUrls?.[0] && <SourceLink href={event.sourceUrls[0]} />}</div>
         {event.status === 'working' && <span className="event-now">now</span>}
