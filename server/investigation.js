@@ -5,6 +5,30 @@ import { resolveAdvisoryScope } from './advisory-agent.js'
 import { runMultiRepositoryIngestion } from './collectors.js'
 import { persistInvestigation, recallTemporal, settleHydraIndexing } from './hydra.js'
 
+function graphSize(graph) {
+  return (graph?.nodes?.length || 0) + (graph?.edges?.length || 0)
+}
+
+function mergeLiveEvidence(current = {}, next = {}) {
+  const currentProgress = current.graphProgress || { completedRepositories: 0, totalRepositories: 0 }
+  const nextProgress = next.graphProgress || currentProgress
+  const currentCompleted = Number(currentProgress.completedRepositories || 0)
+  const nextCompleted = Number(nextProgress.completedRepositories || 0)
+  const adoptNextGraph = Boolean(next.graph) && (!current.graph
+    || nextCompleted > currentCompleted
+    || nextCompleted === currentCompleted && graphSize(next.graph) > graphSize(current.graph))
+  const graphProgress = {
+    ...currentProgress,
+    ...nextProgress,
+    completedRepositories: Math.max(currentCompleted, nextCompleted),
+    totalRepositories: Math.max(Number(currentProgress.totalRepositories || 0), Number(nextProgress.totalRepositories || 0)),
+  }
+  return {
+    graph: adoptNextGraph ? next.graph : current.graph,
+    graphProgress,
+  }
+}
+
 function pushEvent(state, event) {
   const previous = state.events.find((item) => item.key === event.key)
   const next = {
@@ -13,8 +37,11 @@ function pushEvent(state, event) {
     ...event,
   }
   state.events = previous ? state.events.map((item) => item.key === event.key ? next : item) : [...state.events, next]
-  if (event.graph) state.graph = event.graph
-  if (event.graphProgress) state.graphProgress = event.graphProgress
+  if (event.graph || event.graphProgress) {
+    const liveEvidence = mergeLiveEvidence(state, event)
+    state.graph = liveEvidence.graph
+    state.graphProgress = liveEvidence.graphProgress
+  }
   state.step = event.key
   return next
 }
@@ -216,3 +243,5 @@ export async function rewindInvestigation(record, asOf) {
   const hydra = await recallTemporal(reportQuery, normalized, undefined, { excludeScenarioId: record.investigation.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
   return { report: attachHydraRewind(report, hydra), hydra }
 }
+
+export { mergeLiveEvidence }

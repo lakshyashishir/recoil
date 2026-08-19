@@ -120,6 +120,22 @@ h1, h2, p { margin-top: 0; }
 .live-stage-copy { display: grid; gap: 4px; min-width: 0; }
 .live-stage-copy strong { overflow: hidden; color: var(--text); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .live-stage-copy small { overflow: hidden; color: var(--muted); font-size: 10px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.live-evidence-checkpoint { display: grid; grid-template-columns: minmax(0, 1fr) minmax(350px, .95fr); gap: 34px; align-items: start; margin-top: 18px; padding: 15px 0 16px; border-bottom: 1px solid var(--line); }
+.live-evidence-checkpoint-copy { min-width: 0; }
+.live-evidence-checkpoint-copy .section-kicker { margin: 0 0 6px; color: var(--green); }
+.live-evidence-checkpoint-copy strong { display: block; color: var(--text); font-size: 15px; font-weight: 600; }
+.live-evidence-checkpoint-copy p { max-width: 620px; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.live-evidence-checkpoint-result { min-width: 0; display: grid; gap: 11px; }
+.live-evidence-checkpoint-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.live-evidence-checkpoint-stats span { display: grid; gap: 4px; padding: 8px 12px; border-right: 1px solid var(--line-soft); }
+.live-evidence-checkpoint-stats span:last-child { border-right: 0; }
+.live-evidence-checkpoint-stats strong { color: var(--text); font: 500 17px/1 var(--mono); }
+.live-evidence-checkpoint-stats small { color: var(--faint); font-size: 9px; }
+.live-evidence-checkpoint-path { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; min-width: 0; }
+.live-evidence-checkpoint-path > span, .live-evidence-checkpoint-path-empty { color: var(--faint); font: 9px/1 var(--mono); white-space: nowrap; }
+.live-evidence-checkpoint-path code { min-width: 0; overflow: hidden; color: var(--text); font: 600 10px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.live-evidence-checkpoint-path .source-link { width: max-content; font-size: 9px; }
+.live-evidence-checkpoint-path-empty { color: var(--muted); }
 .live-workspace { display: grid; grid-template-columns: minmax(300px, .7fr) minmax(0, 1.45fr); gap: 42px; align-items: start; padding-top: 30px; }
 .event-journal { min-width: 0; }
 .journal-heading, .map-heading, .route-panel-heading, .proof-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
@@ -356,6 +372,7 @@ h1, h2, p { margin-top: 0; }
   .landing-grid { grid-template-columns: minmax(0, 1fr); gap: 42px; padding: 9vh 0; }
   .landing-form-wrap { justify-self: start; }
   .live-workspace, .case-workspace { grid-template-columns: 1fr; }
+  .live-evidence-checkpoint { grid-template-columns: 1fr; gap: 16px; }
   .case-workspace > .evidence-map, .case-workspace > .route-panel { grid-column: 1; grid-row: auto; }
   .route-panel { order: -1; }
   .route-list { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
@@ -386,6 +403,8 @@ h1, h2, p { margin-top: 0; }
   .live-heading h1 { font-size: 44px; }
   .live-safety { margin-top: 6px; }
   .live-workspace { gap: 34px; padding-top: 24px; }
+  .live-evidence-checkpoint { gap: 13px; }
+  .live-evidence-checkpoint-path { grid-template-columns: 1fr; gap: 5px; }
   .event-row { grid-template-columns: 22px minmax(0, 1fr); gap: 10px; }
   .event-now { grid-column: 2; padding-top: 0; }
   .map-heading { padding: 17px; }

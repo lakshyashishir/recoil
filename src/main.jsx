@@ -237,6 +237,21 @@ function EventStream({ events = [], investigationStatus, query }) {
   </section>
 }
 
+function LiveEvidenceCheckpoint({ report }) {
+  if (!report) return null
+  const summary = report.summary || {}
+  const reached = report.repositories?.find((finding) => finding.verdict === 'REACHED')
+  const importer = reached?.imports?.[0]
+  const ready = report.evidenceQuality?.readyForRecording
+  const path = reached && importer
+    ? `${reached.packageName}@${reached.resolvedVersion || 'unresolved'} → ${importer.path}${importer.line ? `:${importer.line}` : ''}`
+    : null
+  return <section className="live-evidence-checkpoint" aria-live="polite">
+    <div className="live-evidence-checkpoint-copy"><span className="section-kicker">Local evidence ready</span><strong>{ready ? 'The source paths are classified.' : 'A partial report is available for review.'}</strong><p>{ready ? 'HydraDB is the only remaining step: Recoil is waiting for the dated memory write and recall to settle.' : report.evidenceQuality?.reason || 'The report is not ready for a final recording.'}</p></div>
+    <div className="live-evidence-checkpoint-result"><div className="live-evidence-checkpoint-stats"><span><strong>{summary.reached || 0}</strong><small>source path{summary.reached === 1 ? '' : 's'}</small></span><span><strong>{summary.declaredOnly || 0}</strong><small>listed only</small></span><span><strong>{summary.notAffected || 0}</strong><small>outside range</small></span></div>{path ? <div className="live-evidence-checkpoint-path"><span>Observed route</span><code>{path}</code>{importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div> : <span className="live-evidence-checkpoint-path-empty">No source-backed route was collected.</span>}</div>
+  </section>
+}
+
 function findingParts(finding) {
   const dependencyParts = (finding?.dependencyPath || []).map((item) => `${item.name}@${item.version}`)
   const path = finding?.path || []
@@ -1165,7 +1180,7 @@ function RunningView({ snapshot }) {
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} />}<div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function FailedView({ snapshot, onNewCase }) {
