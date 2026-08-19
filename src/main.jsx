@@ -389,10 +389,12 @@ function GraphInspector({ node, report, graph, selectedFinding }) {
       ? { label: 'Validated symbol', value: node.label }
       : node.type === 'lockfile'
         ? { label: 'Lockfile record', value: node.label }
-        : node.type === 'package'
+      : node.type === 'package'
           ? { label: 'Resolution record', value: node.label }
           : node.type === 'advisory'
             ? { label: 'Advisory record', value: node.label }
+            : node.type === 'repository'
+              ? { label: 'Repository record', value: node.label }
             : null
   const evidenceLabel = routeEvidence ? (importer ? 'Source check' : 'Reachability check') : nodeEvidence?.label
   const evidenceValue = routeEvidence || nodeEvidence?.value
@@ -499,7 +501,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
         </g>
       </svg>
       <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-declared" /> declared only</span><span><i className="legend-dot legend-safe" /> safe</span><span className="map-direction">arrows follow the evidence</span></div>
-      {!live && onSelectNode && <GraphInspector node={selectedNode} report={report} graph={graph} selectedFinding={selectedFinding} />}
+      {onSelectNode && (!live || selectedNode) && <GraphInspector node={selectedNode} report={report} graph={graph} selectedFinding={selectedFinding} />}
     </div>
   </section>
 }
@@ -1228,6 +1230,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
 }
 
 function RunningView({ snapshot, onOpenReport }) {
+  const [selectedNodeId, setSelectedNodeId] = useState(null)
   const investigation = snapshot?.investigation
   const events = investigation?.events || []
   const finalizing = investigation?.status === 'finalizing'
@@ -1237,11 +1240,14 @@ function RunningView({ snapshot, onOpenReport }) {
   const repositoryCount = (query.match(/https?:\/\/github\.com\/[^\s]+/gi) || []).length
   const graph = snapshot?.graph?.nodes?.length ? snapshot.graph : investigation?.graph || investigation?.evidence?.graph || { nodes: [], edges: [] }
   const graphReport = { graph, repositories: investigation?.report?.repositories || [] }
+  const selectedLiveNode = graph.nodes.find((node) => node.id === selectedNodeId)
+  const selectedLiveFindingIndex = findingIndexForNode(selectedLiveNode, graphReport.repositories)
+  const selectedLiveFinding = selectedLiveFindingIndex >= 0 ? graphReport.repositories[selectedLiveFindingIndex] : null
   const progress = snapshot?.graphProgress || investigation?.graphProgress
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} onOpenReport={onOpenReport} />}<div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} onOpenReport={onOpenReport} />}<div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} selectedFinding={selectedLiveFinding} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} events={events} live graphProgress={progress} /></div></main>
 }
 
 function FailedView({ snapshot, onNewCase }) {
