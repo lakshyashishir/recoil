@@ -208,6 +208,18 @@ function EventStream({ events = [], investigationStatus, query }) {
   </section>
 }
 
+function LiveEvidenceSummary({ graph, graphProgress, events = [], investigationStatus }) {
+  const current = currentInvestigationActivity(events, investigationStatus)
+  const repositories = graphProgress?.totalRepositories ? `${graphProgress.completedRepositories || 0}/${graphProgress.totalRepositories}` : '—'
+  const nodes = graph?.nodes?.length || 0
+  const edges = graph?.edges?.length || 0
+  return <section className="live-evidence-summary" aria-label="Evidence collected so far">
+    <div className="live-evidence-summary-heading"><span className="section-kicker">Evidence so far</span><span>{current?.title || 'Preparing the first record'}</span></div>
+    <div className="live-evidence-summary-stats"><div><strong>{repositories}</strong><span>repositories read</span></div><div><strong>{nodes}</strong><span>evidence nodes</span></div><div><strong>{edges}</strong><span>relationships observed</span></div></div>
+    <p>{current?.detail || 'The graph will fill as public records are collected.'}</p>
+  </section>
+}
+
 function eventStatus(events, keys = []) {
   const matches = events.filter((event) => keys.includes(event.key) || keys.some((key) => event.key?.startsWith(key)))
   if (matches.some((event) => event.status === 'failed')) return 'failed'
@@ -1006,7 +1018,7 @@ function RunningView({ snapshot }) {
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><LiveEvidenceSummary graph={graph} graphProgress={progress} events={events} investigationStatus={investigation?.status} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function App() {
