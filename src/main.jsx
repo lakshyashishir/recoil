@@ -278,6 +278,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
             const selectable = findingIndex >= 0 && onSelectFinding
             const selectNode = () => { if (selectable) onSelectFinding(findingIndex) }
             return <g className={`map-node node-${node.type} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
+              <title>{node.label}</title>
               <rect width="154" height="48" rx="6" />
               <text className="map-node-type" x="10" y="15">{node.type}</text>
               <text className="map-node-label" x="10" y="33">{shorten(node.label, 23)}</text>
@@ -285,7 +286,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, events = [], li
           })}
         </g>
       </svg>
-      <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-safe" /> safe</span></div>
+      <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-declared" /> declared only</span><span><i className="legend-dot legend-safe" /> safe</span></div>
     </div>
   </section>
 }

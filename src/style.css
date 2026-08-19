@@ -113,6 +113,7 @@ h1, h2, p { margin-top: 0; }
 .legend-line { width: 20px; height: 1px; display: inline-block; background: var(--line); }
 .legend-selected { background: var(--accent); }
 .legend-dot { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: var(--red); }
+.legend-declared { background: var(--accent); }
 .legend-safe { background: var(--green); }
 .map-empty { min-height: 390px; }
 .map-empty-body { min-height: 306px; display: grid; place-items: center; align-content: center; gap: 14px; padding: 30px; text-align: center; }
