@@ -62,6 +62,21 @@ function hydraState(persisted, recall) {
   }
 }
 
+function hydraEventDetail(persisted, recall) {
+  const memories = persisted?.memoryCount || 0
+  const memoryLabel = persisted?.status === 'persisted'
+    ? `${memories} evidence memories stored`
+    : persisted?.status === 'queued'
+      ? `${memories} evidence memories accepted; indexing pending`
+      : 'Local evidence record ready'
+  const recallLabel = recall?.status === 'recalled'
+    ? `${recall.datedChunkCount || 0} dated facts recalled`
+    : recall?.status === 'failed'
+      ? 'temporal recall failed'
+      : 'temporal recall unavailable'
+  return `${memoryLabel} · ${recallLabel}`
+}
+
 async function reconcileQueuedHydra(record, state, report, queued) {
   if (!queued?.result || queued.status !== 'queued') return
   try {
@@ -102,7 +117,7 @@ async function reconcileQueuedHydra(record, state, report, queued) {
       key: 'hydra',
       status: 'complete',
       title: 'Evidence graph stored in HydraDB',
-      detail: `${persisted.memoryCount || 0} temporal evidence memories · ${recall.chunks?.length || 0} recalled · ${recall.relatedScenarioIds?.length || 0} related cases`,
+      detail: hydraEventDetail(persisted, recall),
     })
     state.step = 'complete'
   } catch (error) {
@@ -208,7 +223,7 @@ export async function executeInvestigation(record) {
       key: 'hydra',
       status: persisted.status === 'failed' ? 'failed' : persisted.status === 'skipped' ? 'skipped' : 'complete',
       title: persisted.status === 'persisted' ? 'Evidence graph stored in HydraDB' : persisted.status === 'queued' ? 'Evidence graph queued in HydraDB' : 'Local evidence record ready',
-      detail: persisted.status === 'failed' ? persisted.error : `${persisted.memoryCount || 0} temporal evidence memories · ${recall.chunks?.length || 0} recalled · ${recall.relatedScenarioIds?.length || 0} related cases`,
+      detail: persisted.status === 'failed' ? persisted.error : hydraEventDetail(persisted, recall),
     })
     state.status = 'complete'
     state.step = 'complete'

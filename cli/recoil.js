@@ -204,7 +204,11 @@ async function main() {
   line(`evidence ${quality.status || 'unknown'} · ${quality.readyForRecording ? 'recording-ready' : 'review required'} · ${quality.reason || 'quality not available'}`)
   if (quality.ambiguousVersions?.length) line(`ambiguity ${quality.ambiguousVersions.map((item) => `${item.repository}: ${item.versions.join(', ')}`).join(' · ')}`)
   if (quality.collectorIssues?.length) line(`blocker  ${quality.collectorIssues.map((item) => `${item.collector}: ${item.status}`).join(' · ')}`)
-  if (quality.sourceCoverage?.boundedRepositories) line(`sampling ${quality.sourceCoverage.sampledFiles}/${quality.sourceCoverage.candidateFiles} eligible source files across ${quality.sourceCoverage.boundedRepositories} bounded repos`)
+  if (quality.sourceCoverage) {
+    const coverage = quality.sourceCoverage
+    const bounded = coverage.boundedRepositories ? ` · ${coverage.boundedRepositories} used a sample limit` : ''
+    line(`sampling ${coverage.sampledFiles}/${coverage.candidateFiles} eligible source files across ${coverage.repositories} repositories${bounded}`)
+  }
   for (const correlation of result.report.crossRepositoryCorrelations || []) line(`shared  ${correlation.packageName}@${correlation.version} · ${correlation.repositories.map((item) => `${item.repository} (${item.verdict})`).join(' · ')}`)
   for (const finding of result.report.repositories || []) {
     line(`repo    ${finding.verdict.padEnd(14)} ${finding.repository || 'unknown'} · ${finding.packageName || 'package'}@${finding.resolvedVersion || 'unresolved'}`)
@@ -222,8 +226,10 @@ async function main() {
   line(`rewind  ${result.report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${result.report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
   const graphContext = summarizeGraphContext(result.hydra?.recall?.graphContext) || summarizeGraphContext(result.report.rewind?.memory?.graphContext)
   const tripletCount = graphContext?.tripletCount ?? graphContext?.triplets?.length ?? 0
-  line(`hydra   ${result.hydra?.status || 'skipped'} · read ${result.hydra?.recall?.status || 'not-run'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases · ${tripletCount} graph triplets`)
-  for (const relatedCase of result.hydra?.recall?.relatedCases || []) line(`prior   ${relatedCase.scenarioId} · ${(relatedCase.kinds || []).join(', ') || 'evidence'} · ${(relatedCase.repositories || []).join(', ') || 'repository not recorded'}`)
+  const relatedCases = result.hydra?.recall?.relatedCases || []
+  line(`hydra   ${result.hydra?.status || 'skipped'} · read ${result.hydra?.recall?.status || 'not-run'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${relatedCases.length} prior records · ${tripletCount} graph triplets`)
+  for (const relatedCase of relatedCases.slice(0, 4)) line(`prior   ${relatedCase.scenarioId} · ${(relatedCase.kinds || []).join(', ') || 'evidence'} · ${(relatedCase.repositories || []).join(', ') || 'repository not recorded'}`)
+  if (relatedCases.length > 4) line(`prior   +${relatedCases.length - 4} more records available in HydraDB history`)
   if (result.hydra?.indexingError) line(`hydra-note ${result.hydra.indexingError}`)
   if (result.hydra?.recall?.error) line(`hydra-read ${result.hydra.recall.error}`)
   line(`sources ${result.report.sources?.length || 0} public sources`)
