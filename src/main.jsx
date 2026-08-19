@@ -170,6 +170,27 @@ function currentInvestigationActivity(events = [], investigationStatus) {
   return null
 }
 
+function liveStageStatus(stage, events = [], investigationStatus) {
+  const relevant = events.filter((event) => stage.keys.some((key) => key === event.key || key.endsWith(':') && event.key?.startsWith(key)))
+  if (relevant.some((event) => event.status === 'failed')) return 'failed'
+  if (relevant.some((event) => event.status === 'working')) return 'working'
+  if (relevant.some((event) => ['complete', 'persisted'].includes(event.status))) return 'complete'
+  if (stage.id === 'records' && investigationStatus === 'running' && events.length === 0) return 'working'
+  if (stage.id === 'memory' && investigationStatus === 'finalizing') return 'working'
+  if (stage.id === 'memory' && investigationStatus === 'complete') return 'complete'
+  return 'waiting'
+}
+
+function LiveStageRail({ events = [], investigationStatus }) {
+  const stages = [
+    { id: 'records', label: 'Read records', detail: 'advisory · registry · repositories', keys: ['public-records', 'registry', 'repository:'] },
+    { id: 'paths', label: 'Prove paths', detail: 'lockfile → source imports', keys: ['advisory-scope', 'proving-paths', 'classification'] },
+    { id: 'fix', label: 'Check the fix', detail: 'fixed version · semver challenge', keys: ['fix-plan'] },
+    { id: 'memory', label: 'Store history', detail: 'dated graph · HydraDB recall', keys: ['hydra', 'complete'] },
+  ]
+  return <section className="live-stage-rail" aria-label="Investigation stages"><div className="live-stage-rail-heading"><span>What Recoil is doing</span><span>static public evidence</span></div><ol>{stages.map((stage) => { const status = liveStageStatus(stage, events, investigationStatus); return <li className={`live-stage live-stage-${status}`} key={stage.id}><span className="live-stage-marker"><StatusIcon status={status === 'waiting' ? 'idle' : status} /></span><span className="live-stage-copy"><strong>{stage.label}</strong><small>{stage.detail}</small></span></li> })}</ol></section>
+}
+
 function LiveRepositoryProgress({ query, events = [] }) {
   const repositories = queryRepositories(query)
   if (!repositories.length) return null
@@ -1138,7 +1159,7 @@ function RunningView({ snapshot }) {
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
 function FailedView({ snapshot, onNewCase }) {
