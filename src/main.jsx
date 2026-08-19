@@ -291,7 +291,7 @@ function nodeDescription(node, report) {
   return 'Observed evidence entity'
 }
 
-function GraphInspector({ node, report, graph }) {
+function GraphInspector({ node, report, graph, selectedFinding }) {
   if (!node) return <div className="graph-inspector graph-inspector-empty"><span>Select a node to inspect its evidence.</span></div>
   const verdict = nodeVerdict(node, report)
   const nodesById = new Map((graph?.nodes || []).map((item) => [item.id, item]))
@@ -301,7 +301,13 @@ function GraphInspector({ node, report, graph }) {
     return []
   }).filter((relation) => relation.node)
   const metadata = node.meta?.resolvedVersions?.length ? `resolved versions: ${node.meta.resolvedVersions.join(', ')}` : nodeDescription(node, report)
-  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div><div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i>{shorten(relation.node.label, 25)}</span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}{node.sourceUrl && <SourceLink href={node.sourceUrl}>Open source</SourceLink>}</div></div>
+  const importer = selectedFinding?.imports?.[0]
+  const routeEvidence = selectedFinding && node.type === 'repository'
+    ? importer
+      ? `${importer.path}${importer.line ? `:${importer.line}` : ''}`
+      : selectedFinding.verdict === 'DECLARED_ONLY' ? 'No sampled import' : 'Source evidence needs review'
+    : null
+  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div>{routeEvidence && <div className="graph-inspector-evidence"><span>{importer ? 'Source check' : 'Reachability check'}</span><strong>{routeEvidence}</strong>{importer?.snippet && <code>{importer.snippet}</code>}{importer?.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div>}<div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i>{shorten(relation.node.label, 25)}</span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}{node.sourceUrl && <SourceLink href={node.sourceUrl}>Open source</SourceLink>}</div></div>
 }
 
 function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, selectedNodeId, events = [], live = false, graphProgress = null }) {
@@ -357,7 +363,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
         </g>
       </svg>
       <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-declared" /> declared only</span><span><i className="legend-dot legend-safe" /> safe</span><span className="map-direction">arrows follow the evidence</span></div>
-      {!live && onSelectNode && <GraphInspector node={selectedNode} report={report} graph={graph} />}
+      {!live && onSelectNode && <GraphInspector node={selectedNode} report={report} graph={graph} selectedFinding={selectedFinding} />}
     </div>
   </section>
 }
