@@ -140,7 +140,7 @@ async function main() {
     const cited = proof.filter((step) => ['observed', 'validated'].includes(step.status) && step.source).length
     if (proof.length) line(`proof   ${cited}/${proof.length} hops have cited public evidence`)
     if (finding.dependencyPath?.length > 1) line(`chain   ${finding.dependencyPath.map((item) => `${item.name}@${item.version}`).join(' -> ')}`)
-    if (proofOutput) for (const step of proof) line(`        ${step.status.padEnd(12)} ${step.kind.padEnd(10)} ${step.label}${step.source ? ` · ${step.source}` : ''}`)
+    if (proofOutput) for (const step of proof) line(`        ${step.status.padEnd(12)} ${step.kind.padEnd(10)} ${step.label}${step.detail ? ` · ${step.detail}` : ''}${step.source ? ` · ${step.source}` : ''}`)
   }
   for (const item of result.report.challenge || []) {
     line(`fix     ${item.status.padEnd(22)} ${item.repository} · ${item.proposedVersion || 'no version'}`)
@@ -149,6 +149,7 @@ async function main() {
   const graphContext = result.hydra?.recall?.graphContext || result.report.rewind?.memory?.graphContext
   const tripletCount = graphContext?.tripletCount ?? graphContext?.triplets?.length ?? 0
   line(`hydra   ${result.hydra?.status || 'skipped'} · read ${result.hydra?.recall?.status || 'not-run'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases · ${tripletCount} graph triplets`)
+  for (const relatedCase of result.hydra?.recall?.relatedCases || []) line(`prior   ${relatedCase.scenarioId} · ${(relatedCase.kinds || []).join(', ') || 'evidence'} · ${(relatedCase.repositories || []).join(', ') || 'repository not recorded'}`)
   if (result.hydra?.indexingError) line(`hydra-note ${result.hydra.indexingError}`)
   if (result.hydra?.recall?.error) line(`hydra-read ${result.hydra.recall.error}`)
   line(`sources ${result.report.sources?.length || 0} public sources`)
