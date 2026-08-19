@@ -86,6 +86,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Reuse one recursive GitHub tree for source and workflow discovery, keeping the workflow directory API as a failure fallback.
 - [x] Allow the CLI to target a caller-supplied case ID so browser and terminal clients can inspect the same API-backed investigation.
 - [x] Include OpenTUI compilation in the reproducible `npm run verify` gate.
+- [x] Align the judge-facing demo runbook with the strict HydraDB graph-recall recording gate.
 
 ### Still required before calling the hackathon build complete
 

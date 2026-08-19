@@ -31,13 +31,20 @@ For a historical comparison, pin a repository URL to a public tag or commit, for
 
 The strongest case contains three different outcomes: one repository that imports the affected package, one that only declares it, and one already outside the affected range. Validate the advisory and repository lockfiles before recording; Recoil must not be presented with invented evidence.
 
-Use `RECOIL_SMOKE_REQUIRE_CONTRAST=1` with the same query before recording. The smoke command then refuses
-to pass unless all three verdicts are present and HydraDB persistence succeeds. Recoil waits for HydraDB's
-async indexing status before it performs the recall; if the status endpoint cannot be reached, the run stays
-queued and the smoke gate fails rather than presenting an unverified memory read. Recording mode requires
-completed indexing and a successful temporal recall. Strict mode also checks for
-three repository URLs and HydraDB credentials before starting collection, so it does not spend API calls on
-an invalid recording setup.
+Use the exact same query with the strict smoke gate before recording:
+
+```bash
+RECOIL_SMOKE_REQUIRE_CONTRAST=1 \
+RECOIL_SMOKE_QUERY="<verified advisory> https://github.com/<owner>/<repository-a> https://github.com/<owner>/<repository-b> https://github.com/<owner>/<repository-c>" \
+npm run smoke:real
+```
+
+The smoke command refuses to pass unless all three verdicts are present and HydraDB persistence succeeds.
+Recoil waits for HydraDB's async indexing status before it performs the recall; if the status endpoint cannot
+be reached, the run stays queued and the smoke gate fails rather than presenting an unverified memory read.
+Recording mode requires completed indexing, a successful temporal recall with dated facts, and at least one
+returned graph triplet. Strict mode also checks for three repository URLs and HydraDB credentials before
+starting collection, so it does not spend API calls on an invalid recording setup.
 
 When that strict smoke passes, it also saves the sanitized portable receipt under
 `.recoil-recordings/<scenario-id>.json`. Keep that artifact for the recording; the directory is ignored by
@@ -86,6 +93,9 @@ npm run cli -- "<verified advisory> https://github.com/<owner>/<repository-a> ht
 ```
 
 The CLI and browser consume the same autonomous API state machine. `--json` is useful for showing that the report is structured evidence rather than terminal animation.
+
+For a cross-client demonstration against the browser's stable case, use `--case 0017`; use `--direct` only
+when an API server is unavailable. Direct mode preserves the same evidence and HydraDB boundaries.
 
 The CLI exits nonzero when public collection is partial or any repository is `UNKNOWN`; keep the printed
 receipt for diagnosis, but do not record that run as the final demo.
