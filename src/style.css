@@ -379,6 +379,10 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-advisory span { color: var(--muted); }
 .case-hero h1 { max-width: 820px; font-size: clamp(42px, 5.3vw, 72px); letter-spacing: -.055em; }
 .case-hero p { max-width: 650px; }
+.case-temporal-signal { display: inline-flex; align-items: flex-start; gap: 9px; margin-top: 17px; color: var(--accent); }
+.case-temporal-signal > span { display: grid; gap: 3px; }
+.case-temporal-signal strong { color: var(--text); font-size: 12px; font-weight: 600; }
+.case-temporal-signal small { color: var(--muted); font-size: 11px; }
 .case-summary { margin-top: 27px; }
 .case-summary div { padding-top: 18px; padding-bottom: 18px; }
 .case-summary strong { font-size: 24px; }
