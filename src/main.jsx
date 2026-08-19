@@ -539,6 +539,16 @@ function routeEvidenceLabel(finding) {
   return 'evidence needs review'
 }
 
+function sourceCoverageLabel(finding) {
+  if (finding?.sourceSampleSize == null && finding?.sourceCandidateCount == null) return null
+  const sampled = Number(finding.sourceSampleSize || 0)
+  const candidates = Number(finding.sourceCandidateCount || 0)
+  if (!sampled) return 'no eligible source files sampled'
+  return candidates > sampled
+    ? `${sampled} of ${candidates} eligible files sampled`
+    : `${sampled} eligible files sampled`
+}
+
 function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   return <aside className="route-panel">
@@ -558,7 +568,10 @@ function RouteList({ findings, selectedIndex, onSelect, challenges = [], correla
             : finding.verdict === 'NOT_AFFECTED'
               ? 'Outside affected range'
               : 'Evidence needs review'
-        const sourceDetail = importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : finding.verdict === 'DECLARED_ONLY' ? 'lockfile only' : finding.verdict === 'NOT_AFFECTED' ? 'semver check' : 'incomplete sample'
+        const sourceDetail = [
+          importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : finding.verdict === 'DECLARED_ONLY' ? 'lockfile only' : finding.verdict === 'NOT_AFFECTED' ? 'semver check' : 'incomplete sample',
+          sourceCoverageLabel(finding),
+        ].filter(Boolean).join(' · ')
         return <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
           <span className="route-index">0{index + 1}</span>
           <span className="route-item-repository"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'}</small></span>
@@ -1159,6 +1172,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
         <span className="section-kicker">Source evidence</span>
         <strong>{sourceTitle}</strong>
         <code>{sourceDetail}</code>
+        {sourceCoverageLabel(finding) && <small className="trace-coverage">{sourceCoverageLabel(finding)}</small>}
         {importer?.snippet && <pre>{importer.snippet}</pre>}
         {sourceUrl ? <SourceLink href={sourceUrl}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink> : <span className="trace-source-missing">source citation unavailable</span>}
       </article>
