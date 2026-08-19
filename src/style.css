@@ -97,8 +97,8 @@ h1, h2, p { margin-top: 0; }
 
 .evidence-map { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
 .map-heading { min-height: 82px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
-.map-canvas { position: relative; padding: 10px 12px 0; overflow-x: auto; }
-.map-canvas svg { display: block; width: 100%; min-width: 720px; height: auto; overflow: visible; }
+.map-canvas { position: relative; min-width: 0; padding: 10px 12px 0; overflow: hidden; }
+.map-canvas svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; overflow: visible; }
 .map-layer-label { fill: var(--faint); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
 .map-edge { color: var(--line); stroke: currentColor; stroke-width: 1.4; opacity: .72; }
 .map-edge-selected { color: var(--accent); stroke-width: 2.3; opacity: 1; stroke-dasharray: 7 6; }
