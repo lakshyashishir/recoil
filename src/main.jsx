@@ -174,6 +174,7 @@ function liveStageStatus(stage, events = [], investigationStatus) {
   const relevant = events.filter((event) => stage.keys.some((key) => key === event.key || key.endsWith(':') && event.key?.startsWith(key)))
   if (relevant.some((event) => event.status === 'failed')) return 'failed'
   if (relevant.some((event) => event.status === 'working')) return 'working'
+  if (stage.id === 'memory' && relevant.some((event) => /unconfirmed|follow-up failed|not persisted/i.test(`${event.title || ''} ${event.detail || ''}`))) return 'review'
   if (relevant.some((event) => ['complete', 'persisted'].includes(event.status))) return 'complete'
   if (stage.id === 'records' && investigationStatus === 'running' && events.length === 0) return 'working'
   if (stage.id === 'memory' && investigationStatus === 'finalizing') return 'working'
@@ -188,7 +189,7 @@ function LiveStageRail({ events = [], investigationStatus }) {
     { id: 'fix', label: 'Check the fix', detail: 'fixed version · semver challenge', keys: ['fix-plan'] },
     { id: 'memory', label: 'Store history', detail: 'dated graph · HydraDB recall', keys: ['hydra', 'complete'] },
   ]
-  return <section className="live-stage-rail" aria-label="Investigation stages"><div className="live-stage-rail-heading"><span>What Recoil is doing</span><span>static public evidence</span></div><ol>{stages.map((stage) => { const status = liveStageStatus(stage, events, investigationStatus); return <li className={`live-stage live-stage-${status}`} key={stage.id}><span className="live-stage-marker"><StatusIcon status={status === 'waiting' ? 'idle' : status} /></span><span className="live-stage-copy"><strong>{stage.label}</strong><small>{stage.detail}</small></span></li> })}</ol></section>
+  return <section className="live-stage-rail" aria-label="Investigation stages"><div className="live-stage-rail-heading"><span>What Recoil is doing</span><span>static public evidence</span></div><ol>{stages.map((stage) => { const status = liveStageStatus(stage, events, investigationStatus); const detail = status === 'review' ? 'accepted · indexing unconfirmed' : status === 'failed' ? 'provider follow-up failed' : stage.detail; const iconStatus = status === 'waiting' ? 'idle' : status === 'review' ? 'failed' : status; return <li className={`live-stage live-stage-${status}`} key={stage.id}><span className="live-stage-marker"><StatusIcon status={iconStatus} /></span><span className="live-stage-copy"><strong>{stage.label}</strong><small>{detail}</small></span></li> })}</ol></section>
 }
 
 function LiveRepositoryProgress({ query, events = [] }) {
