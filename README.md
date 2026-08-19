@@ -220,7 +220,10 @@ advisory, fewer than three GitHub repositories, or the required HydraDB credenti
 avoiding a misleading partial run and unnecessary public/API requests.
 `npm run smoke:recording` enables both strict requirements directly, so it is the preferred final command. When
 the doctor reports `ENOTFOUND` for OSV, GitHub, or HydraDB, the recording gate must be retried after connectivity
-returns; cached or partial evidence is never promoted to a recording receipt.
+returns; cached or partial evidence is never promoted to a recording receipt. Strict recording also performs a
+bounded connectivity preflight before collection, so a disconnected run exits without spending collector or
+HydraDB requests. `RECOIL_SMOKE_SKIP_NETWORK_PREFLIGHT=1` is reserved for local test/replay diagnostics, not
+for the final recording.
 
 The OpenTUI console remains available for local operator use:
 

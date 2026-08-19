@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { parseGitHubRepositories, parseInvestigationInput, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
-import { persistInvestigation, recallTemporal } from '../server/hydra.js'
+import { hydraStatus, persistInvestigation, recallTemporal } from '../server/hydra.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
 
@@ -12,9 +12,35 @@ const strictMode = process.argv.includes('--strict')
 const requiredContrast = strictMode || process.env.RECOIL_SMOKE_REQUIRE_CONTRAST === '1'
 const requiredHydra = strictMode || process.env.RECOIL_SMOKE_REQUIRE_HYDRA === '1' || requiredContrast
 const receiptPath = process.env.RECOIL_SMOKE_RECEIPT || `.recoil-recordings/${scenarioId}.json`
+const skipNetworkPreflight = process.env.RECOIL_SMOKE_SKIP_NETWORK_PREFLIGHT === '1'
 
 function print(label, value) {
   console.log(`${label.padEnd(12)} ${value}`)
+}
+
+async function probe(url, headers = {}) {
+  try {
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(3500) })
+    return { ok: true, detail: `HTTP ${response.status}` }
+  } catch (error) {
+    const code = error?.cause?.code || error?.code
+    return { ok: false, detail: `${code ? `${code} · ` : ''}${error.message}` }
+  }
+}
+
+async function runNetworkPreflight() {
+  const hydra = hydraStatus()
+  const probes = [
+    ['osv', 'https://api.osv.dev', {}],
+    ['github', 'https://api.github.com/rate_limit', { accept: 'application/vnd.github+json', ...(process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}) }],
+    ['hydradb', `${hydra.apiBase}/health`, { 'API-Version': '2' }],
+  ]
+  const failures = []
+  for (const [label, url, headers] of probes) {
+    const result = await probe(url, headers)
+    if (!result.ok) failures.push(`${label} ${result.detail}`)
+  }
+  return failures
 }
 
 const repositoryCount = parseGitHubRepositories(query).length
@@ -36,6 +62,15 @@ if (preflightBlockers.length) {
       : blocker)
   print('preflight', messages.join(' · '))
   process.exit(2)
+}
+
+if (strictMode && !skipNetworkPreflight) {
+  const networkFailures = await runNetworkPreflight()
+  if (networkFailures.length) {
+    print('preflight', `network unavailable · ${networkFailures.join(' · ')}`)
+    print('guidance', 'retry after OSV, GitHub, and HydraDB are reachable; no collector credits were spent')
+    process.exit(2)
+  }
 }
 
 const ingestion = await runMultiRepositoryIngestion({ query, scenarioId })

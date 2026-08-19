@@ -100,6 +100,7 @@ observed path → proposed fix → residual re-check
 - [x] Normalize legacy npm lockfile v1 dependency trees into source-cited nested package paths and graph edges.
 - [x] Expose the supported lockfile and workspace evidence surfaces through the judge-facing `/api/health` capability contract.
 - [x] Add a single `npm run smoke:recording` command that enables the complete three-way and HydraDB recording gate.
+- [x] Add a strict recording network preflight so disconnected runs fail before spending collector or HydraDB requests.
 
 ### Still required before calling the hackathon build complete
 

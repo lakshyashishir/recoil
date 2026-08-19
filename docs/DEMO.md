@@ -39,7 +39,8 @@ npm run smoke:recording
 ```
 
 `smoke:recording` is the single strict recording command. It refuses to pass unless all three verdicts are
-present and HydraDB persistence succeeds.
+present and HydraDB persistence succeeds. It also checks OSV, GitHub, and HydraDB reachability before collection,
+so a disconnected run fails without spending collector or memory requests.
 Recoil waits for HydraDB's async indexing status before it performs the recall; if the status endpoint cannot
 be reached, the run stays queued and the smoke gate fails rather than presenting an unverified memory read.
 Recording mode requires a GHSA/CVE advisory, completed indexing, a successful temporal recall with dated facts, and at least one
