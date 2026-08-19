@@ -224,9 +224,9 @@ h1, h2, p { margin-top: 0; }
 .empty-route span { width: 16px; height: 16px; display: block; border: 1px solid currentColor; border-radius: 50%; }
 .empty-route i { width: 44px; height: 1px; display: block; background: currentColor; }
 
-.case-page { padding: clamp(42px, 7vh, 82px) 0 42px; }
+.case-page { padding: clamp(32px, 4.5vh, 58px) 0 42px; }
 .case-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 34px; align-items: end; padding-bottom: 30px; border-bottom: 1px solid var(--line); }
-.case-hero h1 { max-width: 760px; margin-bottom: 16px; color: var(--text); font-size: clamp(42px, 6vw, 78px); font-weight: 500; letter-spacing: -.07em; line-height: .98; }
+.case-hero h1 { max-width: 760px; margin-bottom: 16px; color: var(--text); font-size: clamp(40px, 4.8vw, 64px); font-weight: 500; letter-spacing: -.06em; line-height: 1; }
 .case-hero h1 span { color: var(--accent); }
 .case-hero p { max-width: 600px; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
 .case-actions { display: grid; justify-items: end; gap: 16px; }
