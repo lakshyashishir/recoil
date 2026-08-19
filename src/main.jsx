@@ -55,7 +55,7 @@ function Landing({ value, setValue, onSubmit, busy, error }) {
       <h1>Which repositories<br /><i>actually reach</i> vulnerable code?</h1>
       <p className="landing-lede">Give Recoil an advisory and the repositories you care about. It reads the public record, proves the path, rewinds the timeline, and checks the fix.</p>
       <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-        <label htmlFor="investigation-input">Advisory, package, or repository URLs</label>
+        <label htmlFor="investigation-input">GHSA/CVE advisory or package selector + repository URLs</label>
         <textarea id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="GHSA-… or npm:package@version\nhttps://github.com/org/repository" rows={4} />
         <div className="form-footer"><span>Nothing is installed or executed.</span><button type="submit" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={14} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button></div>
       </form>

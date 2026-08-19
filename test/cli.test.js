@@ -26,3 +26,13 @@ test('CLI rejects a missing shared case identifier before contacting the API', (
   assert.equal(result.status, 1)
   assert.match(result.stderr, /--case requires a case identifier/)
 })
+
+test('CLI rejects a repository-only investigation before contacting the API', () => {
+  const result = spawnSync(process.execPath, ['cli/recoil.js', 'https://github.com/example/repository'], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env },
+  })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /Investigation requires a GHSA\/CVE advisory or package selector/)
+})

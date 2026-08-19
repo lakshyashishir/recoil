@@ -89,6 +89,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Align the judge-facing demo runbook with the strict HydraDB graph-recall recording gate.
 - [x] Resolve repository-only package identity deterministically; ambiguous multi-repository identities remain `UNKNOWN` with an explicit reason in the report, CLI, and receipt.
 - [x] Make strict recording preflight require an advisory ID so dated exposure and fixed-version claims cannot start from a package-only query.
+- [x] Reject repository-only client requests before collection; the browser, API, and direct CLI now share a clear advisory/package input contract.
 
 ### Still required before calling the hackathon build complete
 

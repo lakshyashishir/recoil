@@ -55,6 +55,12 @@ test('API rejects an investigation without a repository before collection', asyn
   assert.match(result.body.error, /at least one public GitHub repository URL/)
 })
 
+test('API rejects a repository-only investigation before collection', async () => {
+  const result = await request('POST', '/api/scenarios/input-target-guard/investigate', { query: 'https://github.com/example/repository' })
+  assert.equal(result.statusCode, 422)
+  assert.match(result.body.error, /GHSA\/CVE advisory or package selector/)
+})
+
 test('API route chain starts, completes, rewinds, and exports a receipt', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.OPENAI_API_KEY

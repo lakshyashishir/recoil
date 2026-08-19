@@ -131,6 +131,11 @@ async function main() {
     return
   }
 
+  const target = parseInvestigationInput(query)
+  if (!target.advisoryId && !target.packageName) {
+    throw new Error('Investigation requires a GHSA/CVE advisory or package selector plus at least one public GitHub repository URL')
+  }
+
   if (recordingMode) {
     const blockers = recordingPreflight(query)
     if (blockers.length) throw new Error(`Recording preflight failed: ${blockers.join(' · ')}`)
