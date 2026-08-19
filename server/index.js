@@ -107,6 +107,7 @@ async function route(req, res) {
       hydra: hydraStatus(),
       advisoryScopeAgent: advisoryAgentStatus(),
       recordingContract: {
+        requiresAdvisoryId: true,
         requiredVerdicts: ['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'],
         requiresHydraPersistence: true,
         requiresHydraMemory: true,

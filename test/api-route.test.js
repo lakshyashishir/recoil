@@ -121,6 +121,7 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     assert.equal(health.statusCode, 200)
     assert.equal(health.body.product, 'evidence-proof')
     assert.deepEqual(health.body.recordingContract.requiredVerdicts, ['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'])
+    assert.equal(health.body.recordingContract.requiresAdvisoryId, true)
     assert.equal(health.body.recordingContract.requiresHydraMemory, true)
     assert.equal(health.body.recordingContract.requiresHydraTemporalRecall, true)
     assert.equal(health.body.recordingContract.requiresDatedTemporalFact, true)

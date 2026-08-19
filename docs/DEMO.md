@@ -42,7 +42,7 @@ npm run smoke:real
 The smoke command refuses to pass unless all three verdicts are present and HydraDB persistence succeeds.
 Recoil waits for HydraDB's async indexing status before it performs the recall; if the status endpoint cannot
 be reached, the run stays queued and the smoke gate fails rather than presenting an unverified memory read.
-Recording mode requires completed indexing, a successful temporal recall with dated facts, and at least one
+Recording mode requires a GHSA/CVE advisory, completed indexing, a successful temporal recall with dated facts, and at least one
 returned graph triplet. Strict mode also checks for three repository URLs and HydraDB credentials before
 starting collection, so it does not spend API calls on an invalid recording setup.
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { hasIncompleteEvidence } from '../src/core/validation.js'
-import { parseGitHubRepositories } from '../server/collectors.js'
+import { parseGitHubRepositories, parseInvestigationInput } from '../server/collectors.js'
 import { startInvestigation } from '../server/investigation.js'
 import { getOrCreate, snapshot as getScenarioSnapshot } from '../server/index.js'
 import { recordingBlockers as buildRecordingBlockers, recordingPreflight as buildRecordingPreflight } from '../src/core/recording.js'
@@ -62,7 +62,9 @@ function sleep(ms) {
 }
 
 function recordingPreflight(queryText) {
+  const target = parseInvestigationInput(queryText)
   return buildRecordingPreflight({
+    advisoryId: target.advisoryId,
     repositoryCount: parseGitHubRepositories(queryText).length,
     hydraConfigured: Boolean(process.env.HYDRA_DB_API_KEY && process.env.HYDRADB_DATABASE_ID),
     requireContrast: true,

@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { parseGitHubRepositories, runMultiRepositoryIngestion } from '../server/collectors.js'
+import { parseGitHubRepositories, parseInvestigationInput, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 import { persistInvestigation, recallTemporal } from '../server/hydra.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
@@ -17,7 +17,9 @@ function print(label, value) {
 }
 
 const repositoryCount = parseGitHubRepositories(query).length
+const target = parseInvestigationInput(query)
 const preflightBlockers = recordingPreflight({
+  advisoryId: target.advisoryId,
   repositoryCount,
   hydraConfigured: Boolean(process.env.HYDRA_DB_API_KEY && process.env.HYDRADB_DATABASE_ID),
   requireContrast: requiredContrast,
@@ -26,7 +28,9 @@ const preflightBlockers = recordingPreflight({
 if (preflightBlockers.length) {
   const messages = preflightBlockers.map((blocker) => blocker.startsWith('requires 3 public GitHub repositories')
     ? `contrast mode ${blocker}`
-    : blocker.startsWith('requires HYDRA_DB_API_KEY')
+    : blocker.startsWith('requires a GHSA/CVE advisory ID')
+      ? `recording mode ${blocker}`
+      : blocker.startsWith('requires HYDRA_DB_API_KEY')
       ? 'HydraDB recording is required; set HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID'
       : blocker)
   print('preflight', messages.join(' · '))

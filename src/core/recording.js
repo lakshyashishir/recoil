@@ -1,8 +1,9 @@
 import { hasIncompleteEvidence, missingRequiredVerdicts } from './validation.js'
 import { summarizeGraphContext } from './graph-context.js'
 
-export function recordingPreflight({ repositoryCount = 0, hydraConfigured = false, requireContrast = false, requireHydra = false } = {}) {
+export function recordingPreflight({ advisoryId = null, repositoryCount = 0, hydraConfigured = false, requireContrast = false, requireHydra = false } = {}) {
   const blockers = []
+  if ((requireContrast || requireHydra) && !advisoryId) blockers.push('requires a GHSA/CVE advisory ID for dated reachability and fixed-version proof')
   if (requireContrast && repositoryCount < 3) blockers.push(`requires 3 public GitHub repositories; found ${repositoryCount}`)
   if (requireHydra && !hydraConfigured) blockers.push('requires HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID')
   return blockers

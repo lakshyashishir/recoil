@@ -3,11 +3,17 @@ import assert from 'node:assert/strict'
 import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
 
 test('recording preflight requires contrast repositories and HydraDB only in strict mode', () => {
-  assert.deepEqual(recordingPreflight({ repositoryCount: 1, hydraConfigured: false, requireContrast: true, requireHydra: true }), [
+  assert.deepEqual(recordingPreflight({ advisoryId: 'GHSA-test', repositoryCount: 1, hydraConfigured: false, requireContrast: true, requireHydra: true }), [
     'requires 3 public GitHub repositories; found 1',
     'requires HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID',
   ])
   assert.deepEqual(recordingPreflight({ repositoryCount: 1, hydraConfigured: false }), [])
+})
+
+test('recording preflight rejects a package-only strict run before collection', () => {
+  assert.deepEqual(recordingPreflight({ repositoryCount: 3, hydraConfigured: true, requireContrast: true, requireHydra: true }), [
+    'requires a GHSA/CVE advisory ID for dated reachability and fixed-version proof',
+  ])
 })
 
 test('recording blockers accept a complete contrast with HydraDB temporal recall', () => {

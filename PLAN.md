@@ -88,6 +88,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Include OpenTUI compilation in the reproducible `npm run verify` gate.
 - [x] Align the judge-facing demo runbook with the strict HydraDB graph-recall recording gate.
 - [x] Resolve repository-only package identity deterministically; ambiguous multi-repository identities remain `UNKNOWN` with an explicit reason in the report, CLI, and receipt.
+- [x] Make strict recording preflight require an advisory ID so dated exposure and fixed-version claims cannot start from a package-only query.
 
 ### Still required before calling the hackathon build complete
 

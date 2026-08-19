@@ -131,8 +131,8 @@ npm run doctor -- --recording "GHSA-xxxx-yyyy-zzzz https://github.com/org/repo-a
 npm run doctor -- --network
 ```
 
-`--recording` requires an advisory or package selector, three public repositories, and HydraDB write/read
-credentials. The `/api/health` recording contract also exposes that at least one memory and one dated
+`--recording` requires a GHSA/CVE advisory, three public repositories, and HydraDB write/read credentials.
+The `/api/health` recording contract also exposes that at least one memory and one dated
 temporal fact must be present. `--network` performs bounded reachability checks against OSV, GitHub, and
 HydraDB; failures are diagnostics, not evidence, and do not create a case.
 

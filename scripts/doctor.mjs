@@ -13,7 +13,7 @@ function print(label, value) {
 }
 
 function usage() {
-  print('usage', 'npm run doctor -- [--recording] [--network] "<advisory/package> <github-url>..."')
+  print('usage', 'npm run doctor -- [--recording] [--network] "<advisory> <github-url>..."')
   print('env', 'RECOIL_DOCTOR_QUERY may provide the query instead of a positional argument')
   print('modes', '--recording requires 3 public repositories and HydraDB credentials; --network tests endpoints')
 }
@@ -51,7 +51,7 @@ if (nodeMajor < 20) failures.push('Node 20 or newer is required')
 print('query', query || 'not supplied')
 print('target', `${target.advisoryId || target.packageName || 'advisory/package unresolved'} · ${target.repositories.length} public GitHub repos`)
 if (recording && target.repositories.length < 3) failures.push(`recording mode needs 3 public GitHub repositories; found ${target.repositories.length}`)
-if (recording && !target.advisoryId && !target.packageName) failures.push('recording mode needs an advisory ID or package selector')
+if (recording && !target.advisoryId) failures.push('recording mode needs a GHSA/CVE advisory ID for dated reachability and fixed-version proof')
 
 print('hydra', `${hydra.status} · ${hydra.configured ? 'write/read configured' : 'local replay only'}`)
 if (recording && !hydra.configured) failures.push('recording mode needs HYDRA_DB_API_KEY and HYDRADB_DATABASE_ID')
