@@ -436,3 +436,35 @@ body { font-family: var(--sans); line-height: 1.45; }
   .proof-overview-item, .proof-overview-item + .proof-overview-item { padding: 14px 0; border-right: 0; border-bottom: 1px solid var(--line-soft); }
   .proof-overview-item:last-child { border-bottom: 0; }
 }
+
+/* Case navigation: a quiet way to move through the proof without turning the report into a dashboard. */
+.case-navigator {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 54px;
+  margin: 0 0 20px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(10px);
+}
+.case-navigator-selection { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.case-navigator-selection > span { color: var(--muted); font-size: 11px; }
+.case-navigator-selection strong { overflow: hidden; color: var(--text); font: 600 12px/1.2 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.case-navigator-links { display: flex; align-items: center; gap: 3px; }
+.case-navigator-links button { padding: 7px 9px; border-radius: 4px; color: var(--muted); background: transparent; font-size: 11px; }
+.case-navigator-links button:hover, .case-navigator-links button:focus-visible { color: var(--text); background: var(--surface-raised); outline: none; }
+.case-navigator-links button:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+
+@media (max-width: 720px) {
+  .case-navigator { align-items: flex-start; flex-direction: column; gap: 6px; padding: 10px 0; }
+  .case-navigator-selection { width: 100%; }
+  .case-navigator-links { width: 100%; justify-content: space-between; }
+  .case-navigator-links button { padding-left: 3px; padding-right: 3px; }
+}

@@ -327,7 +327,7 @@ function RouteProof({ finding, challenge }) {
   const sourceLinks = [...new Set([finding.repositoryUrl, ...(finding.evidenceSources || []), ...(finding.imports || []).map((item) => item.sourceUrl)].filter(Boolean))]
   const fixLabel = challenge?.proposedVersion ? `Upgrade to ${challenge.proposedVersion}` : challenge?.status === 'ALREADY_SAFE' ? 'Already outside affected range' : 'No verified version change'
   const fixStatus = challenge?.status === 'FIX_SURVIVES' || challenge?.status === 'ALREADY_SAFE' ? 'verified' : 'review'
-  return <section className="route-proof">
+  return <section className="route-proof" id="case-proof">
     <div className="proof-heading"><div><span className="section-kicker">Route</span><h2>{finding.verdict === 'REACHED' ? 'Reachable' : finding.verdict === 'DECLARED_ONLY' ? 'Declared only' : finding.verdict === 'NOT_AFFECTED' ? 'Not affected' : 'Unclassified'}</h2></div><Verdict value={finding.verdict} /></div>
     <p className="proof-reason">{finding.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
     <div className="route-steps">{parts.map((part, index) => <div className="route-step" key={`${part}-${index}`}><span>{index + 1}</span><strong>{shorten(routeDisplayPart(part, finding), 38)}</strong><small>{index === 0 ? 'advisory' : index === parts.length - 1 ? 'source' : 'observed hop'}</small></div>)}</div>
@@ -343,9 +343,9 @@ function TemporalProof({ report, onRewind }) {
   const before = report?.rewind?.beforeAdvisory
   const current = report?.rewind?.currentAsOf || report?.rewind?.asOf
   const memory = report?.rewind?.memory
-  if (!before) return <section className="temporal-proof temporal-unavailable"><div><span className="section-kicker">HydraDB history</span><h2>No dated history</h2><p>No dated repository evidence was collected, so Recoil cannot claim when this path existed.</p></div></section>
+  if (!before) return <section className="temporal-proof temporal-unavailable" id="case-history"><div><span className="section-kicker">HydraDB history</span><h2>No dated history</h2><p>No dated repository evidence was collected, so Recoil cannot claim when this path existed.</p></div></section>
   const beforeActive = report?.rewind?.asOf === before
-  return <section className="temporal-proof">
+  return <section className="temporal-proof" id="case-history">
     <div className="temporal-copy"><span className="section-kicker">HydraDB history</span><h2>See the case at two points in time.</h2><p>The advisory was published {report.advisory?.published?.slice(0, 10) || 'on an unknown date'}. Recoil uses dated lockfile evidence and HydraDB recall to keep the timeline inspectable.</p><div className={`memory-line ${memory?.status === 'recalled' ? '' : 'memory-line-muted'}`}><span className="memory-mark" /> {memory?.status === 'recalled' ? 'Dated context returned from HydraDB.' : memory?.status === 'queued' ? 'Memory is indexing in HydraDB.' : 'HydraDB history is unavailable.'}</div></div>
     <div className="temporal-controls"><button className={beforeActive ? 'active' : ''} onClick={() => onRewind(before)}><Clock3 size={15} /><span>Before disclosure</span><small>{before.slice(0, 10)}</small></button><button className={!beforeActive ? 'active' : ''} onClick={() => onRewind(current)}><ShieldCheck size={15} /><span>Current evidence</span><small>{current?.slice(0, 10) || 'today'}</small></button></div>
     <div className="temporal-stats"><span><strong>{memory?.datedChunkCount || 0}</strong><small>dated facts</small></span><span><strong>{memory?.graphContext?.tripletCount || 0}</strong><small>graph triplets</small></span><span><strong>{memory?.relatedCaseCount || 0}</strong><small>related cases</small></span></div>
@@ -369,11 +369,30 @@ function IntegrityDetails({ report, hydra, evidenceStatus }) {
   const quality = report?.evidenceQuality || {}
   const sourceCount = report?.sources?.length || 0
   const graph = report?.graph || { nodes: [], edges: [] }
-  return <details className="integrity-details"><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{graph.nodes.length}</strong><span>observed nodes</span></div><div><strong>{graph.edges.length}</strong><span>observed edges</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div></div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
+  return <details className="integrity-details" id="case-audit"><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{graph.nodes.length}</strong><span>observed nodes</span></div><div><strong>{graph.edges.length}</strong><span>observed edges</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div></div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
 }
 
 function ReceiptLink() {
   return <a className="receipt-link" href={`/api/scenarios/${SCENARIO_ID}/receipt`} download="recoil-evidence-receipt.json"><Download size={14} /> Download receipt</a>
+}
+
+function CaseNavigator({ finding }) {
+  if (!finding) return null
+  const jumpTo = (id) => {
+    const element = document.getElementById(id)
+    if (!element) return
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    element.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' })
+  }
+  return <nav className="case-navigator" aria-label="Case sections">
+    <div className="case-navigator-selection"><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></div>
+    <div className="case-navigator-links">
+      <button type="button" onClick={() => jumpTo('case-graph')}>Graph</button>
+      <button type="button" onClick={() => jumpTo('case-proof')}>Proof</button>
+      <button type="button" onClick={() => jumpTo('case-history')}>History</button>
+      <button type="button" onClick={() => jumpTo('case-audit')}>Audit</button>
+    </div>
+  </nav>
 }
 
 function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
@@ -390,7 +409,8 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <section className="case-hero"><div><span className="section-kicker">Evidence report</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p></div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
     <section className="case-summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{summary.fixSurvives || 0}</strong><span>fixes verified</span></div></section>
     <ProofOverview report={report} />
-    <div className="case-workspace"><EvidenceMap report={report} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
+    <CaseNavigator finding={selectedFinding} />
+    <div className="case-workspace" id="case-graph"><EvidenceMap report={report} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /></div>
     <RouteProof finding={selectedFinding} challenge={challenge} />
     <TemporalProof report={report} onRewind={onRewind} />
     <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />
