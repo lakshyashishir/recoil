@@ -99,6 +99,24 @@ export function fixedVersionsFromAdvisory(advisory, packageName) {
   return [...new Set(versions)].sort(compareVersions)
 }
 
+function fixedVersionsForResolvedVersion(advisory, packageName, resolvedVersion) {
+  if (!resolvedVersion || !parseVersion(resolvedVersion)) return []
+  const resolved = parseVersion(resolvedVersion)
+  const branchVersions = advisoryAffectedEntries(advisory, packageName).flatMap((entry) => (entry.ranges || []).flatMap((range) => {
+    let introduced = null
+    return (range.events || []).flatMap((event) => {
+      if (event.introduced !== undefined) introduced = event.introduced === '0' ? '0.0.0' : event.introduced
+      if (!event.fixed || !introduced) return []
+      return compareVersions(resolved, introduced) >= 0 && compareVersions(resolved, event.fixed) < 0 ? [event.fixed] : []
+    })
+  }))
+  if (branchVersions.length) return [...new Set(branchVersions)].sort(compareVersions)
+  // A safe version has no active range to identify, but the most useful fix
+  // shown beside it is still the fixed release for the same major line.
+  const sameMajor = fixedVersionsFromAdvisory(advisory, packageName).filter((version) => parseVersion(version)?.major === resolved.major)
+  return sameMajor.length ? sameMajor : fixedVersionsFromAdvisory(advisory, packageName)
+}
+
 export function versionAffectedByAdvisory(advisory, packageName, version) {
   const entries = advisoryAffectedEntries(advisory, packageName)
   if (!entries.length || !parseVersion(version)) return null
@@ -116,10 +134,12 @@ export function versionAffectedByAdvisory(advisory, packageName, version) {
   return false
 }
 
-export function chooseFixedVersion(advisory, packageName, declaredRange = '') {
+export function chooseFixedVersion(advisory, packageName, declaredRange = '', resolvedVersion = '') {
   const fixedVersions = fixedVersionsFromAdvisory(advisory, packageName)
-  const allowed = fixedVersions.find((version) => satisfiesRange(declaredRange, version))
-  return { fixedVersions, targetVersion: fixedVersions[0] || null, rangeAllowsFix: Boolean(allowed), allowedVersion: allowed || null }
+  const relevantVersions = fixedVersionsForResolvedVersion(advisory, packageName, resolvedVersion)
+  const candidateVersions = relevantVersions.length ? relevantVersions : fixedVersions
+  const allowed = candidateVersions.find((version) => satisfiesRange(declaredRange, version))
+  return { fixedVersions, targetVersion: candidateVersions[0] || null, rangeAllowsFix: Boolean(allowed), allowedVersion: allowed || null }
 }
 
 function repositoryLockEntry(manifest, packageName) {
@@ -222,7 +242,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   const affected = versionAffectedByAdvisory(advisory, packageName, resolvedVersion)
   const resolutionStates = resolvedVersions.map((version) => versionAffectedByAdvisory(advisory, packageName, version))
   const ambiguousResolution = resolvedVersions.length > 1 && (resolutionStates.includes(null) || new Set(resolutionStates).size > 1)
-  const fix = chooseFixedVersion(advisory, packageName, declaredRange)
+  const fix = chooseFixedVersion(advisory, packageName, declaredRange, resolvedVersion)
   const sourceEvidenceIncomplete = ['unavailable', 'partial'].includes(sourceCollection.status)
   let verdict = 'UNKNOWN'
   let reason = 'The available public evidence is insufficient to classify this repository.'

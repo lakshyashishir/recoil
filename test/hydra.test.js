@@ -101,6 +101,19 @@ test('HydraDB graph payload preserves observed package dependency edges', () => 
   assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'DEPENDS_ON')
 })
 
+test('HydraDB metadata keeps large source collections under the cloud limit', () => {
+  const memories = buildInvestigationMemories({
+    scenarioId: 'metadata-bound-test',
+    package: 'minimist',
+    sources: Array.from({ length: 80 }, (_, index) => `https://github.com/example/repository/blob/HEAD/source-${index}.js`),
+    graph: { nodes: [{ id: 'advisory:GHSA-test', label: 'GHSA-test', type: 'advisory' }], edges: [] },
+  }, { advisory: { id: 'GHSA-test', published: '2022-03-18T00:00:00Z' }, repositories: [], challenge: [] })
+  assert.ok(memories.length > 0)
+  assert.ok(memories.every((memory) => Buffer.byteLength(JSON.stringify(memory.additional_metadata)) <= 1024))
+  const graphMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'observed_graph')
+  assert.equal(JSON.parse(graphMemory.additional_metadata.source_urls).length, 4)
+})
+
 test('HydraDB persistence skips incomplete reports unless explicitly enabled', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.HYDRA_DB_API_KEY

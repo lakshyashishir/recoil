@@ -1,15 +1,16 @@
-# Candidate live recording case
+# Verified live recording case
 
-This is the handoff case for the final live demo. It is a candidate input, not a precomputed result.
-The strict smoke gate must calculate the verdicts from live OSV, GitHub, registry, source, and HydraDB
-responses before this case is used in a recording.
+This case passed the strict live gate on 19 August 2026. Re-run it before recording so the verdicts and
+HydraDB receipt are freshly calculated from public OSV, GitHub, registry, source, and HydraDB responses.
+The receipt is a handoff artifact, not hardcoded product output.
 
 ## Query
 
 ```text
 GHSA-xvch-5gv4-984h
+npm:minimist
 https://github.com/http-party/http-server/tree/v13.0.2
-https://github.com/dojo/dojo
+https://github.com/tweenjs/tween.js
 https://github.com/axios/axios/tree/v1.x
 ```
 
@@ -18,23 +19,22 @@ https://github.com/axios/axios/tree/v1.x
 The advisory is for `minimist` and documents affected ranges before `1.2.6` (and the older `0.2.x`
 line) with fixed versions `1.2.6` and `0.2.4`:
 
-- <https://github.com/advisories/GHSA-xvch-5gv4-984h>
-- The `http-server` CLI imports `minimist`: <https://github.com/http-party/http-server/blob/master/bin/http-server>
-- Dojo's public lockfile contains a `minimist@1.2.5` resolution: <https://github.com/dojo/dojo/blob/master/package-lock.json>
-- Axios's `v1.x` lockfile declares a safe `minimist@^1.2.8` development dependency: <https://github.com/axios/axios/blob/v1.x/package-lock.json>
+- <https://osv.dev/vulnerability/GHSA-xvch-5gv4-984h>
+- The `http-server@13.0.2` CLI imports the affected `minimist@1.2.5`: <https://raw.githubusercontent.com/http-party/http-server/v13.0.2/bin/http-server>
+- Tween.js contains an affected `minimist@0.0.8` lockfile resolution but the bounded source sample imports it zero times: <https://raw.githubusercontent.com/tweenjs/tween.js/main/package-lock.json>
+- Axios's `v1.x` lockfile resolves `minimist@1.2.8`, outside the advisory range: <https://raw.githubusercontent.com/axios/axios/v1.x/package-lock.json>
 
-Those observations make this a strong candidate for a three-way contrast—source-backed reachability,
-declaration without a sampled import, and an already-safe resolution—but they are not Recoil verdicts.
-If the live collector cannot prove one of those roles, the report must show `UNKNOWN` and the case must
-not be recorded as a successful contrast.
+The live run produced the intended three-way contrast: `REACHED`, `DECLARED_ONLY`, and `NOT_AFFECTED`.
+If a future run cannot prove one of those roles, the report must show `UNKNOWN` and the case must not be
+recorded as a successful contrast.
 
 ## Run sequence
 
 ```bash
-QUERY='GHSA-xvch-5gv4-984h https://github.com/http-party/http-server/tree/v13.0.2 https://github.com/dojo/dojo https://github.com/axios/axios/tree/v1.x'
+QUERY='GHSA-xvch-5gv4-984h npm:minimist https://github.com/http-party/http-server/tree/v13.0.2 https://github.com/tweenjs/tween.js https://github.com/axios/axios/tree/v1.x'
 
 npm run doctor -- --recording --network "$QUERY"
-RECOIL_SMOKE_QUERY="$QUERY" npm run smoke:recording
+HYDRADB_INDEX_WAIT_MS=120000 RECOIL_SMOKE_SCENARIO=recording-minimist-2026-08-19 RECOIL_SMOKE_QUERY="$QUERY" npm run smoke:recording
 npm run cli -- "$QUERY" --recording --proof
 npm run tui -- --recording "$QUERY"
 ```

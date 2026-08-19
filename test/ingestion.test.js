@@ -650,9 +650,9 @@ test('transient network failures are retried before evidence is classified', asy
     const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-test-1234-5678', scenarioId: 'network-retry-test' })
     assert.equal(attempts.get('api.osv.dev'), 3)
     assert.deepEqual(osvUrls, [
-      '/v1/vulns/ghsa-test-1234-5678',
-      '/v1/vulns/ghsa-test-1234-5678',
-      '/v1/vulns/ghsa-test-1234-5678',
+      '/v1/vulns/GHSA-TEST-1234-5678',
+      '/v1/vulns/GHSA-TEST-1234-5678',
+      '/v1/vulns/GHSA-TEST-1234-5678',
     ])
     assert.equal(ingestion.status, 'completed')
     assert.equal(ingestion.advisory.id, advisory.id)
@@ -660,5 +660,30 @@ test('transient network failures are retried before evidence is classified', asy
     globalThis.fetch = previousFetch
     if (previousRetries === undefined) delete process.env.RECOIL_NETWORK_RETRIES
     else process.env.RECOIL_NETWORK_RETRIES = previousRetries
+  }
+})
+
+test('a failed advisory GET can fall back to the OSV package query', async () => {
+  const previousFetch = globalThis.fetch
+  const requests = []
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(input)
+    requests.push({ path: url.pathname, method: options.method || 'GET' })
+    if (url.pathname === '/v1/vulns/GHSA-TEST-1234-5678') return response({}, 404)
+    if (url.pathname === '/v1/query') return response({ vulns: [advisory] })
+    if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', 'dist-tags': { latest: '1.2.8' }, versions: { '1.2.8': {} }, maintainers: [] })
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-test-1234-5678 npm:minimist', scenarioId: 'advisory-query-fallback-test' })
+    assert.equal(ingestion.advisory.id, advisory.id)
+    assert.equal(ingestion.advisory.sourceUrl, 'https://api.osv.dev/v1/query')
+    assert.equal(ingestion.collectors.find((item) => item.collector === 'advisory-resolver').status, 'completed')
+    assert.deepEqual(requests.slice(0, 2), [
+      { path: '/v1/vulns/GHSA-TEST-1234-5678', method: 'GET' },
+      { path: '/v1/query', method: 'POST' },
+    ])
+  } finally {
+    globalThis.fetch = previousFetch
   }
 })

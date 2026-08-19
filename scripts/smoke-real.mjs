@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { parseGitHubRepositories, parseInvestigationInput, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
+import { summarizeGraphContext } from '../src/core/graph-context.js'
 import { hydraStatus, persistInvestigation, recallTemporal } from '../server/hydra.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
@@ -73,7 +74,7 @@ for (const finding of report.repositories || []) {
 }
 for (const fix of report.challenge || []) print('fix', `${fix.status} · ${fix.repository} · ${fix.proposedVersion || 'no fixed version'}`)
 print('rewind', `${report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
-const graphContext = recall.graphContext || {}
+const graphContext = summarizeGraphContext(recall.graphContext) || {}
 const graphTriplets = graphContext.tripletCount ?? graphContext.triplets?.length ?? 0
 print('hydra', `${hydra.status} · read ${recall.status || 'not-run'} · ${hydra.memoryCount || 0} memories · ${recall.datedChunkCount || 0} dated facts · ${recall.priorScenarioIds?.length || 0} prior cases · ${graphTriplets} graph triplets`)
 if (hydra.error) print('hydra-error', hydra.error)

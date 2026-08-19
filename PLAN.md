@@ -107,19 +107,24 @@ observed path → proposed fix → residual re-check
 - [x] Give the TUI the same explicit direct transport as the CLI for API-free terminal operation.
 - [x] Surface the strict recording gate and blockers in the TUI as well as the browser and CLI.
 - [x] Run the shared strict connectivity preflight before TUI recording collection.
-- [x] Prepare a source-linked candidate recording case without freezing synthetic verdicts.
+- [x] Prepare and validate a source-linked live recording case without freezing synthetic verdicts.
+- [x] Preserve canonical OSV advisory provenance when the package-query fallback resolves a failed direct lookup.
+- [x] Keep target npm lockfile entries outside the bounded prefix available for classification.
+- [x] Keep HydraDB searchable source metadata within its 1,024-byte cloud limit.
+- [x] Retain normalized HydraDB graph triplets in the recording smoke output.
 
 ### Still required before calling the hackathon build complete
 
-- [ ] Validate and freeze one real advisory plus three real public repositories for the recording.
-- [ ] Run that case against the configured HydraDB cloud database, with completed indexing and temporal recall, and retain the successful output without committing secrets or cache files.
-- [ ] Verify the browser and CLI against the same real case.
+- [x] Validate and freeze one real advisory plus three real public repositories for the recording.
+- [x] Run that case against the configured HydraDB cloud database, with completed indexing and temporal recall, and retain the successful output without committing secrets or cache files.
+- [x] Verify the direct CLI against the same real case with proof output and a recording-ready gate.
+- [ ] Verify the browser against the same real case.
 - [x] Improve source-level path precision by connecting advisory-described symbols to indexed symbols with a validated optional model step.
 - [x] Add cross-case HydraDB recall that visibly relates a new case to a prior package/repository fact.
 - [x] Add a final provenance/limitations pass so every displayed claim has an explicit evidence boundary.
 - [x] Delete the retired fictional arena, executable fixture, agent loop, and legacy routes from the shipped product path.
 - [ ] Render and inspect the browser at common desktop and mobile widths.
-- [ ] Update the final demo recording and repository instructions after the real smoke run.
+- [x] Update the final demo runbook and repository instructions after the real smoke run.
 
 ## Architecture
 

@@ -1,5 +1,6 @@
 const DEFAULT_API_URL = 'https://api.hydradb.com'
 const MAX_MEMORY_CHARS = 2200
+const MAX_METADATA_SOURCE_URLS = 4
 
 function databaseId() {
   return process.env.HYDRADB_DATABASE_ID || ''
@@ -94,6 +95,15 @@ function metadataSourceUrls(metadata) {
   } catch {
     return []
   }
+}
+
+function compactSourceUrls(sourceUrls = []) {
+  return [...new Set((Array.isArray(sourceUrls) ? sourceUrls : [sourceUrls]).filter(Boolean).map(String))]
+    .slice(0, MAX_METADATA_SOURCE_URLS)
+}
+
+function sourceMetadata(sourceUrls = []) {
+  return JSON.stringify(compactSourceUrls(sourceUrls))
 }
 
 /**
@@ -382,7 +392,7 @@ function temporalMemory({ id, title, text, kind, scenarioId, repository, validFr
       recoil_repository: repository || null,
       valid_from: validFrom || null,
       valid_until: validUntil,
-      source_urls: JSON.stringify(sourceUrls),
+      source_urls: sourceMetadata(sourceUrls),
     },
     graphPayload,
   })
@@ -412,7 +422,7 @@ export function buildInvestigationMemories(ingestion, report) {
       recoil_package: ingestion.package || null,
       recoil_graph_node_count: graph.nodes.length,
       recoil_graph_edge_count: graph.edges.length,
-      source_urls: JSON.stringify(ingestion.sources || []),
+      source_urls: sourceMetadata(ingestion.sources || []),
     },
     graphPayload: buildGraphPayload(graph, report.generatedAt),
   }))

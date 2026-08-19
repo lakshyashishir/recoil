@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { applyAdvisoryScope, buildObservedGraph, classifyRepository, satisfiesRange, versionAffectedByAdvisory } from '../src/core/evidence.js'
+import { applyAdvisoryScope, buildObservedGraph, chooseFixedVersion, classifyRepository, satisfiesRange, versionAffectedByAdvisory } from '../src/core/evidence.js'
 
 const advisory = {
   id: 'GHSA-test',
@@ -35,6 +35,25 @@ test('semver checks real declared ranges against a fixed version', () => {
   assert.equal(satisfiesRange('^1.2.0', '1.2.6'), true)
   assert.equal(satisfiesRange('1.2.5', '1.2.6'), false)
   assert.equal(satisfiesRange('~1.2.0', '1.3.0'), false)
+})
+
+test('fix planning stays on the advisory range branch for multi-range advisories', () => {
+  const multiRangeAdvisory = {
+    affected: [{
+      package: { ecosystem: 'npm', name: 'minimist' },
+      ranges: [
+        { type: 'SEMVER', events: [{ introduced: '0' }, { fixed: '0.2.1' }] },
+        { type: 'SEMVER', events: [{ introduced: '1.0.0' }, { fixed: '1.2.3' }] },
+      ],
+    }],
+  }
+  const branch = chooseFixedVersion(multiRangeAdvisory, 'minimist', '^1.2.0', '1.2.0')
+  const pinned = chooseFixedVersion(multiRangeAdvisory, 'minimist', '1.2.5', '1.2.5')
+  assert.deepEqual(branch.fixedVersions, ['0.2.1', '1.2.3'])
+  assert.equal(branch.targetVersion, '1.2.3')
+  assert.equal(branch.allowedVersion, '1.2.3')
+  assert.equal(pinned.targetVersion, '1.2.3')
+  assert.equal(pinned.rangeAllowsFix, false)
 })
 
 test('advisory ranges classify reached, declared-only, and fixed repositories', () => {

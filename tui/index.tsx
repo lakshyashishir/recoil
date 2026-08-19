@@ -8,6 +8,7 @@ import { hydraStatus } from '../server/hydra.js'
 import { startInvestigation } from '../server/investigation.js'
 import { recordingNetworkFailures } from '../src/core/network-preflight.js'
 import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
+import { summarizeGraphContext } from '../src/core/graph-context.js'
 
 const C = {
   bg: '#0b0e0c',
@@ -111,7 +112,7 @@ function App() {
   const quality = report?.evidenceQuality || {}
   const terminal = state.status === 'complete' || state.status === 'failed'
   const hydraReadFailed = state.hydra?.recall?.status === 'failed'
-  const graphTriplets = state.hydra?.recall?.graphContext?.tripletCount ?? state.hydra?.recall?.graphContext?.triplets?.length ?? 0
+  const graphTriplets = summarizeGraphContext(state.hydra?.recall?.graphContext)?.triplets?.length || 0
   const blockers = recordingMode && report
     ? recordingBlockers({ report, evidenceStatus: state.evidenceStatus, hydra: state.hydra, requireContrast: true, requireHydra: true })
     : []

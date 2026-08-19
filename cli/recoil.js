@@ -7,6 +7,7 @@ import { getOrCreate, snapshot as getScenarioSnapshot } from '../server/index.js
 import { recordingBlockers as buildRecordingBlockers, recordingPreflight as buildRecordingPreflight } from '../src/core/recording.js'
 import { recordingNetworkFailures } from '../src/core/network-preflight.js'
 import { buildEvidenceReceipt, verifyEvidenceReceipt } from '../src/core/receipt.js'
+import { summarizeGraphContext } from '../src/core/graph-context.js'
 import { hydraStatus } from '../server/hydra.js'
 
 const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
@@ -219,7 +220,7 @@ async function main() {
     line(`check   ${finding?.verdict || 'UNKNOWN'} → ${item.proposedVersion ? `upgrade ${item.proposedVersion}` : 'no admissible fix'} → ${item.status}`)
   }
   line(`rewind  ${result.report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${result.report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
-  const graphContext = result.hydra?.recall?.graphContext || result.report.rewind?.memory?.graphContext
+  const graphContext = summarizeGraphContext(result.hydra?.recall?.graphContext) || summarizeGraphContext(result.report.rewind?.memory?.graphContext)
   const tripletCount = graphContext?.tripletCount ?? graphContext?.triplets?.length ?? 0
   line(`hydra   ${result.hydra?.status || 'skipped'} · read ${result.hydra?.recall?.status || 'not-run'} · ${result.hydra?.memoryCount || 0} memories · ${result.hydra?.recall?.datedChunkCount || 0} dated facts recalled · ${result.hydra?.recall?.relatedCaseCount || 0} related cases · ${tripletCount} graph triplets`)
   for (const relatedCase of result.hydra?.recall?.relatedCases || []) line(`prior   ${relatedCase.scenarioId} · ${(relatedCase.kinds || []).join(', ') || 'evidence'} · ${(relatedCase.repositories || []).join(', ') || 'repository not recorded'}`)

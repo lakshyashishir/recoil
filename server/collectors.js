@@ -447,10 +447,20 @@ function packageNameFromYarnSelector(selector = '') {
   return clean.match(/^(@[^/]+\/[^@]+|[^@]+)@/)?.[1] || null
 }
 
-function parseNpmLockPackages(lockfile) {
-  const packageEntries = Object.entries(lockfile?.packages || {})
+function parseNpmLockPackages(lockfile, targetPackage = null) {
+  const candidates = Object.entries(lockfile?.packages || {})
     .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
-    .slice(0, 160)
+  const selected = candidates.slice(0, 160)
+  if (targetPackage) {
+    const selectedPaths = new Set(selected.map(([path]) => path))
+    for (const candidate of candidates) {
+      if (packageNameFromNodeModulesPath(candidate[0]) === targetPackage && !selectedPaths.has(candidate[0])) {
+        selected.push(candidate)
+        selectedPaths.add(candidate[0])
+      }
+    }
+  }
+  const packageEntries = selected
     .map(([path, entry]) => ({
       name: packageNameFromNodeModulesPath(path),
       path,
@@ -613,7 +623,7 @@ export function parsePnpmLock(text = '') {
 
 function resolveLockfileEntries(lockfile, packageName) {
   if (!lockfile || !packageName) return []
-  const packageEntries = parseNpmLockPackages(lockfile)
+  const packageEntries = parseNpmLockPackages(lockfile, packageName)
     .filter((entry) => entry.name === packageName)
     .sort((left, right) => {
       const leftDepth = left.path.split('/node_modules/').length
@@ -659,7 +669,7 @@ export async function collectRepository(repository, requestedPackage) {
   const lockPackages = ecosystem === 'cargo'
     ? (lockFile ? parseCargoLock(lockFile.text) : [])
     : lockfile
-      ? parseNpmLockPackages(lockfile)
+      ? parseNpmLockPackages(lockfile, inferredPackage)
       : yarnLockPackages.length ? yarnLockPackages : pnpmLockPackages
   let treePaths = null
   let treeError = null
@@ -890,9 +900,18 @@ async function collectAdvisories(packageName, advisoryId, ecosystem = 'npm') {
   }
 }
 
+export function advisoryLookupId(advisoryId) {
+  if (!advisoryId) return advisoryId
+  // OSV's /v1/vulns endpoint treats GHSA identifiers as case-sensitive.
+  // Keep the canonical uppercase form produced by parseInvestigationInput
+  // instead of lowercasing the whole identifier and turning a valid advisory
+  // into a misleading 404.
+  return /^GHSA-/i.test(advisoryId) ? advisoryId.toUpperCase() : advisoryId
+}
+
 async function collectAdvisoryById(advisoryId) {
   if (!advisoryId) return null
-  const lookupId = /^GHSA-/i.test(advisoryId) ? advisoryId.toLowerCase() : advisoryId
+  const lookupId = advisoryLookupId(advisoryId)
   const sourceUrl = `https://api.osv.dev/v1/vulns/${encodeURIComponent(lookupId)}`
   try {
     const advisory = await readJson(sourceUrl)
@@ -907,7 +926,7 @@ function advisoryPackageName(advisory) {
 }
 
 function advisoryCollector(advisory, advisoryId) {
-  const lookupId = advisoryId && /^GHSA-/i.test(advisoryId) ? advisoryId.toLowerCase() : advisoryId
+  const lookupId = advisoryLookupId(advisoryId)
   if (!advisory) return { collector: 'advisory-resolver', status: advisoryId ? 'failed' : 'not_requested', sourceUrl: advisoryId ? `https://api.osv.dev/v1/vulns/${encodeURIComponent(lookupId)}` : 'https://api.osv.dev', error: advisoryId ? 'Advisory record could not be fetched.' : null, entities: 0, targetAdvisory: null, vulnerabilities: [] }
   if (advisory.error) return { collector: 'advisory-resolver', status: 'failed', sourceUrl: advisory.sourceUrl, error: advisory.error, entities: 0, targetAdvisory: null, vulnerabilities: [] }
   return {
@@ -979,6 +998,13 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   const requestedPackage = input.packageName || advisoryPackage
   let packageName = requestedPackage
   const repositories = input.repositories || []
+  // Resolve an explicit package selector before repository collection so the
+  // progress stream can report the real advisory source and package identity
+  // instead of briefly presenting the failed direct lookup as authoritative.
+  if ((!advisory || advisory.error) && requestedPackage) {
+    const queried = await collectAdvisories(requestedPackage, input.advisoryId, 'npm').catch((error) => ({ collector: 'advisory-resolver', status: 'failed', error: error.message }))
+    advisory = queried.targetAdvisory ? { ...queried.targetAdvisory, sourceUrl: queried.sourceUrl } : null
+  }
   onProgress({ type: 'step', key: 'public-records', status: 'complete', title: 'Public records ready', detail: advisory?.id ? `${advisory.id} · ${advisory.published ? `published ${advisory.published.slice(0, 10)}` : 'publication date unavailable'}` : 'No advisory identifier was supplied; repository evidence will be marked accordingly.', sourceUrls: [advisory?.sourceUrl].filter(Boolean) })
   const repositoryResults = await Promise.all(repositories.map(async (repository) => {
     const repositoryId = repositoryEvidenceId(repository)
@@ -1009,9 +1035,12 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
     repositoryResults,
   })
   packageName = packageResolution.packageName
-  if (!advisory && packageName) {
+  // A failed direct lookup is represented as an error-bearing record so the
+  // collector can preserve its source URL. It is not usable advisory data;
+  // when a package selector is available, fall back to OSV's package query.
+  if ((!advisory || advisory.error) && packageName) {
     const queried = await collectAdvisories(packageName, input.advisoryId, repositoryResults.find((result) => result.status === 'completed')?.ecosystem || 'npm').catch((error) => ({ collector: 'advisory-resolver', status: 'failed', error: error.message }))
-    advisory = queried.targetAdvisory || null
+    advisory = queried.targetAdvisory ? { ...queried.targetAdvisory, sourceUrl: queried.sourceUrl } : null
   }
   const ecosystem = repositoryResults.find((result) => result.status === 'completed')?.ecosystem || 'npm'
   const registry = packageName

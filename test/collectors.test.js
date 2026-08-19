@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parseNpmLockPackages, parsePnpmLock, parsePnpmWorkspace, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
+import { advisoryLookupId, inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parseNpmLockPackages, parsePnpmLock, parsePnpmWorkspace, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
+
+test('keeps GHSA advisory IDs canonical for the case-sensitive OSV lookup', () => {
+  assert.equal(advisoryLookupId('ghsa-vh95-rmgr-6w4m'), 'GHSA-VH95-RMGR-6W4M')
+  assert.equal(advisoryLookupId('CVE-2020-7598'), 'CVE-2020-7598')
+})
 
 test('target inference keeps a GitHub repository separate from an optional package selector', () => {
   const target = inferTarget('https://github.com/hydra-db/hydradb hydradb')
@@ -87,6 +92,16 @@ test('npm lockfile paths normalize nested and scoped package identities', () => 
   assert.equal(packageNameFromNodeModulesPath('node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/@scope/parser'), '@scope/parser')
+})
+
+test('npm lock parser keeps a requested package beyond the bounded prefix', () => {
+  const packages = Object.fromEntries(Array.from({ length: 161 }, (_, index) => [
+    `node_modules/package-${index}`,
+    { version: '1.0.0' },
+  ]))
+  packages['node_modules/target-package'] = { version: '2.3.4' }
+  const parsed = parseNpmLockPackages({ packages }, 'target-package')
+  assert.ok(parsed.some((entry) => entry.name === 'target-package' && entry.version === '2.3.4'))
 })
 
 test('legacy npm lockfile parser preserves nested dependency paths', () => {
