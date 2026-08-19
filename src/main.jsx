@@ -314,12 +314,12 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
   if (!layout.nodes.length) {
     const current = events.find((event) => event.status === 'working')
     return <section className="evidence-map map-empty" aria-label="Evidence map">
-      <div className="map-heading"><div><span className="section-kicker">Evidence map</span><h2>{live ? 'Building the route' : 'No graph to show'}</h2></div><span className="map-count">{live ? `${graphProgress?.completedRepositories || 0}/${graphProgress?.totalRepositories || 0} repositories` : '0 nodes'}</span></div>
+      <div className="map-heading"><div><span className="section-kicker">Evidence map</span><h2>{live ? 'Building the route' : 'No graph to show'}</h2><p className="map-heading-detail">{live ? 'Records appear here as each repository finishes.' : 'Start an investigation to draw the collected relationships.'}</p></div><span className="map-count">{live ? `${graphProgress?.completedRepositories || 0}/${graphProgress?.totalRepositories || 0} repositories` : '0 nodes'}</span></div>
       <div className="map-empty-body"><div className="empty-route"><span /><i /><span /><i /><span /></div><strong>{current?.title || 'The evidence map appears here'}</strong><p>{current?.detail || 'Start an investigation to draw the advisory, dependency, repository, and source relationships.'}</p></div>
     </section>
   }
   return <section className="evidence-map" aria-label="Observed evidence map">
-    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : 'Follow the path to code'}</h2></div><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
+    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : 'Follow the path to code'}</h2><p className="map-heading-detail">{live ? 'Each edge is added from a public record as it is collected.' : 'Click a repository or node to inspect the cited relationship.'}</p></div><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span></div>
     <div className="map-canvas">
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
         <defs><marker id="recoil-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="currentColor" strokeWidth="1.2" /></marker></defs>
@@ -807,64 +807,6 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
       })}
     </div>
     <div className="trace-defense"><div><span className="section-kicker">Fix check</span><strong>{fixTitle}</strong><p>{fixDetail}</p></div><div className="trace-defense-actions"><span className={`trace-fix-status ${verified ? 'is-verified' : ''}`}>{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : historical ? 'historical view' : 'review required'}</span>{!historical && <button className="proof-loop-link" type="button" onClick={onInspectProof}>Open proof <ArrowUpRight size={13} /></button>}</div></div>
-  </section>
-}
-
-function ProofLoop({ finding, challenge, historical, onInspectProof }) {
-  if (!finding) return null
-  const importer = finding.imports?.[0]
-  const observedTitle = finding.verdict === 'REACHED'
-    ? 'A source-backed route exists'
-    : finding.verdict === 'DECLARED_ONLY'
-      ? 'The package is declared, not reached'
-      : finding.verdict === 'NOT_AFFECTED'
-        ? 'The observed version is already safe'
-        : 'The route needs review'
-  const observedDetail = finding.verdict === 'REACHED'
-    ? `${finding.packageName}@${finding.resolvedVersion || 'unresolved'} is imported by ${importer?.path || 'sampled source'}.`
-    : finding.verdict === 'DECLARED_ONLY'
-      ? `${finding.packageName || 'The package'} is in the lockfile, but no sampled source file imports it.`
-      : finding.reason || 'The available evidence does not support a stronger conclusion.'
-  const fixTitle = historical
-    ? 'Current fix proof is hidden'
-    : challenge?.status === 'FIX_SURVIVES'
-      ? `Move to ${challenge.proposedVersion}`
-      : challenge?.status === 'ALREADY_SAFE'
-        ? 'No version change required'
-        : challenge?.status === 'NO_REACHABLE_PATH'
-          ? `Update ${challenge.proposedVersion || 'the dependency'} for defense in depth`
-          : challenge?.status === 'MANIFEST_CHANGE_REQUIRED'
-            ? `Change the declared range to admit ${challenge.proposedVersion}`
-            : 'No fix is proven yet'
-  const fixDetail = historical
-    ? 'Return to Current evidence to inspect remediation against the present lockfile.'
-    : challenge?.detail || 'The advisory did not provide enough evidence for a fix proof.'
-  const resultTitle = historical
-    ? `Graph rebuilt as of ${finding.asOf?.slice(0, 10) || 'the selected date'}`
-    : challenge?.status === 'FIX_SURVIVES'
-      ? 'No residual affected path in this proof'
-      : challenge?.status === 'ALREADY_SAFE'
-        ? 'Path is already outside the affected range'
-        : challenge?.status === 'NO_REACHABLE_PATH'
-          ? 'No reachable path to re-check'
-          : 'Review the residual path'
-  const resultDetail = historical
-    ? 'This is a dated reconstruction, not a claim about the current repository.'
-    : challenge?.status === 'FIX_SURVIVES'
-      ? 'The proposed version is advisory-backed and admitted by the repository range.'
-      : challenge?.status === 'ALREADY_SAFE'
-        ? 'The current resolution is outside the advisory range.'
-        : challenge?.residualPath?.length
-          ? 'The cited path remains and requires review.'
-          : 'The evidence supports a narrower conclusion than a closed fix.'
-  return <section className="proof-loop" aria-label="Path and remediation proof">
-    <div className="proof-loop-heading"><div><span className="section-kicker">Decision path</span><h2>From observed route to checked fix</h2></div><span>static evidence · no execution</span></div>
-    <div className="proof-loop-steps">
-      <article className="proof-loop-step proof-loop-observed"><span className="proof-loop-number">01</span><div><span>Path found</span><strong>{observedTitle}</strong><p>{observedDetail}</p></div></article>
-      <article className="proof-loop-step proof-loop-fix"><span className="proof-loop-number">02</span><div><span>Defense checked</span><strong>{fixTitle}</strong><p>{fixDetail}</p></div></article>
-      <article className="proof-loop-step proof-loop-result"><span className="proof-loop-number">03</span><div><span>Re-check</span><strong>{resultTitle}</strong><p>{resultDetail}</p></div></article>
-    </div>
-    {!historical && <button className="proof-loop-link" type="button" onClick={onInspectProof}>Open the full proof <ArrowUpRight size={13} /></button>}
   </section>
 }
 

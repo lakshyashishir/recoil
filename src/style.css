@@ -126,6 +126,8 @@ h1, h2, p { margin-top: 0; }
 
 .evidence-map { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
 .map-heading { min-height: 82px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+.map-heading > div { min-width: 0; }
+.map-heading-detail { max-width: 560px; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
 .map-canvas { position: relative; min-width: 0; padding: 10px 12px 0; overflow: hidden; }
 .map-canvas svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; overflow: visible; }
 .map-layer-label { fill: var(--faint); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
@@ -648,26 +650,6 @@ body { font-family: var(--sans); line-height: 1.45; }
 .chronology-step .source-link, .chronology-source-missing { width: max-content; font-size: 9px; }
 .chronology-source-missing { color: var(--faint); font: 9px/1.4 var(--mono); }
 
-/* The graph is the evidence surface; this strip gives the viewer the decision
-   loop before they have to decode the graph. Every sentence comes from the
-   selected finding and its computed fix challenge. */
-.proof-loop { margin: 0 0 30px; padding: 18px 0 20px; border-bottom: 1px solid var(--line); }
-.proof-loop-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 17px; }
-.proof-loop-heading h2 { margin: 0; color: var(--text); font-size: 18px; font-weight: 600; letter-spacing: -.015em; }
-.proof-loop-heading > span { color: var(--faint); font-size: 11px; }
-.proof-loop-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.proof-loop-step { display: grid; grid-template-columns: 27px minmax(0, 1fr); gap: 11px; min-width: 0; padding: 13px 21px 11px 0; border-top: 2px solid var(--line); }
-.proof-loop-step + .proof-loop-step { padding-left: 21px; border-left: 1px solid var(--line-soft); }
-.proof-loop-observed { border-top-color: var(--red); }
-.proof-loop-fix { border-top-color: var(--accent); }
-.proof-loop-result { border-top-color: var(--green); }
-.proof-loop-number { color: var(--faint); font: 11px/1 var(--mono); }
-.proof-loop-step > div { display: grid; align-content: start; gap: 5px; min-width: 0; }
-.proof-loop-step > div > span { color: var(--muted); font-size: 11px; }
-.proof-loop-step strong { color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; }
-.proof-loop-step p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
-.proof-loop-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 15px; padding: 0; color: var(--accent); background: transparent; font-size: 11px; }
-.proof-loop-link:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 .audit-scope { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: start; margin-top: 17px; padding: 15px 0 0; border-top: 1px solid var(--line-soft); }
 .audit-scope > div:first-child { display: grid; gap: 5px; min-width: 0; }
 .audit-scope .section-kicker { margin: 0; }
@@ -686,10 +668,6 @@ body { font-family: var(--sans); line-height: 1.45; }
   .case-chronology-track { grid-template-columns: 1fr; gap: 0; }
   .chronology-step, .chronology-step + .chronology-step { padding: 12px 0; border-left: 0; border-top: 1px solid var(--line-soft); }
   .chronology-step-observed { border-top-color: var(--red); }
-  .proof-loop-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .proof-loop-steps { grid-template-columns: 1fr; gap: 0; }
-  .proof-loop-step, .proof-loop-step + .proof-loop-step { padding: 13px 0; border-left: 0; border-top: 1px solid var(--line-soft); }
-  .proof-loop-observed { border-top-color: var(--red); }
   .audit-scope { grid-template-columns: 1fr; }
   .audit-symbols { justify-content: flex-start; }
 }
