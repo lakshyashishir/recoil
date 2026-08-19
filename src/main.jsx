@@ -1114,6 +1114,37 @@ function RunningView({ snapshot }) {
   return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><EvidencePhaseRail events={events} live investigationStatus={investigation?.status} investigationStep={investigation?.step} /><LiveEvidenceSummary graph={graph} graphProgress={progress} events={events} investigationStatus={investigation?.status} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} /><EvidenceMap report={graphReport} events={events} live graphProgress={progress} /></div></main>
 }
 
+function FailedView({ snapshot, onNewCase }) {
+  const investigation = snapshot?.investigation || {}
+  const events = investigation.events || []
+  const failedEvent = [...events].reverse().find((event) => event.status === 'failed')
+  const completedEvents = events.filter((event) => ['complete', 'persisted'].includes(event.status))
+  const graph = snapshot?.graph?.nodes?.length ? snapshot.graph : investigation.graph || investigation.evidence?.graph || { nodes: [], edges: [] }
+  const sources = new Set(events.flatMap((event) => event.sourceUrls || []).filter(Boolean))
+  const lastCompleted = completedEvents.at(-1)
+  const query = snapshot?.scenario?.query || investigation.query || ''
+  return <main className="failure-page">
+    <section className="failure-hero">
+      <div>
+        <span className="section-kicker">Investigation stopped</span>
+        <h1>We could not finish this case.</h1>
+        <p>Recoil kept the public evidence collected before the failure. Nothing was installed, executed, or presented as a completed verdict.</p>
+      </div>
+      <button className="failure-new-case" type="button" onClick={onNewCase}><RotateCcw size={14} /> Start a new case</button>
+    </section>
+    <section className="failure-summary" aria-label="Investigation failure summary">
+      <div><span>Last completed step</span><strong>{lastCompleted?.title || 'No step completed'}</strong><small>{lastCompleted?.detail || 'The first public record could not be read.'}</small></div>
+      <div><span>Evidence retained</span><strong>{graph.nodes?.length || 0} nodes · {graph.edges?.length || 0} edges</strong><small>Partial evidence remains inspectable, not a final report.</small></div>
+      <div><span>Sources observed</span><strong>{sources.size}</strong><small>Only URLs emitted by completed collectors are counted.</small></div>
+    </section>
+    <section className="failure-detail">
+      <div className="failure-detail-copy"><span className="section-kicker">What stopped the run</span><h2>{failedEvent?.title || 'Investigation failed'}</h2><p>{failedEvent?.detail || investigation.error || 'The server stopped before it could produce a source-backed report.'}</p><code>{query}</code></div>
+      <div className="failure-steps"><span className="section-kicker">Completed before stop</span>{completedEvents.length ? completedEvents.slice(-5).map((event) => <div key={event.id || event.key}><Check size={14} /><span><strong>{event.title}</strong><small>{event.detail}</small></span></div>) : <p>No completed evidence step was recorded.</p>}</div>
+    </section>
+    {!!graph.nodes?.length && <section className="failure-evidence"><div className="failure-evidence-heading"><div><span className="section-kicker">Partial evidence</span><h2>What Recoil was able to observe</h2></div><span>{graph.nodes.length} nodes · {graph.edges?.length || 0} relationships</span></div><EvidenceMap report={{ graph, repositories: investigation.report?.repositories || [] }} events={events} live graphProgress={investigation.graphProgress} /></section>}
+  </main>
+}
+
 function App() {
   const [input, setInput] = useState(DEFAULT_INPUT)
   const [snapshot, setSnapshot] = useState(null)
@@ -1186,7 +1217,7 @@ function App() {
   }
 
   if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} theme={theme} onToggleTheme={toggleTheme} />
-  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{isComplete ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /> : <RunningView snapshot={snapshot} />}{error && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
+  return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{isComplete ? <FinalReport report={activeReport} hydra={hydra || investigation?.hydra} evidenceStatus={investigation?.evidence?.status || 'unknown'} onRewind={rewind} /> : investigation?.status === 'failed' ? <FailedView snapshot={snapshot} onNewCase={newInvestigation} /> : <RunningView snapshot={snapshot} />}{error && investigation?.status !== 'failed' && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
 class AppBoundary extends Component {
