@@ -225,6 +225,7 @@ Manual checks:
 
 ## Checkpoint history
 
+- `c12ce52` — surface cross-repository resolution evidence across clients and HydraDB
 - `57cf931` — explain model-scope fallback without overstating failure
 - `2a83f36` — make the browser's new-case action reset server state
 - `4313dcd` — surface evidence paths in the OpenTUI report pane
