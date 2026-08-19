@@ -7,6 +7,7 @@ import { startInvestigation, rewindInvestigation } from './investigation.js'
 import { advisoryAgentStatus } from './advisory-agent.js'
 import { parseInvestigationInput } from './collectors.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
+import { buildEvidenceBrief } from '../src/core/brief.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const host = process.env.RECOIL_HOST || '127.0.0.1'
@@ -30,6 +31,16 @@ function downloadJson(res, status, filename, payload) {
     'access-control-allow-headers': 'content-type',
   })
   res.end(JSON.stringify(payload, null, 2))
+}
+
+function downloadText(res, status, filename, contentType, payload) {
+  res.writeHead(status, {
+    'content-type': `${contentType}; charset=utf-8`,
+    'content-disposition': `attachment; filename="${filename}"`,
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': 'content-type',
+  })
+  res.end(payload)
 }
 
 async function body(req) {
@@ -133,6 +144,7 @@ async function route(req, res) {
         'evidence-receipt',
         'per-hop-provenance',
         'strict-recording-gate',
+        'evidence-brief',
       ],
       time: new Date().toISOString(),
     })
@@ -203,6 +215,17 @@ async function route(req, res) {
     })
     if (!receipt) return json(res, 202, { scenarioId: record.id, receipt: null, error: 'Investigation report is not ready' })
     return downloadJson(res, 200, `recoil-${record.investigation?.caseId || record.id}-evidence-receipt.json`, receipt)
+  }
+
+  if (req.method === 'GET' && action === 'brief') {
+    const brief = buildEvidenceBrief({
+      scenarioId: record.investigation?.caseId || record.id,
+      query: record.query,
+      report: record.investigation?.report,
+      hydra: record.investigation?.hydra || record.hydra,
+    })
+    if (!brief) return json(res, 202, { scenarioId: record.id, brief: null, error: 'Investigation report is not ready' })
+    return downloadText(res, 200, `recoil-${record.investigation?.caseId || record.id}-evidence-brief.md`, 'text/markdown', brief)
   }
 
   if (req.method === 'GET' && action === 'events') {

@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
+import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, FileText, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
 import './style.css'
 
 const SCENARIO_ID = '0017'
@@ -842,6 +842,10 @@ function ReceiptLink() {
   return <a className="receipt-link" href={`/api/scenarios/${SCENARIO_ID}/receipt`} download="recoil-evidence-receipt.json"><Download size={14} /> Download receipt</a>
 }
 
+function BriefLink() {
+  return <a className="brief-link" href={`/api/scenarios/${SCENARIO_ID}/brief`} download="recoil-evidence-brief.md"><FileText size={14} /> Download case brief</a>
+}
+
 function summarizeFindings(findings = []) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY').length
@@ -1051,7 +1055,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
-    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><ReceiptLink /></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{historical ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.` : summary.unknown ? 'The available records do not support a complete verdict yet.' : 'The graph separates a vulnerable package from a package that actually reaches sampled code.'}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}</div><div className="case-actions"><span className={`case-state ${recordingReady ? 'case-state-ready' : ''}`}><StatusIcon status={recordingReady ? 'complete' : 'working'} /> {recordingReady ? 'Evidence complete' : 'Review required'}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>reached code</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>declared only</span></div><div><strong>{summary.notAffected || 0}</strong><span>outside affected range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix verified' : 'fixes verified'}</span></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={openHistory} historyAvailable={Boolean(report?.rewind?.beforeAdvisory)} historyLoading={historyLoading} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />

@@ -197,6 +197,11 @@ receipt. It says whether the case is `complete`, needs `review`, or is `partial`
 repositories and failed collectors, and surfaces mixed lockfile-version ambiguity instead of hiding it.
 `readyForRecording` is the single recording gate used by the CLI and report surfaces.
 
+The browser also offers a human-readable Markdown case brief beside the machine-verifiable JSON receipt.
+The brief is generated from the same report fields, includes the repository comparison, per-hop citations,
+temporal evidence, fix checks, HydraDB summary, limits, and execution boundary, and does not introduce a
+second verdict or copy raw HydraDB chunks.
+
 Each repository finding also carries a compact provenance chain. It maps the readable path to the exact
 public source for each hop—advisory, lockfile resolution, repository history, sampled import or validated
 symbol, and first observation date. The observed import line is included inline so a reviewer can verify
@@ -247,6 +252,7 @@ GET  /api/scenarios/:id              poll progress and retrieve the report
 GET  /api/scenarios/:id/investigation retrieve investigation state directly
 POST /api/scenarios/:id/rewind       rebuild the report at a supplied timestamp
 GET  /api/scenarios/:id/receipt      download a hashed, source-cited evidence receipt
+GET  /api/scenarios/:id/brief        download a human-readable Markdown case brief
 GET  /api/scenarios/:id/code-graph   inspect the bounded source graph
 GET  /api/health                     inspect service and HydraDB capability status
 ```

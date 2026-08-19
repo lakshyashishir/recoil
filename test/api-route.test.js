@@ -46,7 +46,7 @@ function request(method, path, payload) {
     headers: { host: '127.0.0.1' },
     async *[Symbol.asyncIterator]() { if (body) yield body },
   }
-  return Promise.resolve(route(req, res)).then(() => ({ statusCode, headers, body: output ? JSON.parse(output) : null }))
+  return Promise.resolve(route(req, res)).then(() => ({ statusCode, headers, body: output ? headers?.['content-type']?.startsWith('application/json') ? JSON.parse(output) : output : null }))
 }
 
 test('API rejects an investigation without a repository before collection', async () => {
@@ -123,6 +123,13 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     assert.equal(receipt.statusCode, 200)
     assert.equal(receipt.body.schema, 'recoil.evidence-receipt/v1')
     assert.equal(receipt.body.repositories[0].verdict, 'REACHED')
+
+    const brief = await request('GET', `/api/scenarios/${id}/brief`)
+    assert.equal(brief.statusCode, 200)
+    assert.match(brief.headers['content-type'], /^text\/markdown/)
+    assert.match(brief.headers['content-disposition'], /evidence-brief\.md/)
+    assert.match(brief.body, /1 of 1 repositories reach sampled vulnerable code/)
+    assert.match(brief.body, /Upgrade to 1\.2\.6 \(verified\)/)
 
     const rewind = await request('POST', `/api/scenarios/${id}/rewind`, { asOf: '2020-01-01T00:00:00Z' })
     assert.equal(rewind.statusCode, 200)

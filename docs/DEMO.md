@@ -94,7 +94,7 @@ additional cited hop.
 7. Open **History**: “This is the temporal question: the lockfile path existed before the advisory was public.” Click **Before advisory**.
 8. “The fix check compares the advisory’s fixed version with the declared semver range instead of assuming an upgrade is safe.”
 9. “HydraDB stores the dated evidence and retrieves related facts; it is the investigation memory, not a green connection badge.”
-10. Download the evidence receipt and show that the result is a portable, source-cited artifact with an integrity hash.
+10. Download the case brief for a human handoff, then download the evidence receipt and show that the result is a portable, source-cited artifact with an integrity hash.
 
 ## Terminal proof
 
