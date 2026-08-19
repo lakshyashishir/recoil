@@ -114,6 +114,7 @@ test('known repository files prefer raw content and reuse the recursive tree for
     assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/package.json')), false)
     assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/package-lock.json')), false)
     assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/.github/workflows')), false)
+    assert.equal(requests.filter((url) => url.hostname === 'raw.githubusercontent.com' && url.pathname.endsWith('/Dockerfile')).length, 1)
     assert.equal(requests.filter((url) => url.pathname.includes('/git/trees/')).length, 1)
   } finally {
     globalThis.fetch = previousFetch

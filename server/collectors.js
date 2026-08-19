@@ -153,14 +153,20 @@ export async function readRawGitHubFile(repository, path) {
 
 async function readGitHubFile(repository, path, { preferRaw = false } = {}) {
   let rawError = null
+  let rawMissing = false
   if (preferRaw) {
     try {
       const rawFile = await readRawGitHubFile(repository, path)
       if (rawFile) return rawFile
+      rawMissing = true
     } catch (error) {
       rawError = error
     }
   }
+
+  // A raw 404 normally means the path is absent, but keep one Contents API
+  // fallback because some GitHub-compatible mirrors expose the file there
+  // while raw content is unavailable. Never issue the same raw request twice.
 
   try {
     const payload = await readOptionalJson(githubContentsUrl(repository, path), {
@@ -180,6 +186,8 @@ async function readGitHubFile(repository, path, { preferRaw = false } = {}) {
       throw error
     }
   }
+
+  if (rawMissing) return null
 
   try {
     return await readRawGitHubFile(repository, path)
