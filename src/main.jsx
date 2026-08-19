@@ -408,7 +408,7 @@ function RouteList({ findings, selectedIndex, onSelect, challenges = [], correla
       <p>{selected.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
       <dl><div><dt>Resolved</dt><dd>{selected.resolvedVersions?.length > 1 ? selected.resolvedVersions.join(', ') : selected.resolvedVersion || 'not resolved'}</dd></div><div><dt>Source imports</dt><dd>{selected.imports?.length || 0}</dd></div></dl>
       <div className="route-selected-proof"><div><span>Source check</span><strong>{importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'No sampled import'}</strong></div><div><span>Fix check</span><strong>{challengeLabel}</strong></div></div>
-      <button className="route-selected-action" type="button" onClick={onInspectProof}>Inspect proof <ArrowUpRight size={13} /></button>
+      <button className="route-selected-action" type="button" onClick={onInspectProof}>Open fix details <ArrowUpRight size={13} /></button>
     </div>}
     <div className="route-list">
       {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
@@ -812,12 +812,12 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
         </div>
       })}
     </div>
-    <div className="trace-defense"><div><span className="section-kicker">Fix check</span><strong>{fixTitle}</strong><p>{fixDetail}</p></div><div className="trace-defense-actions"><span className={`trace-fix-status ${verified ? 'is-verified' : ''}`}>{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : historical ? 'historical view' : 'review required'}</span>{!historical && <button className="proof-loop-link" type="button" onClick={onInspectProof}>Open proof <ArrowUpRight size={13} /></button>}</div></div>
+    <div className="trace-defense"><div><span className="section-kicker">Fix check</span><strong>{fixTitle}</strong><p>{fixDetail}</p></div><div className="trace-defense-actions"><span className={`trace-fix-status ${verified ? 'is-verified' : ''}`}>{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : historical ? 'historical view' : 'review required'}</span>{!historical && <button className="case-proof-link" type="button" onClick={onInspectProof}>Open fix details <ArrowUpRight size={13} /></button>}</div></div>
   </section>
 }
 
 function CaseNavigator({ finding, activeTab, onTabChange }) {
-  const tabs = [{ id: 'graph', label: 'Graph' }, { id: 'proof', label: 'Proof' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Audit' }]
+  const tabs = [{ id: 'graph', label: 'Graph' }, { id: 'proof', label: 'Fix' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Audit' }]
   return <nav className="case-navigator" aria-label="Case views">
     <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
