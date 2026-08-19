@@ -77,6 +77,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Surface sanitized prior-case summaries from HydraDB recall so memory is inspectable without exposing raw chunks.
 - [x] Show the bounded observed import line inside each source-backed proof step for fast human verification.
 - [x] Add offline SHA-256 receipt verification so exported evidence can be checked without the running app.
+- [x] Render the safe Red → Blue → Red proof loop consistently in browser, CLI, and TUI clients.
 
 ### Still required before calling the hackathon build complete
 

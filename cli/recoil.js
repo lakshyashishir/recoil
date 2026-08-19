@@ -172,6 +172,8 @@ async function main() {
   }
   for (const item of result.report.challenge || []) {
     line(`fix     ${item.status.padEnd(22)} ${item.repository} · ${item.proposedVersion || 'no version'}`)
+    const finding = (result.report.repositories || []).find((candidate) => candidate.repository === item.repository)
+    line(`loop    RED ${finding?.verdict || 'UNKNOWN'} → BLUE ${item.proposedVersion ? `test ${item.proposedVersion}` : 'no admissible fix'} → RED ${item.status}`)
   }
   line(`rewind  ${result.report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${result.report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
   const graphContext = result.hydra?.recall?.graphContext || result.report.rewind?.memory?.graphContext

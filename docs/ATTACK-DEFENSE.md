@@ -55,6 +55,17 @@ After Blue’s counterfactual version change, Red evaluates the affected-path pr
 
 If the repository has alternate affected entries, an unresolved import, an incomplete source sample, or a range that excludes the fixed version, Recoil reports the residual uncertainty instead of marking the case contained.
 
+The browser, CLI, and TUI render this as the same three-step proof loop:
+
+```text
+RED · PATH       observed verdict and sampled import
+BLUE · CONTROL   advisory fixed version checked against the declared range
+RED · RESIDUAL   counterfactual path result and any remaining uncertainty
+```
+
+This is the product’s attack/defense shape: adversarial pressure is represented by a path predicate and
+its re-check, not by executing an exploit against a public repository.
+
 ## Temporal proof
 
 The lockfile’s earliest public commit supplies `pathObservedAt`. The advisory’s publication date supplies the disclosure boundary. Recoil can therefore show:

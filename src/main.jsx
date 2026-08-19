@@ -171,6 +171,43 @@ function HydraProof({ hydra, graphContext }) {
   return <section className={`hydra-proof hydra-${recallFailed ? 'failed' : status}`}><div><p className="eyebrow">TEMPORAL MEMORY · HYDRADB</p><h2>{label}</h2><p>{description}</p></div><div className="hydra-proof-stat"><strong>{hydra?.memoryCount || 0}</strong><span>memories written</span></div><div className="hydra-proof-stat"><strong>{recall?.datedChunkCount || 0}</strong><span>dated facts recalled</span></div>{relatedCases.length > 0 && <details className="hydra-related-receipt"><summary>Prior evidence · {relatedCases.length} related case{relatedCases.length === 1 ? '' : 's'}</summary><div className="hydra-related-cases">{relatedCases.slice(0, 8).map((relatedCase) => <div key={relatedCase.scenarioId}><div><strong>{relatedCase.scenarioId}</strong><span>{relatedCase.kinds.join(' · ') || 'evidence'}</span></div><span>{relatedCase.repositories.join(', ') || 'repository not recorded'}{relatedCase.validFrom ? ` · from ${relatedCase.validFrom.slice(0, 10)}` : ''}</span>{relatedCase.sourceUrls[0] && <SourceLink href={relatedCase.sourceUrls[0]}>source</SourceLink>}</div>)}</div></details>}{triplets.length > 0 && <details className="hydra-graph-receipt"><summary>Graph context · {triplets.length} returned triplet{triplets.length === 1 ? '' : 's'}</summary><div className="hydra-triplets">{triplets.slice(0, 12).map((triplet, index) => <div key={`${triplet.source}-${triplet.predicate}-${triplet.target}-${index}`}><span>{triplet.source}</span><b>{triplet.predicate || 'CONNECTED_TO'}</b><span>{triplet.target}</span></div>)}</div></details>}</section>
 }
 
+function FixProof({ item, finding }) {
+  const initialVerdict = finding?.verdict || 'UNKNOWN'
+  const initialDetail = initialVerdict === 'REACHED'
+    ? `${finding.imports?.length || 0} sampled source import${finding.imports?.length === 1 ? '' : 's'} reaches the resolved package.`
+    : initialVerdict === 'DECLARED_ONLY'
+      ? 'The package is declared, but no sampled source import reaches it.'
+      : initialVerdict === 'NOT_AFFECTED'
+        ? 'The resolved version is already outside the advisory range.'
+        : finding?.reason || 'The path cannot be classified from the available evidence.'
+  const controlLabel = item.proposedVersion ? `test ${item.proposedVersion}` : 'no admissible fix'
+  const controlDetail = item.proposedVersion
+    ? 'Blue uses the advisory fixed version and the repository’s declared range.'
+    : 'The advisory or collected evidence does not provide a version that can be checked.'
+  const residualLabel = item.status === 'FIX_SURVIVES'
+    ? 'path closed'
+    : item.status.replaceAll('_', ' ').toLowerCase()
+  const residualDetail = item.residualPath?.length
+    ? `Residual path: ${item.residualPath.join(' → ')}`
+    : item.status === 'FIX_SURVIVES'
+      ? 'The affected version is removed under the counterfactual resolution.'
+      : item.detail
+  return <article className={`fix-row fix-${item.status.toLowerCase()}`}>
+    <div className="fix-icon">{item.status === 'FIX_SURVIVES' || item.status === 'ALREADY_SAFE' ? <Check size={15} /> : <CircleAlert size={15} />}</div>
+    <div className="fix-copy">
+      <div className="fix-head"><strong>{item.repository}</strong><span>{item.status.replaceAll('_', ' ')}</span></div>
+      <div className="proof-loop" aria-label={`Proof loop for ${item.repository}`}>
+        <div className="loop-step"><small>RED · PATH</small><strong>{initialVerdict.replaceAll('_', ' ')}</strong><p>{initialDetail}</p></div>
+        <b className="loop-arrow" aria-hidden="true">→</b>
+        <div className="loop-step"><small>BLUE · CONTROL</small><strong>{controlLabel}</strong><p>{controlDetail}</p></div>
+        <b className="loop-arrow" aria-hidden="true">→</b>
+        <div className="loop-step"><small>RED · RESIDUAL</small><strong>{residualLabel}</strong><p>{residualDetail}</p></div>
+      </div>
+      <p className="fix-note">{item.detail}</p>
+    </div>
+  </article>
+}
+
 function ReceiptLink() {
   return <a className="receipt-link" href={`/api/scenarios/${SCENARIO_ID}/receipt`} download="recoil-evidence-receipt.json"><Download size={14} /> Download evidence receipt</a>
 }
@@ -192,7 +229,7 @@ function FinalReport({ report, hydra, onRewind }) {
     <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
     <Rewind report={report} activeReport={report} onSelect={onRewind} />
     <HydraProof hydra={hydra} graphContext={report?.rewind?.memory?.graphContext} />
-    <section className="fix-section"><div className="section-heading"><div><p className="eyebrow">ADVERSARIAL FIX CHECK</p><h2>Can the proposed fix survive?</h2></div><span>Red → Blue → Red</span></div><div className="fix-list">{(report?.challenge || []).map((item) => <div className={`fix-row fix-${item.status.toLowerCase()}`} key={item.repository}><div className="fix-icon">{item.status === 'FIX_SURVIVES' ? <Check size={15} /> : <CircleAlert size={15} />}</div><div><strong>{item.repository}</strong><p>{item.detail}</p></div><span>{item.proposedVersion || item.status.replaceAll('_', ' ').toLowerCase()}</span></div>)}</div></section>
+    <section className="fix-section"><div className="section-heading"><div><p className="eyebrow">ADVERSARIAL FIX CHECK</p><h2>Can the proposed fix survive?</h2></div><span>Red → Blue → Red</span></div><div className="fix-list">{(report?.challenge || []).map((item) => <FixProof key={item.repository} item={item} finding={(report?.repositories || []).find((finding) => finding.repository === item.repository)} />)}</div></section>
     <details className="graph-proof"><summary><span>Observed graph · {report?.graph?.nodes?.length || 0} nodes · {report?.graph?.edges?.length || 0} edges</span><ChevronDown size={15} /></summary><div className="graph-edge-list">{(report?.graph?.edges || []).slice(0, 32).map(([from, to]) => <div key={`${from}-${to}`}><span>{from}</span><b>→</b><span>{to}</span></div>)}</div></details>
     <section className="limits-section"><p className="eyebrow">LIMITS & PROVENANCE</p>{(report?.limits || []).map((limit) => <p key={limit}>— {limit}</p>)}<div className="source-footer">{(report?.sources || []).slice(0, 8).map((source) => <SourceLink href={source} key={source}>{sourceHost(source)}</SourceLink>)}</div></section>
   </main>
