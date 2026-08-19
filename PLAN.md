@@ -118,12 +118,12 @@ observed path → proposed fix → residual re-check
 - [x] Validate and freeze one real advisory plus three real public repositories for the recording.
 - [x] Run that case against the configured HydraDB cloud database, with completed indexing and temporal recall, and retain the successful output without committing secrets or cache files.
 - [x] Verify the direct CLI against the same real case with proof output and a recording-ready gate.
-- [ ] Verify the browser against the same real case.
+- [x] Verify the browser against the same real case.
 - [x] Improve source-level path precision by connecting advisory-described symbols to indexed symbols with a validated optional model step.
 - [x] Add cross-case HydraDB recall that visibly relates a new case to a prior package/repository fact.
 - [x] Add a final provenance/limitations pass so every displayed claim has an explicit evidence boundary.
 - [x] Delete the retired fictional arena, executable fixture, agent loop, and legacy routes from the shipped product path.
-- [ ] Render and inspect the browser at common desktop and mobile widths.
+- [x] Render and inspect the browser at common desktop and mobile widths, including 1440×900, 1280×800, and true 390px emulation.
 - [x] Update the final demo runbook and repository instructions after the real smoke run.
 
 ## Architecture
