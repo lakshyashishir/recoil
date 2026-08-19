@@ -232,6 +232,8 @@ Manual checks:
 
 ## Checkpoint history
 
+- `f1a0cc8` — isolate mocked public responses from the live evidence cache
+- `d52eac9` — graph-link shared package resolutions across repositories
 - `a755e08` — expose the Red → Blue → Red proof loop across browser, CLI, and TUI
 - `d8534c7` — add offline SHA-256 receipt verification
 - `fc5fdbe` — print observed proof excerpts and prior-case summaries in the CLI
