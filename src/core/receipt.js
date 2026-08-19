@@ -79,6 +79,8 @@ export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) 
     scenarioId: scenarioId || null,
     query: query || report.query || '',
     generatedAt: report.generatedAt || new Date().toISOString(),
+    package: report.package || null,
+    packageResolution: report.packageResolution || null,
     advisory: report.advisory || null,
     advisoryScope: report.advisoryScope || { status: 'not_requested', affectedSymbols: [] },
     evidenceQuality: report.evidenceQuality || null,

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput } from '../server/collectors.js'
+import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, resolvePackageSelection } from '../server/collectors.js'
 
 test('target inference keeps a GitHub repository separate from an optional package selector', () => {
   const target = inferTarget('https://github.com/hydra-db/hydradb hydradb')
@@ -87,4 +87,29 @@ test('npm lockfile paths normalize nested and scoped package identities', () => 
   assert.equal(packageNameFromNodeModulesPath('node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/@scope/parser'), '@scope/parser')
+})
+
+test('package selection never chooses the first repository when repository-only input is ambiguous', () => {
+  const selection = resolvePackageSelection({
+    repositoryResults: [
+      { status: 'completed', inferredPackage: 'first-app' },
+      { status: 'completed', inferredPackage: 'second-app' },
+    ],
+  })
+
+  assert.equal(selection.status, 'ambiguous')
+  assert.equal(selection.packageName, null)
+  assert.deepEqual(selection.candidates, ['first-app', 'second-app'])
+  assert.match(selection.reason, /provide an advisory or package selector/)
+})
+
+test('package selection accepts an advisory package before repository inference', () => {
+  const selection = resolvePackageSelection({
+    advisoryPackage: 'minimist',
+    repositoryResults: [{ status: 'completed', inferredPackage: 'app-one' }],
+  })
+
+  assert.equal(selection.status, 'advisory')
+  assert.equal(selection.packageName, 'minimist')
+  assert.deepEqual(selection.candidates, ['minimist'])
 })

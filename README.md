@@ -152,6 +152,10 @@ https://github.com/owner/repository-a
 https://github.com/owner/repository-b
 ```
 
+The advisory or package selector must identify the dependency being compared. If a repository-only
+query is used, Recoil may infer one package from its manifest; when multiple repositories expose
+different package identities, it refuses to choose the first one and marks the case for review instead.
+
 Pin a repository to a public historical snapshot with a GitHub `/tree/<tag-or-commit>` or `/commit/<sha>` URL when a reproducible before/after comparison is useful. Recoil records that ref in source URLs and uses it for manifest, lockfile, source, tree, and commit-history reads.
 
 The CLI uses the same API and state machine:

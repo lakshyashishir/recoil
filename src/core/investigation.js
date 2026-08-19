@@ -236,6 +236,13 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
     status: ingestion?.status || 'partial',
     query: ingestion?.query || '',
     package: ingestion?.package || null,
+    packageResolution: ingestion?.packageResolution || {
+      status: ingestion?.package ? 'unknown' : 'unresolved',
+      packageName: ingestion?.package || null,
+      candidates: ingestion?.package ? [ingestion.package] : [],
+      source: null,
+      reason: ingestion?.package ? null : 'Package identity was not recorded by the collector.',
+    },
     advisory: advisory ? {
       id: advisory.id || ingestion?.target?.advisoryId || null,
       summary: advisory.summary || null,

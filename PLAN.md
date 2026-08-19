@@ -87,6 +87,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Allow the CLI to target a caller-supplied case ID so browser and terminal clients can inspect the same API-backed investigation.
 - [x] Include OpenTUI compilation in the reproducible `npm run verify` gate.
 - [x] Align the judge-facing demo runbook with the strict HydraDB graph-recall recording gate.
+- [x] Resolve repository-only package identity deterministically; ambiguous multi-repository identities remain `UNKNOWN` with an explicit reason in the report, CLI, and receipt.
 
 ### Still required before calling the hackathon build complete
 

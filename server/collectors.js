@@ -651,19 +651,70 @@ function advisoryCollector(advisory, advisoryId) {
   }
 }
 
+export function resolvePackageSelection({ requestedPackage = null, advisoryPackage = null, repositoryResults = [] } = {}) {
+  if (requestedPackage) {
+    return {
+      status: 'explicit',
+      packageName: requestedPackage,
+      candidates: [requestedPackage],
+      source: 'query',
+      reason: null,
+    }
+  }
+  if (advisoryPackage) {
+    return {
+      status: 'advisory',
+      packageName: advisoryPackage,
+      candidates: [advisoryPackage],
+      source: 'advisory',
+      reason: null,
+    }
+  }
+  const candidates = [...new Set(repositoryResults
+    .filter((result) => result.status === 'completed')
+    .map((result) => result.inferredPackage)
+    .filter(Boolean))]
+  if (candidates.length === 1) {
+    return {
+      status: 'inferred',
+      packageName: candidates[0],
+      candidates,
+      source: 'repository-manifest',
+      reason: 'Package identity was inferred from the repository manifest.',
+    }
+  }
+  if (candidates.length > 1) {
+    return {
+      status: 'ambiguous',
+      packageName: null,
+      candidates,
+      source: null,
+      reason: `Multiple repository package identities were found (${candidates.join(', ')}); provide an advisory or package selector to compare them safely.`,
+    }
+  }
+  return {
+    status: 'unresolved',
+    packageName: null,
+    candidates: [],
+    source: null,
+    reason: 'No package identity was available from the advisory, query, or completed repository manifests.',
+  }
+}
+
 export async function runMultiRepositoryIngestion({ query = '', scenarioId = '0017', onProgress = () => {} } = {}) {
   const input = parseInvestigationInput(query)
   onProgress({ type: 'step', key: 'public-records', status: 'working', title: 'Reading public records', detail: 'Resolving the advisory and package identity from OSV and the public registry.' })
   let advisory = await collectAdvisoryById(input.advisoryId)
-  let packageName = input.packageName || advisoryPackageName(advisory)
+  const advisoryPackage = advisoryPackageName(advisory)
+  const requestedPackage = input.packageName || advisoryPackage
+  let packageName = requestedPackage
   const repositories = input.repositories || []
   onProgress({ type: 'step', key: 'public-records', status: 'complete', title: 'Public records ready', detail: advisory?.id ? `${advisory.id} · ${advisory.published ? `published ${advisory.published.slice(0, 10)}` : 'publication date unavailable'}` : 'No advisory identifier was supplied; repository evidence will be marked accordingly.', sourceUrls: [advisory?.sourceUrl].filter(Boolean) })
   const repositoryResults = await Promise.all(repositories.map(async (repository) => {
     const repositoryId = repositoryEvidenceId(repository)
     onProgress({ type: 'repository', key: `repository:${repositoryId}`, status: 'working', title: `Reading ${repositoryId}`, detail: 'Reading manifest, lockfile, and bounded source imports. Nothing is installed.', repository: repositoryId })
     try {
-      const result = await collectRepository(repository, packageName)
-      if (!packageName && result.inferredPackage) packageName = result.inferredPackage
+      const result = await collectRepository(repository, requestedPackage)
       onProgress({ type: 'repository', key: `repository:${repositoryId}`, status: 'complete', title: `${repositoryId} read`, detail: `${result.manifest?.lockfile || 'no lockfile'} · ${result.manifest?.codeGraph?.fileCount || 0} sampled source files`, repository: repositoryId, sourceUrls: [result.sourceUrl].filter(Boolean) })
       return result
     } catch (error) {
@@ -682,7 +733,12 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
       }
     }
   }))
-  packageName = packageName || repositoryResults.find((result) => result.status === 'completed')?.inferredPackage || null
+  const packageResolution = resolvePackageSelection({
+    requestedPackage: input.packageName,
+    advisoryPackage,
+    repositoryResults,
+  })
+  packageName = packageResolution.packageName
   if (!advisory && packageName) {
     const queried = await collectAdvisories(packageName, input.advisoryId, repositoryResults.find((result) => result.status === 'completed')?.ecosystem || 'npm').catch((error) => ({ collector: 'advisory-resolver', status: 'failed', error: error.message }))
     advisory = queried.targetAdvisory || null
@@ -691,7 +747,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   const registry = packageName
     ? await collectRegistry(packageName, ecosystem, advisory).catch((error) => ({ collector: 'registry-resolver', status: 'failed', package: packageName, ecosystem, error: error.message, fixedVersions: [], affectedVersions: [], maintainers: [] }))
     : { collector: 'registry-resolver', status: 'not_requested', package: null, ecosystem, fixedVersions: [], affectedVersions: [], maintainers: [] }
-  onProgress({ type: 'step', key: 'registry', status: registry.status === 'failed' ? 'failed' : 'complete', title: 'Registry record ready', detail: packageName ? `${packageName} · ${registry.fixedVersions?.length || 0} fixed version${registry.fixedVersions?.length === 1 ? '' : 's'} found` : 'Package identity unavailable.', sourceUrls: [registry.sourceUrl].filter(Boolean) })
+  onProgress({ type: 'step', key: 'registry', status: registry.status === 'failed' ? 'failed' : 'complete', title: 'Registry record ready', detail: packageName ? `${packageName} · ${registry.fixedVersions?.length || 0} fixed version${registry.fixedVersions?.length === 1 ? '' : 's'} found` : packageResolution.reason, sourceUrls: [registry.sourceUrl].filter(Boolean) })
   const advisoryRecord = advisoryCollector(advisory, input.advisoryId)
   const findings = repositoryResults.map((repository) => repository.status === 'completed'
     ? classifyRepository({ repository, packageName, advisory, advisoryId: input.advisoryId || advisory?.id })
@@ -729,6 +785,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
     query,
     scenarioId,
     package: packageName,
+    packageResolution,
     target: { ...input, packageName, advisoryId: input.advisoryId || advisory?.id || null, repositories },
     advisory,
     registry,
