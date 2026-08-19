@@ -1,22 +1,24 @@
-# Recoil red / blue contract
+# Recoil evidence proof contract
 
-Recoil keeps the adversarial structure because it makes the remediation claim testable. It does not role-play a compromise and it does not execute an exploit.
+Recoil keeps the adversarial *shape* because it makes the remediation claim testable. The shipped
+product does not role-play a compromise, expose attacker controls, or execute an exploit. The internal
+phases are rendered in the clients as a plain evidence proof:
 
 ```text
 public advisory + repository evidence
              ↓
-RED  path prover
+observed path
              ↓
-BLUE fix planner
+proposed fix
              ↓
-RED  residual verifier
+residual re-check
              ↓
 dated report + HydraDB memory
 ```
 
-## Red: path prover
+## Observed path: the path prover
 
-Red is a constrained evidence agent, not an exploit runner. Its job is to construct a path only from observed records:
+The path prover is a constrained evidence step, not an exploit runner. Its job is to construct a path only from observed records:
 
 ```text
 advisory
@@ -25,7 +27,7 @@ advisory
   → sampled source file importing the package
 ```
 
-Every hop has a source URL or is marked unavailable. A repository with an affected lockfile but no sampled import is `DECLARED_ONLY`. A repository whose source collection was incomplete is `UNKNOWN`; Red is not allowed to turn missing evidence into a negative result.
+Every hop has a source URL or is marked unavailable. A repository with an affected lockfile but no sampled import is `DECLARED_ONLY`. A repository whose source collection was incomplete is `UNKNOWN`; missing evidence is never turned into a negative result.
 
 The path prover is ecosystem-aware. JavaScript package specifiers and Rust crate imports (including
 qualified paths such as `bytes::BytesMut`) are normalized to the package identity from the manifest and
@@ -35,9 +37,9 @@ symbol table; a model response can increase precision, but cannot create a route
 
 The optional model boundary is narrow: a model may read advisory prose and identify a likely affected symbol or entry point. The server validates that suggestion against the indexed source graph. It cannot create a graph edge, claim runtime execution, or override a verdict.
 
-## Blue: fix planner
+## Proposed fix: the fix planner
 
-Blue receives the advisory’s fixed versions and each repository’s declared dependency range. It produces one of these defensible outcomes:
+The fix planner receives the advisory’s fixed versions and each repository’s declared dependency range. It produces one of these defensible outcomes:
 
 - `FIX_SURVIVES` — the proposed fixed version is outside the affected range and the declared range admits it;
 - `MANIFEST_CHANGE_REQUIRED` — the fixed version is valid, but the declared range cannot resolve it;
@@ -45,11 +47,11 @@ Blue receives the advisory’s fixed versions and each repository’s declared d
 - `ALREADY_SAFE` — the repository already resolves outside the affected range;
 - `UNVERIFIED` — the evidence or advisory does not support a proof.
 
-Blue cannot claim that “upgrade” is safe merely because a newer version exists. The fixed version must come from the advisory record, and the semver result is computed from the repository’s declaration.
+The planner cannot claim that “upgrade” is safe merely because a newer version exists. The fixed version must come from the advisory record, and the semver result is computed from the repository’s declaration.
 
-## Red: residual verification
+## Re-check: residual verification
 
-After Blue’s counterfactual version change, Red evaluates the affected-path predicate again. The result is not “the patch was deployed”; it is:
+After the counterfactual version change, Recoil evaluates the affected-path predicate again. The result is not “the patch was deployed”; it is:
 
 > If this repository resolved the proposed fixed version, the cited affected path would disappear under the collected evidence.
 
@@ -58,13 +60,14 @@ If the repository has alternate affected entries, an unresolved import, an incom
 The browser, CLI, and TUI render this as the same three-step proof loop:
 
 ```text
-RED · PATH       observed verdict and sampled import
-BLUE · CONTROL   advisory fixed version checked against the declared range
-RED · RESIDUAL   counterfactual path result and any remaining uncertainty
+OBSERVED PATH     verdict and sampled import
+PROPOSED CHANGE   advisory fixed version checked against the declared range
+RE-CHECK          counterfactual path result and any remaining uncertainty
 ```
 
 This is the product’s attack/defense shape: adversarial pressure is represented by a path predicate and
-its re-check, not by executing an exploit against a public repository.
+its re-check, not by executing an exploit against a public repository. “Attack” means proving that a
+source-backed path exists; “defense” means proving that the proposed dependency change removes that path.
 
 ## Temporal proof
 

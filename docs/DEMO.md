@@ -75,12 +75,12 @@ shown as an additional cited hop.
 
 1. “Most tools stop at ‘this dependency is vulnerable’. Recoil asks whether the vulnerable code is actually reached.”
 2. Submit the advisory and three repositories.
-3. “Red has found a path only when the lockfile, resolved version, and source import support every hop.” Open the `REACHED` repository and show the links.
+3. “Recoil has found a path only when the lockfile, resolved version, and source import support every hop.” Open the `REACHED` repository and show the links.
 4. “This second repository declares the package but does not import it, so it is `DECLARED_ONLY`, not a fabricated compromise.”
 5. If present, “The latest public commit touched the importing file; Recoil links the commit and owners without turning that into a runtime claim.”
 6. “This is the temporal question: the lockfile path existed before the advisory was public.” Click **Before advisory**.
-7. “Blue proposes the fixed version. Recoil checks the declared semver range instead of assuming an upgrade is safe.”
-8. “Red verifies the residual graph. The fix is either proven, requires a manifest change, or remains unknown.”
+7. “The fix check proposes the advisory’s fixed version. Recoil checks the declared semver range instead of assuming an upgrade is safe.”
+8. “The residual re-check evaluates the changed path. The fix is either proven, requires a manifest change, or remains unknown.”
 9. “HydraDB stores the dated evidence and retrieves related facts; it is the investigation memory, not a green connection badge.”
 10. Download the evidence receipt and show that the result is a portable, source-cited artifact with an integrity hash.
 

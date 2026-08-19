@@ -20,7 +20,7 @@ dependency scanners collapse into one alert:
 - **A dated answer:** the lockfile’s public history and the advisory publication date produce a
   pre-disclosure rewind. The question becomes “was this path already present when the advisory was
   published?” rather than “is this package somewhere in the tree?”
-- **A fix that has to survive:** Blue does not recommend an arbitrary upgrade. It checks the advisory’s
+- **A fix that has to survive:** Recoil does not recommend an arbitrary upgrade. It checks the advisory’s
   actual fixed version against the repository’s declared range and reports when a manifest change is
   required.
 - **A model with a narrow job:** when enabled, the OpenAI step extracts a likely affected symbol from
@@ -46,11 +46,11 @@ advisory → affected package/version → real lockfile → source import
        → temporal rewind → OSV fixed version → residual-path fix proof
 ```
 
-The red/blue structure remains, but it is evidence-first:
+The proof sequence is evidence-first:
 
-- **Red — path prover:** constructs a cited route from the advisory to the resolved package and sampled source import.
-- **Blue — fix planner:** chooses an OSV-supported fixed version and checks whether each declared range admits it.
-- **Red — residual verifier:** checks whether the proposed change leaves an affected route or requires a manifest change.
+- **Observed path:** constructs a cited route from the advisory to the resolved package and sampled source import.
+- **Proposed change:** chooses an OSV-supported fixed version and checks whether each declared range admits it.
+- **Re-check:** checks whether the proposed change leaves an affected route or requires a manifest change.
 
 This is a bounded defensive analysis. Recoil never installs dependencies, executes public repository code, sends exploit payloads, or probes a live target.
 
@@ -275,4 +275,4 @@ been changed. This is useful in a review or CI job where the evidence artifact m
 
 Repository files, lockfiles, advisory records, registry metadata, source imports, and commit dates are observed public evidence. Source-level reachability is bounded by the sampled files that GitHub makes available. It is not proof of runtime execution. Recoil preserves source failures—and treats an empty source sample as `UNKNOWN`—rather than converting missing evidence into a confident negative result.
 
-See [PLAN.md](PLAN.md), [the demo runbook](docs/DEMO.md), and [the attack/defense contract](docs/ATTACK-DEFENSE.md) for the implementation and presentation plan.
+See [PLAN.md](PLAN.md), [the demo runbook](docs/DEMO.md), and [the evidence proof contract](docs/ATTACK-DEFENSE.md) for the implementation and presentation plan.

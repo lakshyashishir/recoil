@@ -15,10 +15,10 @@ NOT_AFFECTED     resolved version outside the advisory range
 UNKNOWN          evidence incomplete or identity unresolved
 ```
 
-The adversarial loop is retained as a product explanation:
+The proof loop is retained as a product explanation:
 
 ```text
-RED path prover → BLUE fix planner → RED residual verifier
+observed path → proposed fix → residual re-check
 ```
 
 ## Current state
@@ -77,7 +77,7 @@ RED path prover → BLUE fix planner → RED residual verifier
 - [x] Surface sanitized prior-case summaries from HydraDB recall so memory is inspectable without exposing raw chunks.
 - [x] Show the bounded observed import line inside each source-backed proof step for fast human verification.
 - [x] Add offline SHA-256 receipt verification so exported evidence can be checked without the running app.
-- [x] Render the safe Red → Blue → Red proof loop consistently in browser, CLI, and TUI clients.
+- [x] Render the safe observed-path → proposed-change → re-check proof consistently in browser, CLI, and TUI clients.
 - [x] Persist cross-repository shared-resolution correlations as explicit HydraDB graph edges.
 - [x] Isolate mocked test responses from the live GitHub evidence cache.
 - [x] Prefer raw GitHub reads for known manifests, lockfiles, workflows, containers, and ownership files; keep optional directory metadata non-fatal during API outages.
@@ -206,8 +206,8 @@ The spoken sequence:
 3. Show the exact source-backed path for A.
 4. Show why B is declared-only rather than compromised.
 5. Rewind before disclosure and show the path’s first observed date.
-6. Show Blue’s real fixed version and semver verdict.
-7. Show Red’s residual verification.
+6. Show the advisory’s real fixed version and semver verdict.
+7. Show the residual re-check.
 8. Show HydraDB memory count and temporal recall.
 
 The visual product is a calm investigation timeline and a result-first report. The judge should never need to operate an arena, understand a fictional deployment graph, or interpret an exposure percentage.

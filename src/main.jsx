@@ -180,9 +180,9 @@ function FixProof({ item, finding }) {
       : initialVerdict === 'NOT_AFFECTED'
         ? 'The resolved version is already outside the advisory range.'
         : finding?.reason || 'The path cannot be classified from the available evidence.'
-  const controlLabel = item.proposedVersion ? `test ${item.proposedVersion}` : 'no admissible fix'
+  const controlLabel = item.proposedVersion ? `upgrade to ${item.proposedVersion}` : 'no admissible fix'
   const controlDetail = item.proposedVersion
-    ? 'Blue uses the advisory fixed version and the repository’s declared range.'
+    ? 'The proposed version comes from the advisory and is checked against the repository’s declared range.'
     : 'The advisory or collected evidence does not provide a version that can be checked.'
   const residualLabel = item.status === 'FIX_SURVIVES'
     ? 'path closed'
@@ -197,11 +197,11 @@ function FixProof({ item, finding }) {
     <div className="fix-copy">
       <div className="fix-head"><strong>{item.repository}</strong><span>{item.status.replaceAll('_', ' ')}</span></div>
       <div className="proof-loop" aria-label={`Proof loop for ${item.repository}`}>
-        <div className="loop-step"><small>RED · PATH</small><strong>{initialVerdict.replaceAll('_', ' ')}</strong><p>{initialDetail}</p></div>
+        <div className="loop-step"><small>OBSERVED PATH</small><strong>{initialVerdict.replaceAll('_', ' ')}</strong><p>{initialDetail}</p></div>
         <b className="loop-arrow" aria-hidden="true">→</b>
-        <div className="loop-step"><small>BLUE · CONTROL</small><strong>{controlLabel}</strong><p>{controlDetail}</p></div>
+        <div className="loop-step"><small>PROPOSED CHANGE</small><strong>{controlLabel}</strong><p>{controlDetail}</p></div>
         <b className="loop-arrow" aria-hidden="true">→</b>
-        <div className="loop-step"><small>RED · RESIDUAL</small><strong>{residualLabel}</strong><p>{residualDetail}</p></div>
+        <div className="loop-step"><small>RE-CHECK</small><strong>{residualLabel}</strong><p>{residualDetail}</p></div>
       </div>
       <p className="fix-note">{item.detail}</p>
     </div>
@@ -218,19 +218,24 @@ function FinalReport({ report, hydra, onRewind }) {
   const quality = report?.evidenceQuality || {}
   const packageResolution = report?.packageResolution || {}
   const confirmedHeadline = quality.readyForRecording ? `${summary.reached || 0} of ${summary.totalRepositories || 0} repositories` : `${summary.reached || 0} confirmed path${summary.reached === 1 ? '' : 's'}`
+  const headlineDetail = quality.readyForRecording
+    ? summary.exposureDays !== null && summary.exposureDays !== undefined
+      ? `exposed up to ${summary.exposureDays} days before disclosure.`
+      : 'reach vulnerable code.'
+    : 'found so far.'
   const scopeLabel = scope.status === 'completed'
     ? `${scope.affectedSymbols?.length || 0} advisory symbol candidate${scope.affectedSymbols?.length === 1 ? '' : 's'} checked against indexed code`
     : scope.status === 'failed'
       ? 'advisory scope unavailable; deterministic module-level package proof remains authoritative'
       : 'module-level package proof; symbol scope not enabled'
   return <main className="report-page">
-    <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{confirmedHeadline}<br /><i>{quality.readyForRecording ? 'reach vulnerable code.' : 'found so far.'}</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.{summary.unknown ? ` ${summary.unknown} repository${summary.unknown === 1 ? '' : 'ies'} remain unclassified and are not counted as safe.` : ''}</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p>{packageResolution.status === 'ambiguous' && <p className="scope-proof">Package identity is ambiguous · {packageResolution.candidates.join(', ')}. Provide an advisory or package selector before comparing repositories.</p>}{packageResolution.status === 'unresolved' && <p className="scope-proof">Package identity could not be resolved safely. Provide an advisory or package selector.</p>}<ReceiptLink /></section>
+    <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{confirmedHeadline}<br /><i>{headlineDetail}</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.{summary.unknown ? ` ${summary.unknown} repository${summary.unknown === 1 ? '' : 'ies'} remain unclassified and are not counted as safe.` : ''}</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p>{packageResolution.status === 'ambiguous' && <p className="scope-proof">Package identity is ambiguous · {packageResolution.candidates.join(', ')}. Provide an advisory or package selector before comparing repositories.</p>}{packageResolution.status === 'unresolved' && <p className="scope-proof">Package identity could not be resolved safely. Provide an advisory or package selector.</p>}<ReceiptLink /></section>
     <EvidenceQuality quality={quality} />
     <CrossRepositoryEvidence correlations={report?.crossRepositoryCorrelations} />
     <section className="findings-section"><div className="section-heading"><div><p className="eyebrow">REPOSITORY FINDINGS</p><h2>What the evidence proves</h2></div><span>{report?.sources?.length || 0} public sources</span></div><div className="finding-list">{(report?.repositories || []).map((finding) => <RepositoryFinding key={finding.repository} finding={finding} advisorySource={report.advisory?.sourceUrl} />)}</div></section>
     <Rewind report={report} activeReport={report} onSelect={onRewind} />
     <HydraProof hydra={hydra} graphContext={report?.rewind?.memory?.graphContext} />
-    <section className="fix-section"><div className="section-heading"><div><p className="eyebrow">ADVERSARIAL FIX CHECK</p><h2>Can the proposed fix survive?</h2></div><span>Red → Blue → Red</span></div><div className="fix-list">{(report?.challenge || []).map((item) => <FixProof key={item.repository} item={item} finding={(report?.repositories || []).find((finding) => finding.repository === item.repository)} />)}</div></section>
+    <section className="fix-section"><div className="section-heading"><div><p className="eyebrow">FIX CHECK</p><h2>What change closes the path?</h2></div><span>observed → proposed → re-checked</span></div><div className="fix-list">{(report?.challenge || []).map((item) => <FixProof key={item.repository} item={item} finding={(report?.repositories || []).find((finding) => finding.repository === item.repository)} />)}</div></section>
     <details className="graph-proof"><summary><span>Observed graph · {report?.graph?.nodes?.length || 0} nodes · {report?.graph?.edges?.length || 0} edges</span><ChevronDown size={15} /></summary><div className="graph-edge-list">{(report?.graph?.edges || []).slice(0, 32).map(([from, to]) => <div key={`${from}-${to}`}><span>{from}</span><b>→</b><span>{to}</span></div>)}</div></details>
     <section className="limits-section"><p className="eyebrow">LIMITS & PROVENANCE</p>{(report?.limits || []).map((limit) => <p key={limit}>— {limit}</p>)}<div className="source-footer">{(report?.sources || []).slice(0, 8).map((source) => <SourceLink href={source} key={source}>{sourceHost(source)}</SourceLink>)}</div></section>
   </main>
