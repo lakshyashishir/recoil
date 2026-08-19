@@ -57,7 +57,7 @@ function SourceLink({ href, children }) {
 
 function Verdict({ value, compact = false }) {
   const label = value === 'REACHED'
-    ? 'Reached'
+    ? 'Source reached'
     : value === 'DECLARED_ONLY'
       ? 'Declared only'
       : value === 'NOT_AFFECTED'
@@ -299,7 +299,7 @@ function RouteList({ findings, selectedIndex, onSelect }) {
   return <aside className="route-panel">
     <div className="route-panel-heading"><div><span className="section-kicker">Comparison</span><h2>What the evidence says</h2></div><span>{findings.length} checked</span></div>
     <p className="route-panel-note">Choose a repository. The graph and proof below follow the same observed path.</p>
-    {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} repository{reached === 1 ? '' : 'ies'} expose the affected code path.</span></div>}
+    {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} repository{reached === 1 ? '' : 'ies'} reach the affected code in sampled source.</span></div>}
     <div className="route-list">
       {findings.map((finding, index) => <button className={`route-item ${selectedIndex === index ? 'route-item-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect(index)}>
         <span className="route-index">0{index + 1}</span>
@@ -342,7 +342,7 @@ function FixProof({ finding, challenge }) {
   return <section className={`fix-proof fix-proof-${verified ? 'verified' : 'review'}`}>
     <div className="fix-proof-heading"><div><span className="section-kicker">Remediation</span><h3>{statusLabel}</h3></div><span className="fix-proof-badge">{verified ? <Check size={13} /> : <CircleAlert size={13} />}{verified ? 'verified' : 'not verified'}</span></div>
     <div className="fix-proof-compare">
-      <div><span>Observed</span><strong>{finding.packageName}@{currentVersion}</strong><small>{finding.verdict === 'REACHED' ? 'affected path found' : finding.verdict === 'DECLARED_ONLY' ? 'declared, not imported' : 'current resolution'}</small></div>
+      <div><span>Observed</span><strong>{finding.packageName}@{currentVersion}</strong><small>{finding.verdict === 'REACHED' ? 'affected import observed' : finding.verdict === 'DECLARED_ONLY' ? 'declared, not imported' : 'current resolution'}</small></div>
       <span className="fix-proof-arrow" aria-hidden="true">→</span>
       <div><span>Proposed</span><strong>{finding.packageName}@{proposedVersion}</strong><small>{challenge.status === 'MANIFEST_CHANGE_REQUIRED' ? `outside ${finding.declaredRange || 'the declared'} range` : verified ? 'outside the affected range' : 'not proven by this case'}</small></div>
     </div>
@@ -367,7 +367,7 @@ function RouteProof({ finding, challenge }) {
   const parts = findingParts(finding)
   const sourceLinks = [...new Set([finding.repositoryUrl, ...(finding.evidenceSources || []), ...(finding.imports || []).map((item) => item.sourceUrl)].filter(Boolean))]
   return <section className="route-proof" id="case-proof">
-    <div className="proof-heading"><div><span className="section-kicker">Route</span><h2>{finding.verdict === 'REACHED' ? 'Reachable' : finding.verdict === 'DECLARED_ONLY' ? 'Declared only' : finding.verdict === 'NOT_AFFECTED' ? 'Not affected' : 'Unclassified'}</h2></div><Verdict value={finding.verdict} /></div>
+    <div className="proof-heading"><div><span className="section-kicker">Route</span><h2>{finding.verdict === 'REACHED' ? 'Source reachable' : finding.verdict === 'DECLARED_ONLY' ? 'Declared only' : finding.verdict === 'NOT_AFFECTED' ? 'Not affected' : 'Unclassified'}</h2></div><Verdict value={finding.verdict} /></div>
     <p className="proof-reason">{finding.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
     <div className="route-steps">{parts.map((part, index) => <div className="route-step" key={`${part}-${index}`}><span>{index + 1}</span><strong>{shorten(routeDisplayPart(part, finding), 38)}</strong><small>{index === 0 ? 'advisory' : index === parts.length - 1 ? 'source' : 'observed hop'}</small></div>)}</div>
     <ImportProof finding={finding} />
@@ -446,8 +446,8 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
   const total = summary.totalRepositories || findings.length
   const historicalDate = report?.rewind?.asOf?.slice(0, 10)
   const headline = historical
-    ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `${summary.reached} of ${total} repositories still exposed the path by ${historicalDate}.` : 'No repository exposed the path at this date.'
-    : summary.unknown ? `${summary.unknown} of ${total} repositories need review.` : summary.reached ? `${summary.reached} of ${total} repositories expose the path.` : 'No repository exposes the path.'
+    ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `${summary.reached} of ${total} repositories still reached sampled code by ${historicalDate}.` : 'No repository reached sampled code at this date.'
+    : summary.unknown ? `${summary.unknown} of ${total} repositories need review.` : summary.reached ? `${summary.reached} of ${total} repositories reach sampled code.` : 'No repository reaches sampled code.'
   const summaryLine = report?.advisory?.summary ? `${report.advisory.summary} · ${report.package || 'package identity unavailable'}` : `The report compares ${report.package || 'the affected package'} across the collected repositories.`
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
   return <main className="case-page">
