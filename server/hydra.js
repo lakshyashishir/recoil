@@ -35,12 +35,22 @@ function networkError(url, error) {
   return new Error(`HydraDB request failed for ${url}${code ? ` (${code})` : ''}: ${error.message}`, { cause: error })
 }
 
+function requestTimeoutMs() {
+  const configured = Number.parseInt(process.env.HYDRADB_REQUEST_TIMEOUT_MS || '15000', 10)
+  return Number.isFinite(configured) ? Math.min(Math.max(configured, 1000), 120000) : 15000
+}
+
+function requestSignal(parentSignal) {
+  const timeout = AbortSignal.timeout(requestTimeoutMs())
+  return parentSignal ? AbortSignal.any([parentSignal, timeout]) : timeout
+}
+
 async function fetchWithNetworkRetry(url, options = {}) {
   const configured = Number.parseInt(process.env.RECOIL_NETWORK_RETRIES || '3', 10)
   const attempts = Number.isFinite(configured) ? Math.min(Math.max(configured, 1), 10) : 3
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      return await fetch(url, options)
+      return await fetch(url, { ...options, signal: requestSignal(options.signal) })
     } catch (error) {
       if (attempt === attempts - 1 || error?.name === 'AbortError') throw error
       await new Promise((resolve) => setTimeout(resolve, 75 * (attempt + 1)))
@@ -275,6 +285,13 @@ async function waitForIndexing(result, signal) {
     await new Promise((resolve) => setTimeout(resolve, pollDelayMs()))
   }
   return { ...latest, indexingStatus: 'queued', indexingPending: true }
+}
+
+// A report may finish while HydraDB is still processing the accepted memory
+// batch. The investigation server can use this bounded follow-up poll without
+// repeating the ingestion request or claiming persistence prematurely.
+export async function settleHydraIndexing(result, signal) {
+  return waitForIndexing(result, signal)
 }
 
 function stableId(value) {

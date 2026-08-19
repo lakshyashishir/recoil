@@ -657,7 +657,8 @@ function App() {
 
   useEffect(() => {
     const activeStatus = snapshot?.investigation?.status
-    const shouldPoll = busy || ['running', 'finalizing'].includes(activeStatus)
+    const hydraPending = snapshot?.investigation?.hydra?.status === 'queued' || snapshot?.investigation?.hydra?.indexingPending
+    const shouldPoll = busy || ['running', 'finalizing'].includes(activeStatus) || activeStatus === 'complete' && hydraPending
     if (!shouldPoll) return undefined
     let cancelled = false
     const poll = async () => {
@@ -669,7 +670,8 @@ function App() {
           setBusy(false)
           if (next.investigation.status === 'complete') setReport(next.investigation.report)
           if (next.investigation.status === 'failed') setError(next.investigation.error || 'Investigation incomplete')
-          return
+          const nextHydraPending = next.investigation?.hydra?.status === 'queued' || next.investigation?.hydra?.indexingPending
+          if (next.investigation.status === 'failed' || !nextHydraPending) return
         }
       } catch (cause) {
         if (!cancelled) { setError(cause.message); setBusy(false) }

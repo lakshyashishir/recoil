@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildInvestigationMemories, persistInvestigation, priorScenarioIds, recallTemporal, summarizeRelatedCases } from '../server/hydra.js'
+import { buildInvestigationMemories, persistInvestigation, priorScenarioIds, recallTemporal, settleHydraIndexing, summarizeRelatedCases } from '../server/hydra.js'
 
 test('HydraDB recall distinguishes prior cases from the current case', () => {
   const chunks = [
@@ -297,6 +297,75 @@ test('HydraDB adapter waits for asynchronous graph indexing before recall', asyn
     else process.env.HYDRADB_INDEX_POLL_MS = previousPoll
     if (previousWait === undefined) delete process.env.HYDRADB_INDEX_WAIT_MS
     else process.env.HYDRADB_INDEX_WAIT_MS = previousWait
+  }
+})
+
+test('HydraDB queued batches can settle after the report is already available', async () => {
+  const previousFetch = globalThis.fetch
+  const previousKey = process.env.HYDRA_DB_API_KEY
+  const previousDatabase = process.env.HYDRADB_DATABASE_ID
+  const previousPoll = process.env.HYDRADB_INDEX_POLL_MS
+  const previousWait = process.env.HYDRADB_INDEX_WAIT_MS
+  process.env.HYDRA_DB_API_KEY = 'test-key'
+  process.env.HYDRADB_DATABASE_ID = 'test-database'
+  process.env.HYDRADB_INDEX_POLL_MS = '0'
+  process.env.HYDRADB_INDEX_WAIT_MS = '1000'
+  globalThis.fetch = async (input) => {
+    const url = String(input)
+    if (url.includes('/context/status?')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { inner: { statuses: [{ source_id: 'memory-1', indexing_status: 'completed' }] } } }),
+      }
+    }
+    throw new Error(`unexpected HydraDB URL: ${url}`)
+  }
+  try {
+    const settled = await settleHydraIndexing({ indexingStatus: 'queued', results: [{ id: 'memory-1', indexing_status: 'embedding' }] })
+    assert.equal(settled.indexingStatus, 'completed')
+    assert.equal(settled.results[0].indexing_status, 'completed')
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
+    else process.env.HYDRA_DB_API_KEY = previousKey
+    if (previousDatabase === undefined) delete process.env.HYDRADB_DATABASE_ID
+    else process.env.HYDRADB_DATABASE_ID = previousDatabase
+    if (previousPoll === undefined) delete process.env.HYDRADB_INDEX_POLL_MS
+    else process.env.HYDRADB_INDEX_POLL_MS = previousPoll
+    if (previousWait === undefined) delete process.env.HYDRADB_INDEX_WAIT_MS
+    else process.env.HYDRADB_INDEX_WAIT_MS = previousWait
+  }
+})
+
+test('HydraDB requests have a bounded timeout when the cloud does not respond', async () => {
+  const previousFetch = globalThis.fetch
+  const previousKey = process.env.HYDRA_DB_API_KEY
+  const previousDatabase = process.env.HYDRADB_DATABASE_ID
+  const previousRetries = process.env.RECOIL_NETWORK_RETRIES
+  const previousTimeout = process.env.HYDRADB_REQUEST_TIMEOUT_MS
+  process.env.HYDRA_DB_API_KEY = 'test-key'
+  process.env.HYDRADB_DATABASE_ID = 'test-database'
+  process.env.RECOIL_NETWORK_RETRIES = '1'
+  process.env.HYDRADB_REQUEST_TIMEOUT_MS = '1000'
+  globalThis.fetch = async (_input, { signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+  })
+  try {
+    await assert.rejects(
+      recallTemporal('timeout case', '2026-08-19T00:00:00.000Z'),
+      /HydraDB request failed.*aborted due to timeout/,
+    )
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
+    else process.env.HYDRA_DB_API_KEY = previousKey
+    if (previousDatabase === undefined) delete process.env.HYDRADB_DATABASE_ID
+    else process.env.HYDRADB_DATABASE_ID = previousDatabase
+    if (previousRetries === undefined) delete process.env.RECOIL_NETWORK_RETRIES
+    else process.env.RECOIL_NETWORK_RETRIES = previousRetries
+    if (previousTimeout === undefined) delete process.env.HYDRADB_REQUEST_TIMEOUT_MS
+    else process.env.HYDRADB_REQUEST_TIMEOUT_MS = previousTimeout
   }
 })
 

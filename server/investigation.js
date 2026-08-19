@@ -3,7 +3,7 @@ import { applyAdvisoryScope } from '../src/core/evidence.js'
 import { attachHydraRewind, buildInvestigationReport, createInvestigationState } from '../src/core/investigation.js'
 import { resolveAdvisoryScope } from './advisory-agent.js'
 import { runMultiRepositoryIngestion } from './collectors.js'
-import { persistInvestigation, recallTemporal } from './hydra.js'
+import { persistInvestigation, recallTemporal, settleHydraIndexing } from './hydra.js'
 
 function pushEvent(state, event) {
   const previous = state.events.find((item) => item.key === event.key)
@@ -17,6 +17,50 @@ function pushEvent(state, event) {
   if (event.graphProgress) state.graphProgress = event.graphProgress
   state.step = event.key
   return next
+}
+
+function hydraState(persisted, recall) {
+  return {
+    ...persisted,
+    status: persisted.status,
+    memoryCount: persisted.memoryCount || 0,
+    recall: {
+      ...recall,
+      chunkCount: recall.chunks?.length || 0,
+      datedChunkCount: recall.datedChunkCount || 0,
+      relatedCaseCount: recall.priorScenarioIds?.length || recall.relatedCases?.length || 0,
+      priorScenarioIds: recall.priorScenarioIds || [],
+      relatedCases: recall.relatedCases || [],
+    },
+  }
+}
+
+async function reconcileQueuedHydra(record, state, report, queued) {
+  if (!queued?.result || queued.status !== 'queued') return
+  try {
+    const indexed = await settleHydraIndexing(queued.result)
+    const acknowledged = [...new Set((indexed.results || []).map((item) => item.id || item.source_id || item.sourceId).filter(Boolean))]
+    if (indexed.indexingStatus !== 'completed' || acknowledged.length < (queued.memoryCount || 0)) return
+    if (record.investigation !== state) return
+    const recallQuery = [record.query, report.package, report.advisory?.id].filter(Boolean).join(' ')
+    const recall = await recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
+    if (record.investigation !== state) return
+    const persisted = { ...queued, status: 'persisted', sourceIds: acknowledged, indexingPending: false, indexingError: null, result: indexed }
+    state.hydra = hydraState(persisted, recall)
+    record.hydra = state.hydra
+    state.report = attachHydraRewind(state.report, recall)
+    pushEvent(state, {
+      type: 'step',
+      key: 'hydra',
+      status: 'complete',
+      title: 'Evidence graph stored in HydraDB',
+      detail: `${persisted.memoryCount || 0} temporal evidence memories · ${recall.chunks?.length || 0} recalled · ${recall.relatedScenarioIds?.length || 0} related cases`,
+    })
+    state.step = 'complete'
+  } catch {
+    // The initial queued state remains the honest result if the bounded
+    // follow-up cannot confirm a terminal cloud status.
+  }
 }
 
 export function startInvestigation(record, query) {
@@ -92,7 +136,7 @@ export async function executeInvestigation(record) {
     const recall = persisted.status === 'persisted' || persisted.status === 'queued'
       ? await recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
       : { status: persisted.status, reason: persisted.reason, chunks: [] }
-    state.hydra = { ...persisted, status: persisted.status, memoryCount: persisted.memoryCount || 0, recall: { ...recall, chunkCount: recall.chunks?.length || 0, datedChunkCount: recall.datedChunkCount || 0, relatedCaseCount: recall.priorScenarioIds?.length || recall.relatedCases?.length || 0, priorScenarioIds: recall.priorScenarioIds || [], relatedCases: recall.relatedCases || [] } }
+    state.hydra = hydraState(persisted, recall)
     record.hydra = state.hydra
     report = attachHydraRewind(report, recall)
     state.report = report
@@ -115,6 +159,7 @@ export async function executeInvestigation(record) {
         ? 'The path, timeline, and remediation proof are ready to inspect.'
         : `${report.evidenceQuality.reason} The report is available for diagnosis, not final recording.`,
     })
+    void reconcileQueuedHydra(record, state, report, persisted)
     return state
   } catch (error) {
     state.status = 'failed'
