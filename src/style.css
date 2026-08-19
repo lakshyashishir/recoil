@@ -547,6 +547,15 @@ body { font-family: var(--sans); line-height: 1.45; }
 .import-proof .section-kicker { margin: 0; color: var(--muted); }
 .import-proof strong { overflow: hidden; color: var(--text); font: 600 13px/1.35 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .import-proof code { display: block; overflow: hidden; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 4px; color: var(--text); background: var(--surface-raised); font: 11px/1.45 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.import-proof-site { display: grid; gap: 6px; min-width: 0; }
+.import-proof-site-copy { display: grid; gap: 6px; min-width: 0; }
+.import-proof-site-copy strong { font-size: 13px; }
+.import-proof-site > .source-link { width: max-content; font-size: 10px; }
+.import-proof-details { margin-top: 2px; border-top: 1px solid var(--line-soft); }
+.import-proof-details summary { width: max-content; padding: 9px 0 5px; color: var(--accent); cursor: pointer; font: 10px/1.3 var(--mono); }
+.import-proof-details summary:hover { color: var(--text); }
+.import-proof-list { display: grid; gap: 0; }
+.import-proof-list .import-proof-site { padding: 10px 0; border-top: 1px solid var(--line-soft); }
 .import-proof p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .import-proof-empty { color: var(--faint); }
 .import-proof-empty strong { font-family: var(--sans); font-size: 14px; }

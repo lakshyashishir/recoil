@@ -591,10 +591,15 @@ function routeDisplayPart(part, finding) {
   return part
 }
 
+function ImportSite({ importer, packageName }) {
+  return <div className="import-proof-site"><div className="import-proof-site-copy"><strong>{importer.path}{importer.line ? `:${importer.line}` : ''}</strong><code>{importer.snippet || `imports ${importer.specifier || packageName}`}</code></div>{importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div>
+}
+
 function ImportProof({ finding }) {
-  const importer = finding?.imports?.[0]
-  if (!importer) return <div className="import-proof import-proof-empty"><FileCode2 size={16} /><div><span className="section-kicker">Source check</span><strong>No sampled import</strong><p>{finding?.verdict === 'DECLARED_ONLY' ? 'The package is present in the lockfile, but no sampled source file imports it.' : finding?.sourceBound || 'The source evidence does not support a stronger conclusion.'}</p></div></div>
-  return <div className="import-proof"><FileCode2 size={16} /><div><span className="section-kicker">Observed in source</span><strong>{importer.path}{importer.line ? `:${importer.line}` : ''}</strong><code>{importer.snippet || `imports ${importer.specifier || finding.packageName}`}</code><SourceLink href={importer.sourceUrl}>Open source line</SourceLink></div></div>
+  const imports = finding?.imports || []
+  if (!imports.length) return <div className="import-proof import-proof-empty"><FileCode2 size={16} /><div><span className="section-kicker">Source check</span><strong>No sampled import</strong><p>{finding?.verdict === 'DECLARED_ONLY' ? 'The package is present in the lockfile, but no sampled source file imports it.' : finding?.sourceBound || 'The source evidence does not support a stronger conclusion.'}</p></div></div>
+  const importLabel = `${imports.length} sampled import site${imports.length === 1 ? '' : 's'}`
+  return <div className="import-proof"><FileCode2 size={16} /><div><span className="section-kicker">Observed in source</span><strong>{importLabel}</strong>{imports.length === 1 ? <ImportSite importer={imports[0]} packageName={finding.packageName} /> : <details className="import-proof-details"><summary>Inspect all source sites</summary><div className="import-proof-list">{imports.map((importer, index) => <ImportSite key={`${importer.path}-${importer.line || index}`} importer={importer} packageName={finding.packageName} />)}</div></details>}</div></div>
 }
 
 function packageFixCommand(finding, challenge) {
