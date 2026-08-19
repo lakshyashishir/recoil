@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildEvidenceReceipt } from '../src/core/receipt.js'
+import { buildEvidenceReceipt, verifyEvidenceReceipt } from '../src/core/receipt.js'
 
 test('evidence receipt is portable, source-cited, and integrity-addressed', () => {
   const report = {
@@ -61,6 +61,15 @@ test('evidence receipt is portable, source-cited, and integrity-addressed', () =
   assert.equal(receipt.evidenceQuality.readyForRecording, true)
   assert.equal(receipt.temporal.memory.status, 'recalled')
   assert.equal(receipt.temporal.memory.datedChunkCount, 2)
+  assert.deepEqual(verifyEvidenceReceipt(receipt), {
+    valid: true,
+    expected: receipt.integrity.value,
+    actual: receipt.integrity.value,
+    reason: 'integrity verified',
+  })
+
+  const tampered = { ...receipt, query: `${receipt.query} changed` }
+  assert.equal(verifyEvidenceReceipt(tampered).valid, false)
 })
 
 test('missing report does not produce a misleading receipt', () => {
@@ -77,4 +86,10 @@ test('receipt falls back to top-level HydraDB graph triplets when rewind summary
   }
   const receipt = buildEvidenceReceipt({ report, hydra: { recall: { graphContext: { triplets: [{ source: { name: 'advisory' }, relation: { canonical_predicate: 'AFFECTS' }, target: { name: 'minimist' } }] } } } })
   assert.deepEqual(receipt.hydra.graphContext.triplets, [{ source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: null }])
+})
+
+test('receipt verifier rejects unsupported or malformed artifacts', () => {
+  assert.equal(verifyEvidenceReceipt(null).valid, false)
+  assert.match(verifyEvidenceReceipt({ schema: 'other/v1' }).reason, /unsupported receipt schema/)
+  assert.match(verifyEvidenceReceipt({ schema: 'recoil.evidence-receipt/v1', integrity: {} }).reason, /valid SHA-256/)
 })

@@ -99,6 +99,14 @@ proof verified`. If it prints `recording not-ready`, do not use that run in the 
 
 The CLI prints a receipt URL after completion. The browser exposes the same receipt as a download from the case result.
 
+After downloading the receipt, demonstrate that it is independently verifiable:
+
+```bash
+npm run cli -- --verify-receipt ./case-receipt.json
+```
+
+This is an offline check. It recomputes the receipt's SHA-256 and exits nonzero if the JSON was altered.
+
 ## Safety statement
 
 Recoil observes public records and performs static graph/reachability analysis. It does not install dependencies, execute package code, send exploit payloads, or probe a live repository or service. Benchmark cases are deterministic evidence inputs; their outputs are computed by the same evidence engine used by the product. There is no executable target fixture in the shipped application.

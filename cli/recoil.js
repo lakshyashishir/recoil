@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { hasIncompleteEvidence } from '../src/core/validation.js'
 import { parseGitHubRepositories } from '../server/collectors.js'
 import { recordingBlockers as buildRecordingBlockers, recordingPreflight as buildRecordingPreflight } from '../src/core/recording.js'
+import { verifyEvidenceReceipt } from '../src/core/receipt.js'
 
 const apiBase = (process.env.RECOIL_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
 const args = process.argv.slice(2)
@@ -9,6 +11,10 @@ const jsonOutput = args.includes('--json')
 const fast = args.includes('--fast')
 const proofOutput = args.includes('--proof')
 const recordingMode = args.includes('--recording')
+const verifyReceiptIndex = args.findIndex((arg) => arg === '--verify-receipt' || arg.startsWith('--verify-receipt='))
+const verifyReceiptPath = verifyReceiptIndex >= 0
+  ? (args[verifyReceiptIndex].includes('=') ? args[verifyReceiptIndex].slice(args[verifyReceiptIndex].indexOf('=') + 1) : args[verifyReceiptIndex + 1])
+  : null
 const query = args.filter((arg) => !arg.startsWith('--')).join(' ').trim()
 const pollDelay = fast ? 100 : 650
 const maxWaitMs = 180000
@@ -16,6 +22,7 @@ const maxWaitMs = 180000
 function usage() {
   console.log('Usage: npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository"')
   console.log('       npm run cli -- "CVE-2021-4229 https://github.com/org/repo-a https://github.com/org/repo-b" [--fast] [--proof] [--recording] [--json]')
+  console.log('       npm run cli -- --verify-receipt .recoil-recordings/<scenario-id>.json')
 }
 
 async function request(path, options = {}) {
@@ -83,6 +90,27 @@ function finalResult(id, queryText, snapshot) {
 }
 
 async function main() {
+  if (verifyReceiptIndex >= 0) {
+    if (!verifyReceiptPath) throw new Error('Receipt verification requires a JSON file path')
+    let receipt
+    try {
+      receipt = JSON.parse(readFileSync(verifyReceiptPath, 'utf8'))
+    } catch (error) {
+      throw new Error(`Could not read receipt ${verifyReceiptPath}: ${error.message}`)
+    }
+    const verification = verifyEvidenceReceipt(receipt)
+    if (jsonOutput) {
+      console.log(JSON.stringify({ file: verifyReceiptPath, schema: receipt.schema || null, ...verification }, null, 2))
+    } else {
+      console.log(`RECOIL receipt verification`)
+      console.log(`file    ${verifyReceiptPath}`)
+      console.log(`schema  ${receipt.schema || 'missing'}`)
+      console.log(`hash    ${verification.valid ? 'valid' : 'INVALID'} · ${verification.reason}`)
+      if (verification.valid) console.log(`case    ${receipt.scenarioId || 'unknown'} · ${receipt.repositories?.length || 0} repositories`)
+    }
+    if (!verification.valid) process.exitCode = 1
+    return
+  }
   if (!query || query === '--help' || query === '-h') {
     usage()
     return

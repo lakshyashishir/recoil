@@ -240,6 +240,16 @@ The completed browser and CLI case can also be exported as a portable JSON evide
 For transitive dependencies, the receipt also retains the lockfile-resolved package chain and cites each
 package-to-package hop, so a reviewer can distinguish a direct import from a dependency-mediated path.
 
+The receipt can be verified offline after download; verification does not contact the API or trust the
+current database state:
+
+```bash
+npm run cli -- --verify-receipt .recoil-recordings/<scenario-id>.json
+```
+
+The command recomputes the SHA-256 over the canonical receipt content and exits nonzero if any field has
+been changed. This is useful in a review or CI job where the evidence artifact must stand on its own.
+
 ## Evidence boundary
 
 Repository files, lockfiles, advisory records, registry metadata, source imports, and commit dates are observed public evidence. Source-level reachability is bounded by the sampled files that GitHub makes available. It is not proof of runtime execution. Recoil preserves source failures—and treats an empty source sample as `UNKNOWN`—rather than converting missing evidence into a confident negative result.

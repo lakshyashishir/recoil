@@ -118,3 +118,30 @@ export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) 
     integrity: { algorithm: 'SHA-256', value: digest },
   }
 }
+
+/**
+ * Verify a downloaded receipt without contacting Recoil, HydraDB, or any
+ * public source. The integrity field is deliberately excluded from the
+ * canonicalized content before hashing so a reviewer can validate the exact
+ * artifact that was exported by the application.
+ */
+export function verifyEvidenceReceipt(receipt) {
+  if (!receipt || typeof receipt !== 'object') {
+    return { valid: false, reason: 'receipt is not a JSON object' }
+  }
+  if (receipt.schema !== 'recoil.evidence-receipt/v1') {
+    return { valid: false, reason: `unsupported receipt schema: ${receipt.schema || 'missing'}` }
+  }
+  if (receipt.integrity?.algorithm !== 'SHA-256' || !/^[a-f0-9]{64}$/.test(receipt.integrity?.value || '')) {
+    return { valid: false, reason: 'receipt has no valid SHA-256 integrity field' }
+  }
+  const { integrity: _integrity, ...content } = receipt
+  const expected = createHash('sha256').update(canonicalJson(content)).digest('hex')
+  const actual = receipt.integrity.value
+  return {
+    valid: expected === actual,
+    expected,
+    actual,
+    reason: expected === actual ? 'integrity verified' : 'receipt content does not match its integrity value',
+  }
+}
