@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parsePnpmLock, parsePnpmWorkspace, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
+import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parseNpmLockPackages, parsePnpmLock, parsePnpmWorkspace, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
 
 test('target inference keeps a GitHub repository separate from an optional package selector', () => {
   const target = inferTarget('https://github.com/hydra-db/hydradb hydradb')
@@ -87,6 +87,24 @@ test('npm lockfile paths normalize nested and scoped package identities', () => 
   assert.equal(packageNameFromNodeModulesPath('node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/@scope/parser'), '@scope/parser')
+})
+
+test('legacy npm lockfile parser preserves nested dependency paths', () => {
+  const entries = parseNpmLockPackages({
+    dependencies: {
+      parent: {
+        version: '2.0.0',
+        dependencies: {
+          minimist: { version: '1.2.5', resolved: 'https://registry.npmjs.org/minimist/-/minimist-1.2.5.tgz' },
+        },
+      },
+    },
+  })
+
+  assert.deepEqual(entries.map((entry) => `${entry.path}:${entry.name}@${entry.version}`), [
+    'node_modules/parent:parent@2.0.0',
+    'node_modules/parent/node_modules/minimist:minimist@1.2.5',
+  ])
 })
 
 test('Yarn lock parser preserves classic, Berry, scoped, and dependency entries', () => {

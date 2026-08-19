@@ -392,6 +392,56 @@ test('npm ingestion resolves a nested transitive package from package-lock paths
   }
 })
 
+test('npm ingestion resolves a nested package from a legacy npm lockfile', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const legacyLock = JSON.stringify({
+    dependencies: {
+      parent: {
+        version: '2.0.0',
+        dependencies: {
+          minimist: { version: '1.2.5', resolved: 'https://registry.npmjs.org/minimist/-/minimist-1.2.5.tgz' },
+        },
+      },
+    },
+  })
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') return response(advisory)
+    if (url.hostname === 'registry.npmjs.org') return response({ name: 'minimist', versions: { '1.2.5': {}, '1.2.6': {} }, maintainers: [] })
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
+    if (!match || match[1] !== 'example/legacy-app') return response({}, 404)
+    const operation = match[2]
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'src/cli.js' }] })
+    if (operation.startsWith('commits')) {
+      if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/legacy-app/commit/oldest', commit: { author: { date: '2025-01-01T00:00:00Z' } } }])
+      return response([])
+    }
+    if (operation.startsWith('contents/')) {
+      const path = decodeURIComponent(operation.slice('contents/'.length))
+      if (path === 'package.json') return response(githubFile(path, JSON.stringify({ name: 'legacy-app', dependencies: { parent: '^2.0.0' } }), match[1]))
+      if (path === 'package-lock.json') return response(githubFile(path, legacyLock, match[1]))
+      if (path === 'src/cli.js') return response(githubFile(path, "import minimist from 'minimist'\nexport const parse = (argv) => minimist(argv)", match[1]))
+      return response({}, 404)
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-test-1234-5678 https://github.com/example/legacy-app', scenarioId: 'legacy-lock-integration-test' })
+    const finding = ingestion.findings[0]
+    assert.equal(ingestion.status, 'completed')
+    assert.equal(finding.verdict, 'REACHED')
+    assert.deepEqual(finding.dependencyPath.map((item) => `${item.name}@${item.version}`), ['parent@2.0.0', 'minimist@1.2.5'])
+    assert.ok(ingestion.graph.edges.some(([from, to]) => from === 'package:parent@2.0.0' && to === 'package:minimist@1.2.5'))
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+  }
+})
+
 test('npm ingestion resolves an affected package from a Yarn lock and extensionless entrypoint', async () => {
   const previousFetch = globalThis.fetch
   const previousCache = process.env.RECOIL_CACHE_DIR

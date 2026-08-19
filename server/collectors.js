@@ -447,6 +447,39 @@ function packageNameFromYarnSelector(selector = '') {
   return clean.match(/^(@[^/]+\/[^@]+|[^@]+)@/)?.[1] || null
 }
 
+function parseNpmLockPackages(lockfile) {
+  const packageEntries = Object.entries(lockfile?.packages || {})
+    .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
+    .slice(0, 160)
+    .map(([path, entry]) => ({
+      name: packageNameFromNodeModulesPath(path),
+      path,
+      version: entry.version,
+      resolved: entry.resolved,
+      dependencies: Object.keys(entry.dependencies || {}).slice(0, 12),
+    }))
+  if (packageEntries.length) return packageEntries
+
+  const legacyEntries = []
+  const visit = (dependencies = {}, parentPath = '') => {
+    for (const [name, entry] of Object.entries(dependencies)) {
+      if (!entry?.version) continue
+      const path = `${parentPath ? `${parentPath}/` : ''}node_modules/${name}`
+      legacyEntries.push({
+        name,
+        path,
+        version: entry.version,
+        resolved: entry.resolved,
+        dependencies: Object.keys(entry.dependencies || {}).slice(0, 12),
+      })
+      visit(entry.dependencies, path)
+      if (legacyEntries.length >= 160) return
+    }
+  }
+  visit(lockfile?.dependencies)
+  return legacyEntries
+}
+
 /**
  * Read bounded Yarn classic and Berry lock entries without pretending the
  * lockfile is an npm install tree. The selectors are retained in the path so
@@ -580,14 +613,14 @@ export function parsePnpmLock(text = '') {
 
 function resolveLockfileEntries(lockfile, packageName) {
   if (!lockfile || !packageName) return []
-  const packageEntries = Object.entries(lockfile.packages || {})
-    .filter(([path, entry]) => entry?.version && packageNameFromNodeModulesPath(path) === packageName)
-    .sort(([left], [right]) => {
-      const leftDepth = left.split('/node_modules/').length
-      const rightDepth = right.split('/node_modules/').length
-      return leftDepth - rightDepth || left.localeCompare(right)
+  const packageEntries = parseNpmLockPackages(lockfile)
+    .filter((entry) => entry.name === packageName)
+    .sort((left, right) => {
+      const leftDepth = left.path.split('/node_modules/').length
+      const rightDepth = right.path.split('/node_modules/').length
+      return leftDepth - rightDepth || left.path.localeCompare(right.path)
     })
-  if (packageEntries.length) return packageEntries.map(([path, entry]) => ({ path, version: entry.version }))
+  if (packageEntries.length) return packageEntries.map(({ path, version }) => ({ path, version }))
   const legacyEntry = lockfile.dependencies?.[packageName]
   return legacyEntry?.version ? [{ path: `dependencies.${packageName}`, version: legacyEntry.version }] : []
 }
@@ -626,16 +659,7 @@ export async function collectRepository(repository, requestedPackage) {
   const lockPackages = ecosystem === 'cargo'
     ? (lockFile ? parseCargoLock(lockFile.text) : [])
     : lockfile
-      ? Object.entries(lockfile.packages || {})
-      .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
-      .slice(0, 120)
-      .map(([path, entry]) => ({
-        name: packageNameFromNodeModulesPath(path),
-        path,
-        version: entry.version,
-        resolved: entry.resolved,
-        dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
-      }))
+      ? parseNpmLockPackages(lockfile)
       : yarnLockPackages.length ? yarnLockPackages : pnpmLockPackages
   let treePaths = null
   let treeError = null
@@ -1049,4 +1073,4 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   }
 }
 
-export { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parsePnpmWorkspace }
+export { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseNpmLockPackages, parsePnpmWorkspace }

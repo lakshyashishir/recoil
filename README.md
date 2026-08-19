@@ -109,7 +109,7 @@ still uses the API, and optional metadata degrades to an explicit `unavailable` 
 For known public paths, a raw GitHub 404 is treated as an observed missing file rather than retried through
 the API; transport failures still use the API fallback. This keeps a multi-repository recording within a
 predictable public-request budget.
-For JavaScript repositories, Recoil accepts root and bounded workspace `package.json` manifests, npm `package-lock.json`/`npm-shrinkwrap.json`, bounded Yarn
+For JavaScript repositories, Recoil accepts root and bounded workspace `package.json` manifests, npm `package-lock.json`/`npm-shrinkwrap.json` (including legacy nested lockfile trees), bounded Yarn
 classic/Berry `yarn.lock` entries, and the stable package/dependency records in pnpm v6-v9 lockfiles.
 Selectors are retained as lock-entry provenance; multiple resolved versions remain ambiguous instead of
 being collapsed into a confident path.
