@@ -170,7 +170,11 @@ function FinalReport({ report, hydra, onRewind }) {
   const scope = report?.advisoryScope || {}
   const quality = report?.evidenceQuality || {}
   const confirmedHeadline = quality.readyForRecording ? `${summary.reached || 0} of ${summary.totalRepositories || 0} repositories` : `${summary.reached || 0} confirmed path${summary.reached === 1 ? '' : 's'}`
-  const scopeLabel = scope.status === 'completed' ? `${scope.affectedSymbols?.length || 0} advisory symbol candidate${scope.affectedSymbols?.length === 1 ? '' : 's'} checked against indexed code` : 'module-level package proof; symbol scope not enabled'
+  const scopeLabel = scope.status === 'completed'
+    ? `${scope.affectedSymbols?.length || 0} advisory symbol candidate${scope.affectedSymbols?.length === 1 ? '' : 's'} checked against indexed code`
+    : scope.status === 'failed'
+      ? 'advisory scope unavailable; deterministic module-level package proof remains authoritative'
+      : 'module-level package proof; symbol scope not enabled'
   return <main className="report-page">
     <section className="verdict-block"><p className="eyebrow">CASE RESULT</p><h1>{confirmedHeadline}<br /><i>{quality.readyForRecording ? 'reach vulnerable code.' : 'found so far.'}</i></h1><p className="verdict-lede">Recoil found {summary.reached || 0} reachable path{summary.reached === 1 ? '' : 's'}, {summary.declaredOnly || 0} declared-only dependency{summary.declaredOnly === 1 ? '' : 'ies'}, and {summary.notAffected || 0} repository{summary.notAffected === 1 ? '' : 'ies'} already outside the affected range.{summary.unknown ? ` ${summary.unknown} repository${summary.unknown === 1 ? '' : 'ies'} remain unclassified and are not counted as safe.` : ''}</p><div className="verdict-proof"><ShieldCheck size={17} /><span>Reachability is based on cited lockfile and sampled source imports. It is not a claim of compromise.</span></div><p className="scope-proof">Advisory scope · {scopeLabel}</p><ReceiptLink /></section>
     <EvidenceQuality quality={quality} />
@@ -185,7 +189,7 @@ function FinalReport({ report, hydra, onRewind }) {
 
 function RunningView({ snapshot }) {
   const investigation = snapshot?.investigation
-  return <main className="running-page"><div className="running-intro"><p className="eyebrow">AUTONOMOUS INVESTIGATION</p><h1>Building the proof.</h1><p>Recoil is reading public records and testing the evidence chain. You do not need to operate the run.</p></div><EventStream events={investigation?.events || []} /><footer className="running-footer"><span>{investigation?.evidence?.sources?.length || 0} sources discovered so far</span><span>Nothing installed or executed</span></footer></main>
+  return <main className="running-page"><div className="running-intro"><p className="eyebrow">AUTONOMOUS INVESTIGATION</p><h1>Building the proof.</h1><p>Recoil is reading public records and checking the evidence chain. You do not need to operate the run.</p></div><EventStream events={investigation?.events || []} /><footer className="running-footer"><span>{investigation?.evidence?.sources?.length || 0} sources discovered so far</span><span>Nothing installed or executed</span></footer></main>
 }
 
 function App() {
