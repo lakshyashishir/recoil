@@ -975,6 +975,28 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   </section>
 }
 
+function TemporalSummaryStrip({ report, summary = {}, earliestReached, historical = false, onOpenHistory, loading = false }) {
+  const before = report?.rewind?.beforeAdvisory
+  if (historical || !before) return null
+  const observed = earliestReached?.pathObservedAt?.slice(0, 10)
+  const published = report?.advisory?.published?.slice(0, 10)
+  const datedPath = Boolean(observed && published && summary.exposureDays != null)
+  const memory = report?.rewind?.memory
+  const memoryLabel = memory?.status === 'recalled'
+    ? `${memory.datedChunkCount || 0} dated facts recalled`
+    : memory?.status === 'queued'
+      ? 'HydraDB history indexing'
+      : memory?.status === 'skipped'
+        ? 'Local dated evidence'
+        : 'Dated memory unavailable'
+  return <section className="temporal-summary-strip" aria-label="Temporal evidence summary">
+    <div className="temporal-summary-copy"><span className="section-kicker">Temporal proof</span><strong>{datedPath ? `${summary.exposureDays.toLocaleString()} days before disclosure` : 'Dated comparison available'}</strong><p>{datedPath ? 'The sampled source path was already present before the advisory was public.' : 'Recoil collected a boundary for comparing the current case with the day before disclosure.'}</p></div>
+    <div className="temporal-summary-boundary" aria-label="Disclosure boundary"><div><span>Path first observed</span><strong>{observed || 'Not dated'}</strong></div><i aria-hidden="true">→</i><div><span>Advisory published</span><strong>{published || 'Unknown'}</strong></div></div>
+    <div className="temporal-summary-memory"><span className="memory-mark" /><span>{memoryLabel}</span></div>
+    {onOpenHistory && <button className="temporal-summary-action" type="button" onClick={onOpenHistory} disabled={loading}>{loading ? <LoaderCircle className="spin" size={13} /> : <Clock3 size={13} />}{loading ? 'Rebuilding…' : 'Open dated view'}<ArrowUpRight size={13} /></button>}
+  </section>
+}
+
 function TemporalHighlight({ report, summary = {}, finding, challenge, earliestReached, onOpenHistory, onInspectProof, historyLoading = false, historical = false }) {
   const before = report?.rewind?.beforeAdvisory
   if (historical || !before) return null
@@ -1254,6 +1276,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind }) {
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p>{earliestReached && <div className="case-temporal-signal"><Clock3 size={15} /><span><strong>Path first observed {earliestReached.pathObservedAt.slice(0, 10)}</strong><small>{earliestReached.exposureDays != null ? `${earliestReached.exposureDays} days before disclosure` : 'dated repository evidence'}</small></span></div>}<CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink /><ReceiptLink /></div></div></section>
     <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>source path found</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>listed, not imported</span></div><div><strong>{summary.notAffected || 0}</strong><span>already outside range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix proof' : 'fix proofs'}</span></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} />
+    <TemporalSummaryStrip report={report} summary={summary} earliestReached={earliestReached} historical={historical} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} loading={historyLoading} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className="case-workspace" id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
