@@ -71,6 +71,8 @@ test('HydraDB investigation memories preserve graph topology and temporal eviden
   const correlationMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'cross_repository_correlation')
   assert.equal(correlationMemory.additional_metadata.valid_from, '2022-01-01T00:00:00Z')
   assert.match(correlationMemory.text, /minimist@1\.2\.5/)
+  assert.deepEqual(correlationMemory._recoilGraphPayload.relations.map((relation) => relation.predicate), ['RESOLVED_IN', 'RESOLVED_IN'])
+  assert.equal(Object.values(correlationMemory._recoilGraphPayload.entities).some((entity) => entity.name === 'example/other'), true)
   const graphMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'observed_graph')
   assert.match(graphMemory.text, /advisory:GHSA-test → repo:example\/app/)
   assert.equal(graphMemory._recoilGraphPayload.entities.node_0.name, 'GHSA-test')

@@ -371,7 +371,7 @@ export function hydraStatus() {
   }
 }
 
-function temporalMemory({ id, title, text, kind, scenarioId, repository, validFrom, validUntil = null, sourceUrls = [] }) {
+function temporalMemory({ id, title, text, kind, scenarioId, repository, validFrom, validUntil = null, sourceUrls = [], graphPayload = null }) {
   return memory({
     id,
     title,
@@ -384,6 +384,7 @@ function temporalMemory({ id, title, text, kind, scenarioId, repository, validFr
       valid_until: validUntil,
       source_urls: JSON.stringify(sourceUrls),
     },
+    graphPayload,
   })
 }
 
@@ -418,6 +419,14 @@ export function buildInvestigationMemories(ingestion, report) {
   for (const correlation of report.crossRepositoryCorrelations || []) {
     const datedObservations = (correlation.repositories || []).map((item) => item.pathObservedAt).filter(Boolean).sort()
     const repositories = (correlation.repositories || []).map((item) => `${item.repository} (${item.verdict})`).join(', ')
+    const packageId = `package:${correlation.packageName}@${correlation.version}`
+    const correlationGraph = {
+      nodes: [
+        { id: packageId, label: `${correlation.packageName}@${correlation.version}`, type: 'package' },
+        ...(correlation.repositories || []).map((item) => ({ id: `repo:${item.repository}`, label: item.repository, type: 'repository' })),
+      ],
+      edges: (correlation.repositories || []).map((item) => [packageId, `repo:${item.repository}`]),
+    }
     memories.push(temporalMemory({
       id: `recoil:temporal:correlation:${stableId(`${scenarioId}:${correlation.packageName}:${correlation.version}`)}`,
       title: `Recoil shared resolution · ${correlation.packageName}@${correlation.version}`,
@@ -425,6 +434,7 @@ export function buildInvestigationMemories(ingestion, report) {
       scenarioId,
       validFrom: datedObservations[0] || null,
       sourceUrls: correlation.sourceUrls || [],
+      graphPayload: buildGraphPayload(correlationGraph, datedObservations[0] || report.generatedAt || null),
       text: `# Cross-repository resolution\n\n- Package: ${correlation.packageName}@${correlation.version}\n- Repositories: ${repositories || 'none'}\n- Repository count: ${correlation.repositoryCount || correlation.repositories?.length || 0}\n- Evidence: the same resolved package version was observed in each listed repository. This is a dependency correlation, not proof of runtime execution.\n- Sources: ${(correlation.sourceUrls || []).join(', ') || 'not available'}`,
     }))
   }

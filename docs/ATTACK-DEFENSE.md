@@ -90,6 +90,10 @@ HydraDB stores and retrieves:
 - fix proofs and residual-path decisions;
 - cross-case evidence related to the package and repository.
 
+Cross-repository correlations are graph-native as well: each shared resolved package version is stored as
+a package entity with `RESOLVED_IN` edges to every repository in the correlation. The report still shows
+the repository verdicts locally, while HydraDB preserves the multi-hop relationship for later recall.
+
 The observed topology uses HydraDB v2's supported `graph_payload` ingestion contract. Each graph memory
 contains an explicit entity map and typed relations such as `AFFECTS`, `RESOLVED_IN`, `HAS_LOCKFILE`,
 `IMPORTS`, and `INDEXES_SYMBOL`. Recoil asks recall for `graph_context: true` and exposes only a bounded
