@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
+import { inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parsePnpmLock, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
 
 test('target inference keeps a GitHub repository separate from an optional package selector', () => {
   const target = inferTarget('https://github.com/hydra-db/hydradb hydradb')
@@ -110,6 +110,27 @@ minimist@^1.2.5, minimist@^1.2.6:
   assert.equal(entries[0].dependencies[0], 'wordwrap')
   assert.equal(entries[2].resolved, '@scope/parser@npm:2.1.0')
   assert.match(entries[2].path, /^yarn:/)
+})
+
+test('pnpm lock parser preserves v6 and v9 package identities and edges', () => {
+  const entries = parsePnpmLock(`
+lockfileVersion: '9.0'
+
+packages:
+  minimist@1.2.5:
+    resolution: {integrity: sha512-test}
+  '@scope/parser@2.1.0(peer@1.0.0)':
+    resolution: {integrity: sha512-test}
+    dependencies:
+      minimist: 1.2.5
+`)
+
+  assert.deepEqual(entries.map((entry) => [entry.name, entry.version]), [
+    ['minimist', '1.2.5'],
+    ['@scope/parser', '2.1.0'],
+  ])
+  assert.deepEqual(entries[1].dependencies, ['minimist'])
+  assert.match(entries[0].path, /^pnpm:/)
 })
 
 test('package selection never chooses the first repository when repository-only input is ambiguous', () => {

@@ -442,6 +442,69 @@ export function parseYarnLock(text = '') {
   return entries.slice(0, 240)
 }
 
+function parsePnpmPackageSelector(selector = '') {
+  const clean = selector.trim().replace(/^['"]|['"]$/g, '').replace(/\([^)]*\)$/, '')
+  if (clean.startsWith('/')) {
+    const parts = clean.split('/').filter(Boolean)
+    const version = parts.at(-1)
+    const name = parts.length > 2 && parts[0].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]
+    return name && version ? { name, version } : null
+  }
+  const match = clean.match(/^(@[^/]+\/[^@]+|[^@]+)@(.+)$/)
+  return match ? { name: match[1], version: match[2] } : null
+}
+
+/**
+ * Read the package records from pnpm v6-v9 lockfiles. This intentionally
+ * handles only the stable package/dependency shape needed for provenance; it
+ * does not attempt to become a general YAML parser.
+ */
+export function parsePnpmLock(text = '') {
+  const entries = []
+  let section = null
+  let block = null
+  const flush = () => {
+    if (block?.entry) entries.push({ ...block.entry, dependencies: [...new Set(block.dependencies)].slice(0, 12) })
+  }
+  for (const line of String(text).split(/\r?\n/)) {
+    if (!line.trim() || line.trim().startsWith('#')) continue
+    const topLevel = line.match(/^([A-Za-z][\w-]*):\s*$/)?.[1]
+    if (topLevel) {
+      flush()
+      block = null
+      section = topLevel
+      continue
+    }
+    if (section !== 'packages') continue
+    const packageHeader = line.match(/^\s{2}([^\s].*):\s*$/)?.[1]
+    if (packageHeader) {
+      flush()
+      const packageInfo = parsePnpmPackageSelector(packageHeader)
+      block = packageInfo
+        ? { entry: { ...packageInfo, path: `pnpm:${packageHeader}`, resolved: null }, dependencies: [], inDependencies: false }
+        : null
+      continue
+    }
+    if (!block) continue
+    const resolved = line.match(/^\s{4}resolution:\s*(?:\{[^}]*)?(?:tarball:\s*)?["']?([^,"'}\s]+)["']?/)?.[1]
+    if (resolved) {
+      block.entry.resolved = resolved
+      block.inDependencies = false
+      continue
+    }
+    if (/^\s{4}dependencies:\s*$/.test(line)) {
+      block.inDependencies = true
+      continue
+    }
+    if (block.inDependencies) {
+      const dependency = line.match(/^\s{6}((?:@[^/\s]+\/)?[^\s:]+):\s*([^\s,]+)?/)?.[1]
+      if (dependency) block.dependencies.push(dependency)
+    }
+  }
+  flush()
+  return entries.filter((entry) => entry.name && entry.version).slice(0, 240)
+}
+
 function resolveLockfileEntries(lockfile, packageName) {
   if (!lockfile || !packageName) return []
   const packageEntries = Object.entries(lockfile.packages || {})
@@ -480,9 +543,10 @@ export async function collectRepository(repository, requestedPackage) {
   const inferredPackage = requestedPackage || packageJson?.name || cargoManifest?.name || (cargoManifest ? repository.name : Object.keys(dependencies)[0]) || null
   const lockFile = cargoManifestFile
     ? await readGitHubFile(repository, 'Cargo.lock', { preferRaw: true })
-    : await readGitHubFile(repository, 'package-lock.json', { preferRaw: true }) || await readGitHubFile(repository, 'npm-shrinkwrap.json', { preferRaw: true }) || await readGitHubFile(repository, 'yarn.lock', { preferRaw: true })
-  const lockfile = lockFile && ecosystem === 'npm' && lockFile.path !== 'yarn.lock' ? JSON.parse(lockFile.text) : null
+    : await readGitHubFile(repository, 'package-lock.json', { preferRaw: true }) || await readGitHubFile(repository, 'npm-shrinkwrap.json', { preferRaw: true }) || await readGitHubFile(repository, 'yarn.lock', { preferRaw: true }) || await readGitHubFile(repository, 'pnpm-lock.yaml', { preferRaw: true })
+  const lockfile = lockFile && ecosystem === 'npm' && !['yarn.lock', 'pnpm-lock.yaml'].includes(lockFile.path) ? JSON.parse(lockFile.text) : null
   const yarnLockPackages = lockFile?.path === 'yarn.lock' ? parseYarnLock(lockFile.text) : []
+  const pnpmLockPackages = lockFile?.path === 'pnpm-lock.yaml' ? parsePnpmLock(lockFile.text) : []
   const temporal = lockFile
     ? await readGitHubCommitHistory(repository, lockFile.path).catch((error) => ({ error: error.message, sourceUrl: lockFile.sourceUrl }))
     : null
@@ -499,7 +563,7 @@ export async function collectRepository(repository, requestedPackage) {
         resolved: entry.resolved,
         dependencies: Object.keys(entry.dependencies || {}).slice(0, 8),
       }))
-      : yarnLockPackages
+      : yarnLockPackages.length ? yarnLockPackages : pnpmLockPackages
   let treePaths = null
   let treeError = null
   try {
