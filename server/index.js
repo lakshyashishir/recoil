@@ -8,6 +8,7 @@ import { advisoryAgentStatus } from './advisory-agent.js'
 import { parseInvestigationInput } from './collectors.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { buildEvidenceBrief } from '../src/core/brief.js'
+import { summarizeGraphContext } from '../src/core/graph-context.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const host = process.env.RECOIL_HOST || '127.0.0.1'
@@ -49,8 +50,49 @@ async function body(req) {
   return raw ? JSON.parse(raw) : {}
 }
 
+/**
+ * HydraDB recall can contain provider chunks and transport payloads that are
+ * useful inside the server but are not part of the browser contract. Keep the
+ * client on the same inspectable summary used by the report and receipt.
+ */
+export function publicHydraRecall(recall = {}) {
+  const relatedCases = Array.isArray(recall.relatedCases) ? recall.relatedCases : []
+  const priorScenarioIds = Array.isArray(recall.priorScenarioIds) ? recall.priorScenarioIds : []
+  return {
+    status: recall.status || 'skipped',
+    asOf: recall.asOf || null,
+    datedChunkCount: recall.datedChunkCount || 0,
+    rawChunkCount: recall.rawChunkCount || recall.chunks?.length || 0,
+    relatedCaseCount: recall.relatedCaseCount ?? (relatedCases.length || priorScenarioIds.length),
+    priorScenarioIds,
+    relatedCases,
+    sources: Array.isArray(recall.sources) ? recall.sources.slice(0, 12) : [],
+    graphContext: summarizeGraphContext(recall.graphContext),
+    focusedRecall: Boolean(recall.focusedRecall),
+    focusedRecallError: recall.focusedRecallError || null,
+    reason: recall.reason || recall.error || null,
+  }
+}
+
+export function publicHydraState(hydra = {}) {
+  return {
+    status: hydra.status || 'not_started',
+    reason: hydra.reason || null,
+    memoryCount: hydra.memoryCount || 0,
+    sourceIds: Array.isArray(hydra.sourceIds) ? hydra.sourceIds : [],
+    indexingPending: Boolean(hydra.indexingPending),
+    indexingError: hydra.indexingError || null,
+    recall: publicHydraRecall(hydra.recall || {}),
+  }
+}
+
+function publicInvestigation(investigation) {
+  if (!investigation) return null
+  return { ...investigation, hydra: publicHydraState(investigation.hydra || {}) }
+}
+
 function investigationSnapshot(record) {
-  const investigation = record.investigation
+  const investigation = publicInvestigation(record.investigation)
   const evidence = investigation?.evidence || record.ingestion || { status: 'not_started', collectors: [] }
   const graph = evidence.graph || investigation?.graph || record.graph || { nodes: [], edges: [] }
   const collectors = new Map((evidence.collectors || []).map((collector) => [collector.collector, collector]))
@@ -64,7 +106,7 @@ function investigationSnapshot(record) {
     events: investigation?.events || [],
     state: { status: investigation?.status || 'idle', step: investigation?.step || 'idle' },
     ingestion: evidence,
-    hydra: investigation?.hydra || { status: 'not_started', memoryCount: 0 },
+    hydra: investigation?.hydra || publicHydraState(),
     investigation,
     sources: [
       { id: 'osv', label: 'OSV advisory', type: 'advisory', status: sourceStatus('advisory-resolver') },
@@ -170,7 +212,7 @@ async function route(req, res) {
   if (req.method === 'GET' && !action) return json(res, 200, snapshot(record))
 
   if (req.method === 'GET' && action === 'investigation') {
-    return json(res, 200, { scenarioId: record.id, investigation: record.investigation })
+    return json(res, 200, { scenarioId: record.id, investigation: publicInvestigation(record.investigation) })
   }
 
   if (req.method === 'POST' && action === 'investigate') {
@@ -198,7 +240,7 @@ async function route(req, res) {
   if (req.method === 'POST' && action === 'rewind') {
     return body(req).then((payload) => {
       const asOf = typeof payload.asOf === 'string' ? payload.asOf : new Date().toISOString()
-      return rewindInvestigation(record, asOf).then((result) => json(res, result.error ? 409 : 200, { scenarioId: record.id, ...result }))
+      return rewindInvestigation(record, asOf).then((result) => json(res, result.error ? 409 : 200, { scenarioId: record.id, report: result.report, hydra: publicHydraRecall(result.hydra), error: result.error }))
     }).catch((error) => json(res, 400, { error: error.message }))
   }
 

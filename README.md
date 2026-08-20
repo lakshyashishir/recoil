@@ -99,6 +99,10 @@ remains visibly `queued` with its indexing error. Temporal rewind is computed fr
 history and uses HydraDB’s dated evidence as the durable investigation record. Without HydraDB credentials,
 the same local evidence proof remains available and is labelled local replay.
 
+Provider recall payloads stay server-side. Browser/API snapshots expose only bounded counts, source URLs,
+prior-case metadata, and normalized graph triplets; raw HydraDB chunks and transport responses are not sent
+to the client. The report and receipt use the same sanitized temporal summary.
+
 The rewind report also carries a sanitized temporal-read receipt: the as-of timestamp, HydraDB status,
 dated fact count, related prior-case IDs, prior-case evidence kinds/repositories, and returned source URLs.
 Raw retrieved chunks are never copied into the browser report or downloadable receipt, and HydraDB retrieval

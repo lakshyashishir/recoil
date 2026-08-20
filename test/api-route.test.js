@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { route } from '../server/index.js'
+import { publicHydraRecall, publicHydraState, route } from '../server/index.js'
 
 function response(payload, status = 200, headers = {}) {
   return {
@@ -48,6 +48,28 @@ function request(method, path, payload) {
   }
   return Promise.resolve(route(req, res)).then(() => ({ statusCode, headers, body: output ? headers?.['content-type']?.startsWith('application/json') ? JSON.parse(output) : output : null }))
 }
+
+test('public API HydraDB state excludes raw recall chunks and provider payloads', () => {
+  const recall = publicHydraRecall({
+    status: 'recalled',
+    asOf: '2026-08-19T00:00:00Z',
+    datedChunkCount: 2,
+    chunks: [{ text: 'private provider chunk' }],
+    raw: { chunks: [{ text: 'private provider chunk' }] },
+    graphContext: { query_paths: [{ triplets: [{ source: { name: 'advisory' }, relation: { canonical_predicate: 'AFFECTS' }, target: { name: 'package' } }] }] },
+    relatedCases: [{ scenarioId: 'prior-case' }],
+  })
+  assert.equal(recall.status, 'recalled')
+  assert.equal(recall.rawChunkCount, 1)
+  assert.equal('chunks' in recall, false)
+  assert.equal('raw' in recall, false)
+  assert.deepEqual(recall.graphContext.triplets, [{ source: 'advisory', predicate: 'AFFECTS', target: 'package', origin: null }])
+
+  const state = publicHydraState({ status: 'persisted', memoryCount: 2, result: { chunks: ['provider payload'] }, recall: { chunks: [{ text: 'private provider chunk' }] } })
+  assert.equal(state.status, 'persisted')
+  assert.equal('result' in state, false)
+  assert.equal('chunks' in state.recall, false)
+})
 
 test('API rejects an investigation without a repository before collection', async () => {
   const result = await request('POST', '/api/scenarios/input-guard/investigate', { query: 'GHSA-route-1234-5678' })
