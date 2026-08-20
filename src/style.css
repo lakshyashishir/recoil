@@ -875,6 +875,27 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-navigator-links button { padding-top: 6px; padding-bottom: 6px; }
 .map-heading { min-height: 72px; padding-top: 16px; padding-bottom: 16px; }
 
+/* The first desktop viewport should contain the answer and the beginning of
+   its proof. Keep the decision useful, but compress its supporting metadata so
+   the observed graph is not hidden below the fold. */
+@media (min-width: 981px) {
+  .case-hero { gap: 24px; padding-bottom: 12px; }
+  .case-hero h1 { font-size: clamp(36px, 3.7vw, 50px); }
+  .case-decision-callout { grid-template-columns: minmax(120px, .3fr) minmax(0, 1.45fr) minmax(360px, .85fr); gap: 18px; margin-bottom: 10px; padding-top: 10px; padding-bottom: 10px; }
+  .case-decision-copy h2 { margin-bottom: 4px; font-size: 16px; }
+  .case-decision-copy p { font-size: 11px; }
+  .case-decision-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px 12px; align-items: start; }
+  .case-decision-route { grid-column: 1; grid-row: 1; margin: 0; padding: 0 12px 0 0; border-right: 1px solid var(--line-soft); border-bottom: 0; }
+  .case-decision-basis { display: grid; align-content: start; gap: 5px; min-width: 0; grid-column: 2; grid-row: 1; padding-left: 0; }
+  .case-decision-basis span { color: var(--faint); font-size: 10px; line-height: 1.3; }
+  .case-decision-basis strong { color: var(--text); font: 600 11px/1.35 var(--sans); }
+  .case-decision-meta > button { grid-column: 1; grid-row: 2; align-self: start; }
+  .hydra-comparison-line { align-items: center; margin-bottom: 10px; padding-top: 8px; padding-bottom: 9px; }
+  .hydra-comparison-copy { gap: 3px; }
+  .hydra-comparison-copy p { overflow: hidden; max-width: 900px; text-overflow: ellipsis; white-space: nowrap; }
+  .case-navigator { min-height: 40px; margin-bottom: 10px; padding-top: 4px; padding-bottom: 4px; }
+}
+
 @media (max-width: 720px) {
   .landing-page, .landing-header, .landing-footer { min-width: 0; width: 100%; }
   .landing-grid { width: 100%; min-width: 0; max-width: 100%; grid-template-columns: minmax(0, 1fr); }
