@@ -1541,26 +1541,10 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-contrast-item.is-selected .case-contrast-coverage { color: var(--muted); }
 .case-contrast-historical .case-contrast-item { opacity: .8; }
 
-.case-source-preview {
-  display: grid;
-  grid-template-columns: minmax(190px, .48fr) minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  margin: -2px 0 14px;
-  padding: 0 0 14px;
-  border-bottom: 1px solid var(--line);
-}
-.case-source-preview-heading { display: grid; gap: 4px; min-width: 0; }
-.case-source-preview-heading .section-kicker { margin: 0; color: var(--muted); }
-.case-source-preview-heading strong { overflow: hidden; color: var(--text); font: 600 11px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
-.case-source-preview code { display: block; min-width: 0; overflow: hidden; padding: 8px 10px; border-left: 2px solid var(--red); color: var(--muted); background: var(--surface); font: 10px/1.4 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
-.case-source-preview .source-link { width: max-content; font-size: 10px; }
-
 /* The answer should carry the visual weight; the graph and evidence details
    can remain dense without making the first screen feel like a poster. */
 .landing-intro h1 { max-width: 620px; font-size: clamp(40px, 4.4vw, 58px); line-height: 1.02; }
 .case-hero h1 { max-width: 740px; font-size: clamp(38px, 4.2vw, 56px); line-height: 1.04; }
-.case-contrast + .case-decision-callout { margin-top: 0; }
 
 @media (max-width: 720px) {
   .case-contrast { margin-top: -1px; }
@@ -1569,8 +1553,6 @@ body { font-family: var(--sans); line-height: 1.45; }
   .case-contrast-item + .case-contrast-item { border-top: 1px solid var(--line-soft); }
   .case-contrast-item small { white-space: normal; }
   .case-contrast-coverage { white-space: normal; }
-  .case-source-preview { grid-template-columns: 1fr; gap: 7px; align-items: start; }
-  .case-source-preview code { white-space: pre-wrap; overflow-wrap: anywhere; }
   .landing-intro h1 { font-size: clamp(37px, 10.5vw, 50px); }
   .case-hero h1 { font-size: clamp(36px, 10vw, 48px); }
 }

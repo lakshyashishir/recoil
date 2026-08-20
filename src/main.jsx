@@ -1431,51 +1431,6 @@ function CaseContrast({ findings = [], selectedIndex = 0, onSelect, historical =
   </section>
 }
 
-function CaseSourcePreview({ finding, historical = false }) {
-  const importer = finding?.imports?.[0]
-  if (!importer?.snippet) return null
-  return <section className="case-source-preview" aria-label="Observed source import">
-    <div className="case-source-preview-heading"><span className="section-kicker">{historical ? 'Historical source evidence' : 'Source-backed import'}</span><strong>{repositoryName(finding.repository)} · {importer.path}{importer.line ? `:${importer.line}` : ''}</strong></div>
-    <code>{importer.snippet}</code>
-    {importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}
-  </section>
-}
-
-function CasePathStrip({ finding, report, historical = false }) {
-  if (!finding) return null
-  const graphNodes = report?.graph?.nodes || []
-  const rawParts = findingParts(finding)
-  const steps = rawParts.map((part) => {
-    const node = graphNodes.find((candidate) => nodeMatchesPart(candidate, part, finding))
-    const type = pathStepType(node, part, finding)
-    const source = node?.sourceUrl
-      || (part === finding.repository ? finding.repositoryUrl : null)
-      || (part === finding.path?.at(-1) ? finding.imports?.[0]?.sourceUrl : null)
-    return { part, label: routeDisplayPart(part, finding), type, source }
-  }).filter((step, index, all) => all.findIndex((candidate) => candidate.part === step.part) === index)
-  if (!steps.length) return null
-  const status = finding.verdict === 'REACHED'
-    ? 'Source-backed route'
-    : finding.verdict === 'DECLARED_ONLY'
-      ? 'Declaration stops here'
-      : finding.verdict === 'NOT_AFFECTED'
-        ? 'Range check stops here'
-        : 'Evidence route needs review'
-  return <section className={`case-path-strip-shell ${historical ? 'case-path-strip-historical' : ''}`} aria-label="Selected evidence route">
-    <div className="case-path-strip-heading"><div><span className="section-kicker">{historical ? 'Historical route' : 'Selected evidence route'}</span><strong>{status}</strong></div><span>{citedProofLabel(finding)}</span></div>
-    <div className="case-path-strip" role="list">
-      {steps.map((step, index) => <div className="case-path-strip-item-wrap" key={`${step.part}-${index}`}>
-        <article className={`case-path-strip-item case-path-strip-item-${step.type}`} role="listitem">
-          <span>{step.type}</span>
-          <strong title={step.label}>{step.label}</strong>
-          {step.source ? <SourceLink href={step.source}>Open record</SourceLink> : <small>record not linked</small>}
-        </article>
-        {index < steps.length - 1 && <span className="case-path-strip-arrow" aria-hidden="true">→</span>}
-      </div>)}
-    </div>
-  </section>
-}
-
 function LiveEvidenceRoute({ graph = {}, graphProgress = null, events = [], investigationStatus }) {
   const route = observedGraphRoute(graph)
   const current = currentInvestigationActivity(events, investigationStatus)
@@ -1914,8 +1869,6 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
     </div>
-    <CasePathStrip finding={selectedFinding} report={report} historical={historical} />
-    <CaseSourcePreview finding={selectedFinding} historical={historical} />
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} hydra={hydra} />
   </main>
 }
