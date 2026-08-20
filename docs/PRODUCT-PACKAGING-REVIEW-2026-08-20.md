@@ -46,6 +46,311 @@ code, send exploit payloads, claim runtime production reachability, or pretend
 that a generated topology is an observed system. Those boundaries are a
 strength and must remain visible in the right place.
 
+## Progress so far
+
+Recoil is not a blank prototype. The repository already contains a substantial
+evidence engine and three clients.
+
+### Engine and evidence
+
+- Public OSV, npm, Cargo, GitHub manifest, lockfile, source, workflow, and
+  commit-history collectors.
+- npm, legacy npm, Yarn, pnpm, and Cargo lockfile parsing with bounded source
+  sampling.
+- JavaScript/TypeScript and Rust/Cargo source graphs with external package
+  imports, local-import edges, symbols, and source URLs.
+- Four-way computed verdicts: `REACHED`, `DECLARED_ONLY`, `NOT_AFFECTED`, and
+  `UNKNOWN`.
+- Bounded transitive dependency paths and source-backed importer cones.
+- Advisory fixed-version checks, semver range validation, residual-path checks,
+  and manifest-change-required outcomes.
+- Temporal exposure evidence from public repository history and a rewind that
+  refuses to claim facts before they were observed.
+- Optional OpenAI advisory-symbol assistance that is validated against indexed
+  source and cannot create a finding or graph edge.
+
+### HydraDB integration
+
+- Dated evidence memories for advisories, repository findings, fix proofs,
+  topology, and cross-repository shared resolutions.
+- Explicit typed graph ingestion through the HydraDB `graph_payload` path.
+- `AFFECTS`, `RESOLVED_IN`, `DEPENDS_ON`, `IMPORTS`, and symbol/provenance
+  relationships preserved in the evidence graph.
+- Asynchronous indexing reconciliation with honest `persisted`, `queued`,
+  `failed`, and `skipped` states.
+- Separate temporal recall for prior cases and current-case graph verification.
+- Sanitized graph triplets, prior-case summaries, temporal receipts, and graph
+  deltas exposed without leaking raw provider chunks.
+- HydraDB-backed comparison of current and prior repository snapshots.
+
+### Product surfaces
+
+- Browser investigation flow with a landing input, live collection state,
+  source-backed paths, final report, temporal rewind, fix check, audit view,
+  receipts, and human-readable briefs.
+- CLI using the same API state machine, JSON output, proof output, strict
+  recording mode, direct in-process mode, case sharing, and receipt
+  verification.
+- OpenTUI client with the same evidence and recording contract.
+- Regression suite, evidence benchmark, strict recording doctor, network
+  preflight, and HydraDB recording gate.
+
+### Verification status
+
+The current repository has passed 120 automated tests, the four-case evidence
+benchmark, production build, and TUI build. The benchmark computes one each of
+`REACHED`, `DECLARED_ONLY`, `NOT_AFFECTED`, and `UNKNOWN`, plus fix proof and
+temporal rewind. It also asserts that outputs are computed from inputs, that
+fictional deployment nodes are absent, and that package code is not executed.
+
+The important limitation is not engine correctness. The current browser still
+feels like a collection of true capabilities rather than one product. It asks
+the audience to understand an advisory input, a live journal, multiple graph
+views, report tabs, HydraDB status, temporal controls, receipts, and an audit
+boundary before they understand the result.
+
+## The product must go beyond the track's basic input/output
+
+The current track-shaped flow is:
+
+```text
+advisory + repository URLs → reachability verdict → suggested fix
+```
+
+That is valuable, but not enough to win attention. A user can already get a
+basic vulnerable-dependency alert from GitHub, Dependabot, or an AI coding
+agent. GitHub's dependency graph scans supported manifest and lockfile data,
+Dependabot alerts expose affected files and fixed versions, and dependency
+review evaluates dependency changes in pull requests. See the official
+documentation for the [dependency graph](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-graph-data),
+[Dependabot alerts](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependabot-alerts),
+and [dependency review](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-review).
+
+Recoil should therefore own the layer after detection:
+
+```text
+discover → prove source exposure → explain history → plan containment
+→ recompute the graph → preserve the decision
+```
+
+The product objective is to turn the strong existing engine into a viable,
+winnable demo that a judge can understand in 30 seconds, enjoy watching for
+two minutes, and believe after a deeper five-minute inspection.
+
+## Repository-only discovery
+
+The primary entry point should become:
+
+```text
+https://github.com/org/repository
+```
+
+Recoil should inventory the repository's supported manifests and lockfiles,
+discover relevant advisories in bounded batches, then classify only the most
+important candidates first. The user should not have to know which CVE to
+paste before Recoil can begin.
+
+The output should be a security state summary such as:
+
+```text
+12 advisories discovered
+3 reach application code
+2 are declared but unused
+4 are already outside the affected range
+3 require more evidence
+```
+
+This is more useful than the current one-advisory workflow, but repository-only
+scanning is not itself the differentiator. A full unbounded scan could produce
+too many OSV requests, noisy findings, duplicate transitive advisories, and a
+long first-run experience. The feasible MVP is a bounded inventory plus
+prioritized advisories based on severity, fixed-version availability, source
+reachability, and historical change.
+
+Repository-only discovery should be a new default mode, while the existing
+advisory-plus-repository mode remains available for a focused investigation and
+for deterministic recording cases.
+
+## HydraDB as active security memory
+
+HydraDB should not appear as a green connection badge or as a final write after
+the interesting work is complete. It should become Recoil's persistent,
+temporal security state.
+
+The graph should represent entities such as:
+
+```text
+repository · package · resolved version · advisory · source importer
+commit · owner · proposed fix · accepted decision · previous scan
+```
+
+With relationships such as:
+
+```text
+REPOSITORY RESOLVES PACKAGE
+PACKAGE AFFECTED_BY ADVISORY
+SOURCE IMPORTS PACKAGE
+PATH INTRODUCED_IN COMMIT
+ADVISORY FIXED_BY VERSION
+FIX CLOSES PATH
+REPOSITORY CHANGED_SINCE SCAN
+```
+
+The product should make these questions first-class:
+
+- Which vulnerabilities became reachable since the previous scan?
+- When did this package first enter application code?
+- Which repositories share this vulnerable transitive dependency?
+- Was this alert already reviewed or accepted?
+- Which fix worked in another repository?
+- Did a previously closed path return?
+- What was true before the advisory became public?
+
+HydraDB's documented context graph and graph-enriched recall are appropriate
+for this role, and its temporal graph model makes the previous/current state
+comparison a natural product interaction. See [HydraDB memories and context
+graphs](https://docs.hydradb.com/essentials/memories) and [HydraDB's temporal
+graph model](https://hydradb.com/blog/git-for-context-versioned-temporal-graphs-for-ai-agent-memory).
+
+The most convincing HydraDB interaction is:
+
+```text
+Run the repository again → “What changed since the last scan?”
+```
+
+That demonstrates durable security memory rather than database connectivity.
+
+## Real attack/defense packaging
+
+The old arena was a simulator. It should not return as a fake cyber range. The
+attack/defense shape can become a real supply-chain response loop.
+
+### Red: exposure planner
+
+The red agent is a constrained, tool-using planner. It reads the observed graph
+and chooses the strongest evidence-backed route from an affected package to
+application code. Its tools may query HydraDB, inspect OSV, read lockfiles and
+source, inspect public history, and identify alternate paths.
+
+The red agent may choose the next investigation action, but it may not invent a
+node, create a relation, claim runtime execution, or override a deterministic
+verdict.
+
+### Blue: control planner
+
+The blue agent reads the evidence graph and prior HydraDB decisions, then asks:
+
+> What is the smallest real change that closes all observed paths?
+
+It may propose a fixed-version upgrade, manifest range change, lockfile update
+plan, dependency removal, or repository-specific remediation. Recoil then
+re-runs the deterministic evidence engine against the proposed state.
+
+The loop becomes:
+
+```text
+RED finds an observed path
+BLUE proposes a control
+RECOIL recomputes the graph
+RED checks residual paths
+HYDRADB stores the new state
+```
+
+This gives the product the visual energy of attack/defense while remaining a
+real, source-backed security workflow. “Attack” means proving an exposure path;
+“defense” means proving that a control removes that path. It does not imply
+that Recoil executed an exploit.
+
+The LLM should be used as a planner and researcher over explicit tools. The
+deterministic collectors, graph builder, semver evaluator, and re-checker
+remain the authority. A planner benchmark can compare graph-constrained
+planning against a flat-context prompt using evidence coverage, invalid-action
+rate, time to first valid path, closure rate, and repeated-case retrieval cost.
+
+## Minimum remediation cut
+
+The strongest graph-native feature to evaluate is a minimum remediation cut:
+
+> What is the smallest set of changes needed to eliminate every reachable
+> affected path?
+
+For example:
+
+```text
+5 exposed routes across 3 repositories
+
+Upgrade shared package X  → closes 3 routes
+Change repository B       → closes 1 route
+Repository C              → remains UNKNOWN; more evidence required
+```
+
+This converts the graph from a visualization into a decision engine. It is
+more useful than listing alerts and gives the demo a concrete before/after
+moment.
+
+## Proposed beyond-track product loop
+
+```text
+repository URL
+  → package and lockfile inventory
+  → bounded advisory discovery
+  → source-backed reachability
+  → HydraDB baseline security graph
+  → red exposure plan
+  → blue minimum remediation plan
+  → deterministic counterfactual re-check
+  → graph diff, temporal explanation, and portable receipt
+```
+
+The 90-second demo should be:
+
+1. Paste only a repository URL.
+2. Recoil discovers relevant advisories automatically.
+3. The exposure planner finds three real source-backed paths.
+4. The control planner proposes the smallest remediation set.
+5. Recoil recomputes the graph and visibly closes the paths it can prove.
+6. Rewind to show when one path first appeared.
+7. Ask HydraDB what changed since the previous scan.
+8. Print the same incident as a CLI receipt.
+
+The audience should remember:
+
+> Recoil did not just find CVEs. It discovered the vulnerable paths, planned
+> the smallest response, proved the response closed them, and remembered the
+> incident.
+
+## Feasibility boundaries
+
+### High feasibility
+
+- Repository-only intake for public GitHub repositories.
+- Package and lockfile inventory using the existing collectors.
+- Bounded OSV advisory discovery and deduplication.
+- Multi-advisory report built from the existing reachability classifier.
+- HydraDB security snapshots, prior/current comparisons, and temporal queries.
+- Graph-derived remediation grouping and shared-resolution analysis.
+
+### Feasible with focused scope
+
+- LLM red/blue planners constrained to explicit graph and evidence tools.
+- Manifest/range counterfactuals and generated remediation plans.
+- A browser view with exposure lanes, control actions, and graph diffs.
+- CLI/TUI commands that expose the same incident loop.
+- GitHub Action or SARIF export as a post-demo integration.
+
+### Too risky for the MVP
+
+- Arbitrary code patching across every language and build system.
+- Installing or executing untrusted package code.
+- Runtime exploit validation against public targets.
+- An unbounded scan of every advisory in a large repository.
+- A simulated infrastructure arena presented as real attack evidence.
+
+Do not force RL into the first version. A constrained tool-using planner over a
+temporal graph is more feasible and more credible. RL can become a later
+planner benchmark once the action space and real evidence environment are
+stable.
+
 ## What the current product makes confusing
 
 The problem is not a missing collector. It is that the interface currently
@@ -316,5 +621,18 @@ Return:
 7. **Three things to remove from the default view without deleting them.**
 8. **Risks and anti-claims.**
 9. **A five-day implementation order.**
+
+Also explicitly decide:
+
+- whether repository-only intake should replace or complement the current
+  advisory-plus-repository flow;
+- whether the red/blue exposure-and-control loop is genuinely differentiated
+  or still too close to existing security products;
+- which HydraDB interaction should be the single judge-facing proof of value;
+- whether minimum remediation cut is feasible and worth making the central
+  graph interaction;
+- what the first real public-repository recording case should be;
+- which existing capabilities must remain accessible but disappear from the
+  default view.
 
 Be opinionated. We do not need more ideas; we need one consumable product.
