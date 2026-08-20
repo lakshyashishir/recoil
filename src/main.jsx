@@ -1846,7 +1846,11 @@ function RunningView({ snapshot, onOpenReport }) {
     || graphReport.repositories[0]?.repository
   const activeLiveFinding = graphReport.repositories.find((finding) => repositoryKey(finding.repository) === repositoryKey(activeRepository)) || null
   const selectedLiveFinding = selectedLiveFindingIndex >= 0 ? graphReport.repositories[selectedLiveFindingIndex] : activeLiveFinding
-  const progress = snapshot?.graphProgress || investigation?.graphProgress
+  const rawProgress = snapshot?.graphProgress || investigation?.graphProgress || {}
+  const progress = {
+    ...rawProgress,
+    totalRepositories: Number(rawProgress.totalRepositories || queryRepositories(query).length),
+  }
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
@@ -1882,6 +1886,33 @@ function FailedView({ snapshot, onNewCase }) {
     </section>
     {!!graph.nodes?.length && <section className="failure-evidence"><div className="failure-evidence-heading"><div><span className="section-kicker">Partial evidence</span><h2>What Recoil was able to observe</h2></div><span>{graph.nodes.length} nodes · {graph.edges?.length || 0} relationships</span></div><EvidenceMap report={{ graph, repositories: investigation.report?.repositories || [] }} events={events} live graphProgress={investigation.graphProgress} /></section>}
   </main>
+}
+
+function startingCaseSnapshot(id, query) {
+  const graph = { nodes: [], edges: [] }
+  const graphProgress = { completedRepositories: 0, totalRepositories: queryRepositories(query).length }
+  const evidence = { status: 'running', collectors: [], repositories: [], graph }
+  const hydra = { status: 'not_started', memoryCount: 0, indexingPending: false, recall: { status: 'not_started' } }
+  const investigation = {
+    caseId: id,
+    query,
+    status: 'running',
+    step: 'public-records',
+    events: [],
+    evidence,
+    graph,
+    graphProgress,
+    hydra,
+  }
+  return {
+    scenario: { id, query, mode: 'evidence' },
+    graph,
+    graphProgress,
+    events: [],
+    ingestion: evidence,
+    hydra,
+    investigation,
+  }
 }
 
 function App() {
@@ -1942,17 +1973,25 @@ function App() {
 
   async function investigate() {
     if (!input.trim() || busy) return
+    const query = input.trim()
     setBusy(true); setError(''); setReport(null); setHydra(null); setShowReportEarly(false)
     try {
-      const created = await api('/api/scenarios', { method: 'POST', body: JSON.stringify({ query: input.trim() }) })
+      const created = await api('/api/scenarios', { method: 'POST', body: JSON.stringify({ query }) })
       const nextScenarioId = created.scenarioId || created.id || created.scenario?.id
       if (!nextScenarioId) throw new Error('The API did not return a case ID')
       window.localStorage.removeItem(LANDING_STORAGE_KEY)
-      setLanding(false)
       setScenarioId(nextScenarioId)
-      const next = await api(`/api/scenarios/${nextScenarioId}/investigate`, { method: 'POST', body: JSON.stringify({ query: input.trim() }) })
+      setSnapshot(startingCaseSnapshot(nextScenarioId, query))
+      setLanding(false)
+      const next = await api(`/api/scenarios/${nextScenarioId}/investigate`, { method: 'POST', body: JSON.stringify({ query }) })
       setSnapshot(next)
-    } catch (cause) { setBusy(false); setError(cause.message) }
+    } catch (cause) {
+      setBusy(false)
+      setError(cause.message)
+      setSnapshot((current) => current?.investigation?.status === 'running'
+        ? { ...current, investigation: { ...current.investigation, status: 'failed', error: cause.message } }
+        : current)
+    }
   }
 
   async function rewind(asOf) {
