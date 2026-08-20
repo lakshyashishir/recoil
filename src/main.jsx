@@ -1011,6 +1011,49 @@ function RouteProof({ finding, challenge }) {
   </section>
 }
 
+function graphSnapshotDelta(before = {}, current = {}) {
+  const beforeNodes = before?.nodes || []
+  const currentNodes = current?.nodes || []
+  const beforeNodeKeys = new Set(beforeNodes.map((node) => node.id || `${node.type || 'entity'}:${node.label || ''}`))
+  const currentNodeKeys = new Set(currentNodes.map((node) => node.id || `${node.type || 'entity'}:${node.label || ''}`))
+  const beforeEdgeKeys = new Set((before?.edges || []).map(([from, to]) => `${from}>${to}`))
+  const currentEdgeKeys = new Set((current?.edges || []).map(([from, to]) => `${from}>${to}`))
+  const addedNodes = currentNodes.filter((node) => !beforeNodeKeys.has(node.id || `${node.type || 'entity'}:${node.label || ''}`))
+  const removedNodes = beforeNodes.filter((node) => !currentNodeKeys.has(node.id || `${node.type || 'entity'}:${node.label || ''}`))
+  const addedEdges = (current?.edges || []).filter(([from, to]) => !beforeEdgeKeys.has(`${from}>${to}`))
+  const removedEdges = (before?.edges || []).filter(([from, to]) => !currentEdgeKeys.has(`${from}>${to}`))
+  return {
+    beforeNodeCount: beforeNodes.length,
+    currentNodeCount: currentNodes.length,
+    beforeEdgeCount: (before?.edges || []).length,
+    currentEdgeCount: (current?.edges || []).length,
+    addedNodes,
+    removedNodes,
+    addedEdges,
+    removedEdges,
+  }
+}
+
+function TemporalGraphDelta({ report }) {
+  const delta = graphSnapshotDelta(report?.rewind?.graph, report?.graph)
+  const changed = delta.addedNodes.length + delta.removedNodes.length + delta.addedEdges.length + delta.removedEdges.length
+  const labels = new Map([...(report?.rewind?.graph?.nodes || []), ...(report?.graph?.nodes || [])].map((node) => [node.id, node.label || node.id]))
+  const nodeLabel = (node) => `${node.type || 'entity'} · ${node.label || node.id || 'unnamed'}`
+  const edgeLabel = ([from, to]) => `${shorten(labels.get(from) || from, 30)} → ${shorten(labels.get(to) || to, 30)}`
+  const changes = [
+    ...delta.addedNodes.slice(0, 4).map((node) => ({ kind: 'added', text: nodeLabel(node) })),
+    ...delta.removedNodes.slice(0, 4).map((node) => ({ kind: 'removed', text: nodeLabel(node) })),
+    ...delta.addedEdges.slice(0, 4).map((edge) => ({ kind: 'added', text: edgeLabel(edge) })),
+    ...delta.removedEdges.slice(0, 4).map((edge) => ({ kind: 'removed', text: edgeLabel(edge) })),
+  ]
+  return <section className="temporal-graph-delta" aria-label="Observed graph change across disclosure boundary">
+    <div className="temporal-graph-delta-heading"><div><span className="section-kicker">Observed graph change</span><h2>{changed ? `${changed} graph element${changed === 1 ? '' : 's'} changed across the boundary.` : 'The observed graph did not change across the boundary.'}</h2><p>This is a comparison of the dated reconstruction with the current evidence graph. It is computed from collected nodes and relationships, not a simulated attack path.</p></div><span>{delta.beforeNodeCount} → {delta.currentNodeCount} entities</span></div>
+    <div className="temporal-graph-delta-stats"><span><strong>{delta.beforeEdgeCount}</strong><small>before relationships</small></span><span><strong>{delta.currentEdgeCount}</strong><small>current relationships</small></span><span><strong>{delta.addedNodes.length + delta.addedEdges.length}</strong><small>added</small></span><span><strong>{delta.removedNodes.length + delta.removedEdges.length}</strong><small>removed</small></span></div>
+    {changes.length ? <div className="temporal-graph-delta-list">{changes.map((change, index) => <div className={`temporal-graph-delta-item temporal-graph-delta-${change.kind}`} key={`${change.kind}-${change.text}-${index}`}><span>{change.kind === 'added' ? '+' : '−'}</span><strong>{change.text}</strong><small>{change.kind} in current evidence</small></div>)}</div> : <p className="temporal-graph-delta-empty">No node or relationship additions/removals were observed in the two snapshots.</p>}
+    {changed > changes.length && <p className="temporal-graph-delta-note">Showing {changes.length} of {changed} observed changes.</p>}
+  </section>
+}
+
 function TemporalProof({ report, onRewind, loading = false, loadingTarget = null }) {
   const before = report?.rewind?.beforeAdvisory
   const current = report?.rewind?.currentAsOf || report?.rewind?.asOf
@@ -1072,6 +1115,7 @@ function TemporalProof({ report, onRewind, loading = false, loadingTarget = null
       {changes.length > 0 && <div className="temporal-changes"><span>Changed classifications</span>{changes.slice(0, 4).map((change) => <span className="temporal-change" key={change.repository}><strong>{repositoryName(change.repository)}</strong><small>{change.before.replaceAll('_', ' ').toLowerCase()} → {change.current.replaceAll('_', ' ').toLowerCase()}</small></span>)}</div>}
     </div>
     <div className="temporal-stats"><span><strong>{memory?.datedChunkCount || 0}</strong><small>dated facts</small></span><span><strong>{memory?.graphContext?.tripletCount || 0}</strong><small>graph triplets</small></span><span><strong>{memory?.relatedCaseCount || 0}</strong><small>prior records</small></span></div>
+    {beforeActive && <TemporalGraphDelta report={report} />}
     <HistoryDelta findings={currentFindings} challenges={report.challenge || []} relatedCases={relatedCases} />
     <details className="memory-evidence"><summary>Inspect recalled relationships <span>{triplets.length} returned</span></summary>{triplets.length ? <div className="memory-triplets">{triplets.slice(0, 6).map((triplet, index) => <div className="memory-triplet" key={`${triplet.source}-${triplet.predicate}-${triplet.target}-${index}`}><strong>{triplet.source || 'entity'}</strong><span>{triplet.predicate || 'connected to'}</span><strong>{triplet.target || 'entity'}</strong></div>)}</div> : <p>No graph relationships were returned for this temporal read.</p>}</details>
     {relatedCases.length > 0 && <section className="related-cases" aria-label="Prior HydraDB records"><div className="related-cases-heading"><div><span className="section-kicker">HydraDB recall</span><strong>Prior evidence records</strong></div><span>{relatedCases.length} found</span></div><div className="related-case-list">{relatedCases.slice(0, 4).map((item) => <article className="related-case" key={item.scenarioId}><div className="related-case-main"><strong>{item.scenarioId}</strong><span>{item.repositories?.length ? item.repositories.join(' · ') : 'repository metadata unavailable'}</span></div><div className="related-case-meta"><span>{item.validFrom ? `dated ${dateLabel(item.validFrom)}` : 'date unavailable'}</span>{item.kinds?.length > 0 && <span>{item.kinds.join(' · ')}</span>}{item.sourceUrls?.[0] && <SourceLink href={item.sourceUrls[0]}>source</SourceLink>}</div></article>)}</div><p className="related-cases-note">HydraDB returned case metadata only. The current verdict is still computed from this investigation’s collected evidence.</p></section>}
