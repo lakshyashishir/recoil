@@ -1487,6 +1487,12 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-facts-line i { color: var(--faint); font-style: normal; }
 .case-facts-line strong.is-positive { color: var(--green); }
 
+/* Application screens should read like an investigation workspace, not a
+   marketing hero. Keep the landing page expressive; keep active evidence
+   readable and information-dense. */
+.live-heading h1 { max-width: 760px; font-size: clamp(28px, 3.2vw, 42px); letter-spacing: -.035em; line-height: 1.08; }
+.case-hero h1 { max-width: 720px; font-size: clamp(32px, 3.5vw, 48px); letter-spacing: -.04em; line-height: 1.06; }
+
 /* Durable memory should explain a change in the decision, not become another
    dashboard panel. This line is rendered only when HydraDB returned a real
    comparable repository snapshot. */
@@ -1510,6 +1516,8 @@ body { font-family: var(--sans); line-height: 1.45; }
 @media (max-width: 720px) {
   .case-facts-line { align-items: flex-start; gap: 7px 10px; }
   .case-facts-line span { gap: 10px; }
+  .live-heading h1 { font-size: 34px; }
+  .case-hero h1 { font-size: 36px; }
   .hydra-comparison-line { align-items: flex-start; flex-direction: column; gap: 9px; }
   .hydra-comparison-meta { width: 100%; justify-content: space-between; }
 }
