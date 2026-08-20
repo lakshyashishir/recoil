@@ -1779,10 +1779,10 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
   </section>
 }
 
-function CaseNavigator({ finding, activeTab, onTabChange, tabMeta = {} }) {
+function CaseNavigator({ finding, findings = [], selectedIndex = 0, onSelectFinding, activeTab, onTabChange, tabMeta = {} }) {
   const tabs = [{ id: 'graph', label: 'Evidence', title: 'Observed graph and cited source paths' }, { id: 'proof', label: 'Fix check', title: 'Version-level remediation proof' }, { id: 'history', label: 'Timeline', title: 'Dated repository evidence' }, { id: 'audit', label: 'Sources', title: 'Collected records and limits' }]
   return <nav className="case-navigator" aria-label="Case views">
-    <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
+    <div className="case-navigator-selection">{finding && <>{findings.length > 1 && onSelectFinding ? <><label htmlFor="case-repository-select">Repository</label><select id="case-repository-select" value={selectedIndex} onChange={(event) => onSelectFinding(Number(event.target.value))}>{findings.map((item, index) => <option key={item.repository || index} value={index}>{repositoryName(item.repository)} · {String(item.verdict || 'UNKNOWN').replaceAll('_', ' ').toLowerCase()}</option>)}</select></> : <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong></>}<Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
       {tabs.map((tab) => <button key={tab.id} id={`case-tab-${tab.id}`} title={tab.title} type="button" role="tab" aria-controls="case-tab-panel" aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'active' : ''} onClick={() => onTabChange(tab.id)}><span>{tab.label}</span>{tabMeta[tab.id] && <small>{tabMeta[tab.id]}</small>}</button>)}
     </div>
@@ -1907,6 +1907,10 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     setSelectedNodeId(null)
     window.requestAnimationFrame(() => document.getElementById('case-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
+  const selectRepositoryFromNavigator = (index) => {
+    setSelectedIndex(index)
+    setSelectedNodeId(null)
+  }
   const changeTab = (tab) => {
     setActiveTab(tab)
     if (tab === 'history' && !historical && report?.rewind?.beforeAdvisory) void rewindTo(report.rewind.beforeAdvisory)
@@ -1918,7 +1922,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     <CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} />
     <SharedResolution correlations={report?.crossRepositoryCorrelations || []} historical={historical} />
     <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} />
-    <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
+    <CaseNavigator finding={selectedFinding} findings={findings} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
