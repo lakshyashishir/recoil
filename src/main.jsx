@@ -99,6 +99,23 @@ function SourceLink({ href, children }) {
   return <a className="source-link" href={href} target="_blank" rel="noreferrer">{children || sourceHost(href)} <ExternalLink size={11} /></a>
 }
 
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+  const field = document.createElement('textarea')
+  field.value = value
+  field.setAttribute('readonly', '')
+  field.style.position = 'fixed'
+  field.style.opacity = '0'
+  document.body.appendChild(field)
+  field.select()
+  const copied = document.execCommand('copy')
+  field.remove()
+  if (!copied) throw new Error('clipboard unavailable')
+}
+
 function ThemeToggle({ theme, onToggle }) {
   const nextTheme = theme === 'dark' ? 'light' : 'dark'
   return <button className="theme-toggle" type="button" onClick={onToggle} aria-label={`Switch to ${nextTheme} mode`} title={`Switch to ${nextTheme} mode`}><span aria-hidden="true">{theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}</span><span>{theme === 'dark' ? 'Light' : 'Dark'}</span></button>
@@ -886,20 +903,7 @@ function CopyRemediationNote({ finding, challenge }) {
   const copy = async () => {
     const text = remediationNote(finding, challenge)
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-      } else {
-        const field = document.createElement('textarea')
-        field.value = text
-        field.setAttribute('readonly', '')
-        field.style.position = 'fixed'
-        field.style.opacity = '0'
-        document.body.appendChild(field)
-        field.select()
-        const copied = document.execCommand('copy')
-        field.remove()
-        if (!copied) throw new Error('clipboard unavailable')
-      }
+      await copyText(text)
       setStatus('copied')
     } catch {
       setStatus('failed')
@@ -919,20 +923,7 @@ function CopyFixCommand({ command, compact = false }) {
   if (!command) return null
   const copy = async () => {
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(command)
-      } else {
-        const field = document.createElement('textarea')
-        field.value = command
-        field.setAttribute('readonly', '')
-        field.style.position = 'fixed'
-        field.style.opacity = '0'
-        document.body.appendChild(field)
-        field.select()
-        const copied = document.execCommand('copy')
-        field.remove()
-        if (!copied) throw new Error('clipboard unavailable')
-      }
+      await copyText(command)
       setStatus('copied')
     } catch {
       setStatus('failed')
@@ -1264,6 +1255,66 @@ function ReceiptLink({ scenarioId = DEFAULT_SCENARIO_ID }) {
 
 function BriefLink({ scenarioId = DEFAULT_SCENARIO_ID }) {
   return <a className="brief-link" href={`/api/scenarios/${scenarioId}/brief`} download="recoil-evidence-brief.md"><FileText size={14} /> Download case brief</a>
+}
+
+function caseHandoffText({ report, findings = [], summary = {}, historical = false }) {
+  const packageName = report?.package || 'the affected package'
+  const result = summary.unknown
+    ? `${summary.unknown} of ${summary.totalRepositories || findings.length} repositories need review`
+    : `${summary.reached || 0} of ${summary.totalRepositories || findings.length} repositories ${summary.reached === 1 ? 'has' : 'have'} a source-backed path`
+  const lines = [
+    'Recoil evidence handoff',
+    `${report?.advisory?.id || 'Advisory unavailable'} · ${packageName}`,
+    `Result: ${result}.`,
+  ]
+  if (historical) {
+    lines.push(`View: historical snapshot as of ${report?.rewind?.asOf?.slice(0, 10) || 'an undated boundary'}.`)
+  } else if (summary.exposureDays != null) {
+    lines.push(`Timing: the earliest source-backed path was observed ${summary.exposureDays.toLocaleString()} days before disclosure.`)
+  }
+  lines.push('', 'Repository findings:')
+  for (const finding of findings) {
+    const version = finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'
+    const importer = finding.imports?.[0]
+    const detail = finding.verdict === 'REACHED'
+      ? `${version} → ${importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'sampled source'}`
+      : finding.verdict === 'DECLARED_ONLY'
+        ? `${version} in lockfile · no sampled import`
+        : finding.verdict === 'NOT_AFFECTED'
+          ? `${version} · outside affected range`
+          : finding.reason || 'evidence needs review'
+    lines.push(`- ${repositoryName(finding.repository)} · ${String(finding.verdict || 'UNKNOWN').replaceAll('_', ' ')} · ${detail}`)
+    if (finding.verdict === 'REACHED') {
+      const path = findingParts(finding).map((part) => routeDisplayPart(part, finding)).join(' → ')
+      if (path) lines.push(`  path: ${path}`)
+    }
+  }
+  if (!historical) {
+    const verified = (report?.challenge || []).filter((item) => item.status === 'FIX_SURVIVES')
+    if (verified.length) lines.push('', `Fix proof: ${verified.map((item) => `${packageName} → ${item.proposedVersion}`).join(', ')}.`)
+  }
+  lines.push('', `Evidence: ${report?.sources?.length || 0} public sources · ${report?.evidenceQuality?.sourceCoverage?.sampledFiles || 0} source files sampled.`)
+  lines.push('Boundary: static public evidence only; Recoil did not install packages, execute code, or apply a change.')
+  return lines.join('\n')
+}
+
+function CopyCaseHandoff({ report, findings, summary, historical = false }) {
+  const [status, setStatus] = useState('idle')
+  useEffect(() => {
+    if (status !== 'copied') return undefined
+    const timer = window.setTimeout(() => setStatus('idle'), 1800)
+    return () => window.clearTimeout(timer)
+  }, [status])
+  const copy = async () => {
+    try {
+      await copyText(caseHandoffText({ report, findings, summary, historical }))
+      setStatus('copied')
+    } catch {
+      setStatus('failed')
+    }
+  }
+  const label = status === 'copied' ? 'Copied handoff' : status === 'failed' ? 'Copy unavailable' : 'Copy handoff'
+  return <button className="receipt-link handoff-link" type="button" onClick={copy} aria-live="polite">{status === 'copied' ? <Check size={14} /> : <Copy size={14} />}{label}</button>
 }
 
 function summarizeFindings(findings = []) {
@@ -1817,7 +1868,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
-    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseFactsLine summary={summary} packageName={report?.package} finding={primaryFinding} challenge={primaryChallenge} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
     {!historical && <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} onOpenHistory={historyAction} />}
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
