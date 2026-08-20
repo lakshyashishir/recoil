@@ -1733,6 +1733,40 @@ function CaseRouteReadout({ finding, historical = false, onInspectProof }) {
   </section>
 }
 
+function CaseOutcomeIndex({ findings = [], challenges = [], selectedIndex = 0, onSelectFinding, historical = false }) {
+  if (findings.length < 2) return null
+  const challengeByRepository = new Map(challenges.map((challenge) => [challenge.repository, challenge]))
+  const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
+  const description = reached
+    ? 'The same advisory can produce different answers. Select a repository to inspect its evidence route.'
+    : 'Each repository is classified from its own lockfile and sampled source evidence.'
+  return <section className="case-outcome-index" aria-label="Repository outcome index">
+    <div className="case-outcome-index-heading"><div><span className="section-kicker">Repository outcomes</span><h2>{reached ? `${reached} source-backed path${reached === 1 ? '' : 's'} found.` : 'No source-backed path found.'}</h2><p>{description}</p></div><span>{findings.length} checked</span></div>
+    <div className="case-outcome-list" role="list">
+      {findings.map((finding, index) => {
+        const challenge = challengeByRepository.get(finding.repository)
+        const selected = index === selectedIndex
+        const version = finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'unresolved'
+        const evidence = finding.verdict === 'REACHED'
+          ? finding.imports?.[0] ? `${finding.imports[0].path}${finding.imports[0].line ? `:${finding.imports[0].line}` : ''}` : 'sampled source'
+          : finding.verdict === 'DECLARED_ONLY'
+            ? 'present in lockfile · no sampled import'
+            : finding.verdict === 'NOT_AFFECTED'
+              ? 'resolved outside affected range'
+              : 'source evidence needs review'
+        const action = historical ? 'dated evidence' : routeActionLabel(finding, challenge, historical)
+        return <div className="case-outcome-item" role="listitem" key={finding.repository || index}><button className={`case-outcome-row ${selected ? 'case-outcome-row-selected' : ''}`} type="button" aria-pressed={selected} onClick={() => onSelectFinding?.(index)}>
+          <span className="case-outcome-index-number">{String(index + 1).padStart(2, '0')}</span>
+          <span className="case-outcome-repository"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package'}@{version}</small></span>
+          <span className="case-outcome-evidence"><strong>{evidence}</strong><small>{finding.verdict === 'REACHED' ? `${finding.imports?.length || 0} sampled import${finding.imports?.length === 1 ? '' : 's'}` : routeEvidenceLabel(finding)}</small></span>
+          <span className="case-outcome-action"><strong>{action}</strong><small>{challenge?.proposedVersion && !historical ? `advisory-backed ${challenge.proposedVersion}` : finding.reason || 'computed from collected records'}</small></span>
+          <Verdict value={finding.verdict} compact />
+        </button></div>
+      })}
+    </div>
+  </section>
+}
+
 function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const [selectedIndex, setSelectedIndex] = useState(() => {
     const reachedIndex = report?.repositories?.findIndex((finding) => finding.verdict === 'REACHED') ?? -1
@@ -1841,6 +1875,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package || null} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} />
+    <CaseOutcomeIndex findings={findings} challenges={historical ? [] : report?.challenge || []} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} historical={historical} />
     <CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} />
     <SharedResolution correlations={report?.crossRepositoryCorrelations || []} historical={historical} />
     <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} />
