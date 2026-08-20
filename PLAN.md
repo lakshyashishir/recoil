@@ -128,6 +128,10 @@ observed path → proposed fix → residual re-check
       repository snapshots are actually recalled.
 - [x] Make the cited evidence path the default completed-case view; keep the full observed graph available
       as an inspection view with the selected route visually emphasized.
+- [x] Replace the dashboard-like completed-case metric strip with a sentence-based decision callout backed by
+      the same repository findings and advisory-backed fix challenges.
+- [x] Surface HydraDB's comparable prior-scan delta on the default report without duplicating it inside the
+      cited-path view.
 - [x] Keep focused temporal recall polling when HydraDB returns graph memories before dated reachability facts.
 - [x] Show real per-repository sampling, source-import, and citation counts in the live investigation readout.
 - [x] Keep strict CLI recording open while the API-backed case reconciles an explicitly pending HydraDB batch.
