@@ -1728,9 +1728,9 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   })
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
-  // The observed graph is the primary case surface. The cited-path view stays
-  // one click away for a reviewer who wants the shortest textual explanation.
-  const [graphView, setGraphView] = useState(true)
+  // Start with the cited paths that decide the case. The full observed graph
+  // remains one click away for reviewers who want topology and local imports.
+  const [graphView, setGraphView] = useState(false)
   const [graphReplayToken, setGraphReplayToken] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyTarget, setHistoryTarget] = useState(null)
