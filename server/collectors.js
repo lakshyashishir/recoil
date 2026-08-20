@@ -140,8 +140,13 @@ function githubSourceUrl(repository, path) {
 
 export async function readRawGitHubFile(repository, path) {
   const rawUrl = `https://raw.githubusercontent.com/${repository.slug}/${repositoryRef(repository)}/${path}`
+  const sourceUrl = githubSourceUrl(repository, path)
   const cached = readCache(rawUrl)
-  if (cached !== null) return cached
+  if (cached !== null) {
+    return cached
+      ? { ...cached, sourceUrl, contentUrl: cached.contentUrl || rawUrl }
+      : cached
+  }
   let response
   try {
     response = await fetchWithNetworkRetry(rawUrl, { headers: { 'user-agent': 'Recoil-HackHydra/0.1', ...githubHeaders() } })
@@ -150,7 +155,11 @@ export async function readRawGitHubFile(repository, path) {
   }
   if (response.status === 404) return null
   if (!response.ok) throw httpError(response, rawUrl)
-  const file = { path, sourceUrl: rawUrl, text: await response.text() }
+  // Fetch from raw GitHub content for reliable parsing, but keep the public
+  // citation on the normal GitHub file view so a reviewer can browse context,
+  // blame, and surrounding lines. `contentUrl` remains available for cache
+  // provenance without leaking the ingestion endpoint into the report.
+  const file = { path, sourceUrl, contentUrl: rawUrl, text: await response.text() }
   writeCache(rawUrl, {}, file)
   return file
 }

@@ -77,7 +77,7 @@ test('raw GitHub source reads replay from the bounded cache', async () => {
   }
 })
 
-test('known repository files prefer raw content and reuse the recursive tree for workflows', async () => {
+test('known repository files parse raw content but cite the browsable GitHub view', async () => {
   const previousFetch = globalThis.fetch
   const previousCache = process.env.RECOIL_CACHE_DIR
   process.env.RECOIL_CACHE_DIR = '/dev/null'
@@ -107,8 +107,8 @@ test('known repository files prefer raw content and reuse the recursive tree for
 
   try {
     const repository = await collectRepository({ owner: 'example', name: 'raw-app', slug: 'example/raw-app' }, 'minimist')
-    assert.equal(repository.sourceUrl, 'https://raw.githubusercontent.com/example/raw-app/HEAD/package.json')
-    assert.ok(repository.sources.some((source) => source.url === 'https://raw.githubusercontent.com/example/raw-app/HEAD/package-lock.json'))
+    assert.equal(repository.sourceUrl, 'https://github.com/example/raw-app/blob/HEAD/package.json')
+    assert.ok(repository.sources.some((source) => source.url === 'https://github.com/example/raw-app/blob/HEAD/package-lock.json'))
     assert.equal(repository.manifest.ciSignals.status, 'collected')
     assert.deepEqual(repository.manifest.ciSignals.workflowFiles, ['.github/workflows/ci.yml'])
     assert.equal(requests.some((url) => url.hostname === 'api.github.com' && url.pathname.endsWith('/contents/package.json')), false)
