@@ -2,9 +2,9 @@ import { Component, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowLeft, ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, FileText, GitBranch, History, Inbox, LoaderCircle, Moon, PackageCheck, Plus, RotateCcw, Search, ShieldCheck, Sun, Terminal, Waypoints } from 'lucide-react'
 import { recordingBlockers as getRecordingBlockers } from './core/recording.js'
-import '@fontsource/poppins/latin-400.css'
-import '@fontsource/poppins/latin-500.css'
-import '@fontsource/poppins/latin-600.css'
+import '@fontsource/outfit/latin-400.css'
+import '@fontsource/outfit/latin-500.css'
+import '@fontsource/outfit/latin-600.css'
 import '@fontsource/ibm-plex-mono/latin-400.css'
 import '@fontsource/ibm-plex-mono/latin-500.css'
 import '@fontsource/ibm-plex-mono/latin-600.css'
@@ -665,9 +665,10 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
             if (!start || !end) return null
             const key = `${from}>${to}`
             const isSelected = selectedEdges.has(key)
+            const selectedVerdict = isSelected ? String(selectedFinding?.verdict || '').toLowerCase() : ''
             const fromNode = layout.nodes.find((node) => node.id === from)
             const toNode = layout.nodes.find((node) => node.id === to)
-            return <g key={key}><line className={`map-edge ${isSelected ? 'map-edge-selected' : ''}`} style={isSelected ? { '--map-route-delay': `${(selectedEdgeOrder.get(key) || 0) * 45}ms` } : undefined} x1={start.x + 77} y1={start.y} x2={end.x - 77} y2={end.y} markerEnd="url(#recoil-arrow)" />{isSelected && <text className="map-edge-label" x={(start.x + end.x) / 2} y={(start.y + end.y) / 2 - 5} textAnchor="middle">{graphEdgeLabel(fromNode, toNode)}</text>}</g>
+            return <g key={key}><line className={`map-edge ${isSelected ? 'map-edge-selected' : ''} ${selectedVerdict ? `map-edge-${selectedVerdict}` : ''}`} style={isSelected ? { '--map-route-delay': `${(selectedEdgeOrder.get(key) || 0) * 45}ms` } : undefined} x1={start.x + 77} y1={start.y} x2={end.x - 77} y2={end.y} markerEnd="url(#recoil-arrow)" />{isSelected && <text className={`map-edge-label ${selectedVerdict ? `map-edge-label-${selectedVerdict}` : ''}`} x={(start.x + end.x) / 2} y={(start.y + end.y) / 2 - 5} textAnchor="middle">{graphEdgeLabel(fromNode, toNode)}</text>}</g>
           })}
         </g>
         <g className="map-nodes">

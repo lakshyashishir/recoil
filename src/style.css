@@ -1464,41 +1464,41 @@ body { font-family: var(--sans); line-height: 1.45; }
 .trace-fix-status.is-verified { color: var(--green); }
 .case-proof-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; color: var(--accent); background: transparent; font-size: 11px; }
 
-/* Console color contract. Elegant Luxury registry tokens are mapped onto
-   Recoil's operational semantics; green remains reserved for verified state. */
+/* Console color contract. Supabase registry neutrals are mapped onto Recoil's
+   operational semantics. Green is the sole interaction and verified accent. */
 .console-shell {
-  --console-bg: oklch(0.2161 0.0061 56.0434);
-  --console-sidebar-bg: oklch(0.2291 0.006 56.0708);
-  --console-panel: oklch(0.2685 0.0063 34.2976);
-  --console-raised: oklch(0.3 0.007 45);
-  --console-hover: oklch(0.32 0.009 56);
-  --console-line: oklch(0.3741 0.0087 67.5582);
-  --console-line-soft: oklch(0.31 0.007 60);
-  --console-text: oklch(0.9699 0.0013 106.4238);
-  --console-muted: oklch(0.8687 0.0043 56.366);
-  --console-faint: oklch(0.68 0.006 56);
-  --console-accent: oklch(0.6368 0.2078 25.3313);
-  --console-danger: oklch(0.7106 0.1661 22.2162);
-  --console-safe: oklch(0.72 0.095 153);
+  --console-bg: oklch(0.1822 0 0);
+  --console-sidebar-bg: oklch(0.1822 0 0);
+  --console-panel: oklch(0.2046 0 0);
+  --console-raised: oklch(0.2603 0 0);
+  --console-hover: oklch(0.3132 0 0);
+  --console-line: oklch(0.2809 0 0);
+  --console-line-soft: oklch(0.2393 0 0);
+  --console-text: oklch(0.9288 0.0126 255.5078);
+  --console-muted: oklch(0.7122 0 0);
+  --console-faint: oklch(0.6301 0 0);
+  --console-accent: oklch(0.8003 0.1821 151.711);
+  --console-danger: oklch(0.72 0.16 32.7272);
+  --console-safe: oklch(0.8003 0.1821 151.711);
   --console-warning: oklch(0.8369 0.1644 84.4286);
   background: var(--console-bg);
   color: var(--console-text);
 }
 [data-theme="light"] .console-shell {
-  --console-bg: oklch(0.9779 0.0042 56.3756);
-  --console-sidebar-bg: oklch(0.9431 0.0068 53.4442);
-  --console-panel: oklch(0.99 0.002 56);
-  --console-raised: oklch(0.9625 0.0385 89.0943);
-  --console-hover: oklch(0.952 0.027 86);
-  --console-line: oklch(0.9355 0.0324 80.9937);
-  --console-line-soft: oklch(0.9431 0.0068 53.4442);
-  --console-text: oklch(0.2178 0 0);
-  --console-muted: oklch(0.4444 0.0096 73.639);
-  --console-faint: oklch(0.58 0.012 74);
-  --console-accent: oklch(0.465 0.147 24.9381);
-  --console-danger: oklch(0.4437 0.1613 26.8994);
-  --console-safe: oklch(0.48 0.09 153);
-  --console-warning: oklch(0.4732 0.1247 46.2007);
+  --console-bg: oklch(0.975 0.004 155);
+  --console-sidebar-bg: oklch(0.955 0.006 155);
+  --console-panel: oklch(0.995 0.001 155);
+  --console-raised: oklch(0.94 0.006 155);
+  --console-hover: oklch(0.92 0.008 155);
+  --console-line: oklch(0.885 0.008 155);
+  --console-line-soft: oklch(0.93 0.006 155);
+  --console-text: oklch(0.2046 0 0);
+  --console-muted: oklch(0.4386 0 0);
+  --console-faint: oklch(0.5452 0 0);
+  --console-accent: oklch(0.5 0.13 158);
+  --console-danger: oklch(0.5523 0.1927 32.7272);
+  --console-safe: oklch(0.48 0.12 158);
+  --console-warning: oklch(0.58 0.13 70.0804);
   background: var(--console-bg);
   color: var(--console-text);
 }
@@ -2768,48 +2768,51 @@ textarea { caret-color: var(--accent); }
   }
 }
 
-/* Elegant Luxury theme experiment, adapted from the tweakcn registry. The
- * product keeps one sans family and reserves color for interaction/state. */
+/* Supabase theme experiment, adapted from the tweakcn registry. Its mint
+ * primary is darkened for accessible text while surfaces retain exact tokens. */
 :root {
   color-scheme: light;
-  --bg: oklch(0.9779 0.0042 56.3756);
-  --surface: oklch(0.99 0.002 56);
-  --surface-raised: oklch(0.9431 0.0068 53.4442);
-  --surface-soft: oklch(0.9625 0.0385 89.0943);
-  --line: oklch(0.9355 0.0324 80.9937);
-  --line-soft: oklch(0.9431 0.0068 53.4442);
-  --text: oklch(0.2178 0 0);
-  --muted: oklch(0.4444 0.0096 73.639);
-  --faint: oklch(0.58 0.012 74);
-  --accent: oklch(0.465 0.147 24.9381);
-  --green: oklch(0.48 0.09 153);
-  --red: oklch(0.4437 0.1613 26.8994);
-  --blue: oklch(0.465 0.147 24.9381);
-  --button-text: oklch(1 0 0);
-  --sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --bg: oklch(0.975 0.004 155);
+  --surface: oklch(0.995 0.001 155);
+  --surface-raised: oklch(0.94 0.006 155);
+  --surface-soft: oklch(0.96 0.006 155);
+  --line: oklch(0.885 0.008 155);
+  --line-soft: oklch(0.93 0.006 155);
+  --text: oklch(0.2046 0 0);
+  --muted: oklch(0.4386 0 0);
+  --faint: oklch(0.5452 0 0);
+  --accent: oklch(0.5 0.13 158);
+  --green: oklch(0.48 0.12 158);
+  --red: oklch(0.5523 0.1927 32.7272);
+  --warning: oklch(0.58 0.13 70.0804);
+  --blue: oklch(0.5 0.13 158);
+  --button-text: oklch(0.9851 0 0);
+  --sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-  --radius: 6px;
+  --radius: 8px;
+  --tracking-normal: .012em;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: oklch(0.2161 0.0061 56.0434);
-  --surface: oklch(0.2685 0.0063 34.2976);
-  --surface-raised: oklch(0.3 0.007 45);
-  --surface-soft: oklch(0.2291 0.006 56.0708);
-  --line: oklch(0.3741 0.0087 67.5582);
-  --line-soft: oklch(0.31 0.007 60);
-  --text: oklch(0.9699 0.0013 106.4238);
-  --muted: oklch(0.8687 0.0043 56.366);
-  --faint: oklch(0.68 0.006 56);
-  --accent: oklch(0.6368 0.2078 25.3313);
-  --green: oklch(0.72 0.095 153);
-  --red: oklch(0.7106 0.1661 22.2162);
-  --blue: oklch(0.6368 0.2078 25.3313);
-  --button-text: oklch(0.9779 0.0042 56.3756);
+  --bg: oklch(0.1822 0 0);
+  --surface: oklch(0.2046 0 0);
+  --surface-raised: oklch(0.2603 0 0);
+  --surface-soft: oklch(0.2393 0 0);
+  --line: oklch(0.2809 0 0);
+  --line-soft: oklch(0.2393 0 0);
+  --text: oklch(0.9288 0.0126 255.5078);
+  --muted: oklch(0.7122 0 0);
+  --faint: oklch(0.6301 0 0);
+  --accent: oklch(0.8003 0.1821 151.711);
+  --green: oklch(0.8003 0.1821 151.711);
+  --red: oklch(0.72 0.16 32.7272);
+  --warning: oklch(0.8369 0.1644 84.4286);
+  --blue: oklch(0.8003 0.1821 151.711);
+  --button-text: oklch(0.1822 0 0);
 }
 
-body { background: var(--bg); color: var(--text); }
+body { background: var(--bg); color: var(--text); letter-spacing: var(--tracking-normal); }
 ::selection { color: var(--button-text); background: var(--accent); }
 .landing-footer { display: none; }
 .landing-page { grid-template-rows: auto 1fr; min-height: 100dvh; padding: 24px clamp(22px, 5vw, 72px); }
@@ -2899,6 +2902,20 @@ body { background: var(--bg); color: var(--text); }
 .map-node:not(.node-selected) { opacity: .72; }
 .map-node rect { fill: var(--surface-raised); stroke: var(--line); }
 .map-node.node-selected rect { fill: color-mix(in srgb, var(--accent) 13%, var(--surface)); stroke: var(--accent); stroke-width: 1.6; }
+.map-node.node-reached rect, .map-node.node-selected.node-reached rect { fill: color-mix(in srgb, var(--red) 9%, var(--surface)); stroke: var(--red); }
+.map-node.node-declared_only rect, .map-node.node-selected.node-declared_only rect { fill: color-mix(in srgb, var(--warning) 8%, var(--surface)); stroke: var(--warning); }
+.map-node.node-not_affected rect, .map-node.node-selected.node-not_affected rect { fill: color-mix(in srgb, var(--green) 8%, var(--surface)); stroke: var(--green); }
+.map-edge-selected.map-edge-reached { color: var(--red); }
+.map-edge-selected.map-edge-declared_only { color: var(--warning); }
+.map-edge-selected.map-edge-not_affected { color: var(--green); }
+.map-edge-selected.map-edge-unknown { color: var(--faint); }
+.map-edge-label-reached { fill: var(--red); }
+.map-edge-label-declared_only { fill: var(--warning); }
+.map-edge-label-not_affected { fill: var(--green); }
+.map-edge-label-unknown { fill: var(--faint); }
+.legend-declared, .shared-resolution-declared_only { background: var(--warning); }
+.verdict-declared_only, .reachability-ledger-cell-declared strong, .live-repository-verdict-declared_only .live-repository-status { color: var(--warning); }
+.map-node.node-declared_only rect { stroke: var(--warning); }
 .map-node-label { font-size: 10px; }
 .map-direction { display: none; }
 .map-legend { padding: 11px 16px; }
