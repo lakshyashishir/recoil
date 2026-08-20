@@ -130,6 +130,7 @@ observed path → proposed fix → residual re-check
       as an inspection view with the selected route visually emphasized.
 - [x] Keep focused temporal recall polling when HydraDB returns graph memories before dated reachability facts.
 - [x] Show real per-repository sampling, source-import, and citation counts in the live investigation readout.
+- [x] Keep strict CLI recording open while the API-backed case reconciles an explicitly pending HydraDB batch.
 
 ### Still required before calling the hackathon build complete
 

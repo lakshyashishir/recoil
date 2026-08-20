@@ -187,7 +187,12 @@ async function main() {
     snapshot = directRecord ? getScenarioSnapshot(directRecord) : await request(`/api/scenarios/${id}`)
     printEvents(snapshot.investigation?.events, seen)
     const status = snapshot.investigation?.status
-    if (status === 'complete' || status === 'failed') break
+    const hydra = snapshot.investigation?.hydra
+    const waitingForHydra = recordingMode
+      && status === 'complete'
+      && hydra?.status === 'queued'
+      && hydra?.indexingPending === true
+    if ((status === 'complete' || status === 'failed') && !waitingForHydra) break
     if (Date.now() - startedAt > maxWaitMs) throw new Error(`Investigation exceeded ${maxWaitMs / 1000}s; inspect case ${id} through the API`)
     await sleep(pollDelay)
   }

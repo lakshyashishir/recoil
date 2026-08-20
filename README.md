@@ -288,7 +288,7 @@ npm run tui -- --direct "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository
 npm run tui -- --recording "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository-a https://github.com/owner/repository-b https://github.com/owner/repository-c"
 ```
 
-The primary browser and CLI flows are autonomous: one investigation request starts collection, classification, temporal proof, HydraDB persistence/recall, and the final report. There are no run-loop or step buttons in this path.
+The primary browser and CLI flows are autonomous: one investigation request starts collection, classification, temporal proof, HydraDB persistence/recall, and the final report. There are no run-loop or step buttons in this path. In strict CLI recording mode, the client also waits for an explicitly pending HydraDB batch to reconcile before evaluating the recording gate; ordinary reports remain available while a non-strict write is queued.
 Strict TUI recording mode performs the same connectivity check before starting its investigation.
 
 ## API flow
