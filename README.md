@@ -63,7 +63,9 @@ The proof sequence is evidence-first:
 
 The completed browser report opens on one cited path per repository so the decision is readable before
 the reviewer chooses to inspect the denser observed entity graph. The full graph is still available from
-the report, but it is an inspection surface rather than the verdict itself.
+the report, but it is an inspection surface rather than the verdict itself. In graph view, **Replay route** only
+replays the currently selected nodes and edges already collected for the case; it does not run a second scan,
+simulate a traversal, or add evidence.
 
 This is a bounded defensive analysis. Recoil never installs dependencies, executes public repository code, sends exploit payloads, or probes a live target.
 
