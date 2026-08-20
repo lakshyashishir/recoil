@@ -1723,10 +1723,9 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   })
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
-  // Start with the cited path because it is the shortest truthful explanation
-  // of the case. The complete observed graph remains one click away for
-  // reviewers who want to inspect the wider topology.
-  const [graphView, setGraphView] = useState(false)
+  // The observed graph is the primary case surface. The cited-path view stays
+  // one click away for a reviewer who wants the shortest textual explanation.
+  const [graphView, setGraphView] = useState(true)
   const [graphReplayToken, setGraphReplayToken] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyTarget, setHistoryTarget] = useState(null)
@@ -1815,9 +1814,6 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseFactsLine summary={summary} packageName={report?.package} challenge={primaryChallenge} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
-    <CasePathStrip finding={selectedFinding} report={report} historical={historical} />
-    <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} />
-    <CaseSourcePreview finding={selectedFinding} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
@@ -1825,6 +1821,9 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
       {activeTab === 'history' && <><HydraComparisonLine findings={findings} challenges={historical ? [] : report?.challenge || []} report={report} hydra={hydra} historical={historical} /><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
     </div>
+    <CasePathStrip finding={selectedFinding} report={report} historical={historical} />
+    <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} />
+    <CaseSourcePreview finding={selectedFinding} historical={historical} />
     <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} hydra={hydra} />
   </main>
 }
