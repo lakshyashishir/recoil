@@ -667,12 +667,15 @@ function sourceCoverageLabel(finding) {
     : `${sampled} eligible files sampled`
 }
 
-function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false, compact = false }) {
+function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false, compact = false, onInspectProof }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
+  const selectedFinding = findings[selectedIndex]
+  const selectedChallenge = challenges.find((item) => item.repository === selectedFinding?.repository)
   return <aside className="route-panel">
     <div className="route-panel-heading"><div><span className="section-kicker">Repository outcomes</span><h2>{compact ? 'What each repository means' : 'What to do with each repository'}</h2></div><span>{findings.length} checked</span></div>
     <p className="route-panel-note">{compact ? 'The cited paths above carry the detail; select a row to keep one repository in focus.' : 'Select a row to inspect its cited source evidence below.'}</p>
     {reached > 0 && <div className="route-panel-callout"><CircleAlert size={15} /><span>{reached} {reached === 1 ? 'repository reaches' : 'repositories reach'} the affected code in sampled source.</span></div>}
+    {!compact && <SelectedRoute finding={selectedFinding} challenge={selectedChallenge} historical={historical} onInspectProof={onInspectProof} />}
     <div className={`route-list comparison-matrix ${compact ? 'route-list-compact' : ''}`} role="list" aria-label="Repository decisions">
       {!compact && <div className="comparison-matrix-header" aria-hidden="true"><span /> <span>Repository</span><span>Resolution</span><span>Source use</span><span>Next action</span><span /></div>}
       {findings.map((finding, index) => {
@@ -727,6 +730,39 @@ function ImportProof({ finding }) {
   if (!imports.length) return <div className="import-proof import-proof-empty"><FileCode2 size={16} /><div><span className="section-kicker">Source check</span><strong>No sampled import</strong><p>{finding?.verdict === 'DECLARED_ONLY' ? 'The package is present in the lockfile, but no sampled source file imports it.' : finding?.sourceBound || 'The source evidence does not support a stronger conclusion.'}</p></div></div>
   const importLabel = `${imports.length} sampled import site${imports.length === 1 ? '' : 's'}`
   return <div className="import-proof"><FileCode2 size={16} /><div><span className="section-kicker">Observed in source</span><strong>{importLabel}</strong>{imports.length === 1 ? <ImportSite importer={imports[0]} packageName={finding.packageName} /> : <details className="import-proof-details"><summary>Inspect all source sites</summary><div className="import-proof-list">{imports.map((importer, index) => <ImportSite key={`${importer.path}-${importer.line || index}`} importer={importer} packageName={finding.packageName} />)}</div></details>}</div></div>
+}
+
+function SelectedRoute({ finding, challenge, historical = false, onInspectProof }) {
+  if (!finding) return null
+  const importer = finding.imports?.[0]
+  const version = finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'
+  const change = finding.changeEvidence?.importerFilesChanged?.[0]
+  const owners = [...new Set(finding.changeEvidence?.importerFilesChanged?.flatMap((item) => item.owners || []) || [])]
+  const action = routeActionLabel(finding, challenge, historical)
+  const sourceLabel = importer
+    ? `${importer.path}${importer.line ? `:${importer.line}` : ''}`
+    : finding.verdict === 'DECLARED_ONLY'
+      ? 'No sampled import'
+      : finding.verdict === 'NOT_AFFECTED'
+        ? 'Semver check only'
+        : 'Evidence needs review'
+  const source = importer?.sourceUrl || finding.lockfileSource || finding.evidenceSources?.[0]
+  return <section className="route-selected" aria-label="Selected repository evidence">
+    <div className="route-selected-heading"><span>Selected repository</span><Verdict value={finding.verdict} compact /></div>
+    <strong>{repositoryName(finding.repository)}</strong>
+    <p>{finding.reason || 'The available public evidence does not support a stronger conclusion.'}</p>
+    <dl>
+      <div><dt>Resolution</dt><dd>{finding.packageName ? `${finding.packageName}@${version}` : version}</dd></div>
+      <div><dt>Next action</dt><dd>{action}</dd></div>
+    </dl>
+    <div className="route-selected-proof">
+      <div><span>Source check</span><strong>{sourceLabel}</strong></div>
+      <div><span>Evidence scope</span><strong>{sourceCoverageLabel(finding) || 'public record'}</strong></div>
+    </div>
+    {importer?.snippet && <div className="route-selected-snippet"><span>Observed line</span><code>{importer.snippet}</code></div>}
+    {change && <div className="route-selected-change"><span>Latest importer change</span><strong>{change.symbols?.length ? change.symbols.join(', ') : finding.changeEvidence.message || 'public change touched the importer'}</strong><small>{finding.changeEvidence.committedAt?.slice(0, 10) || 'date unavailable'}{owners.length ? ` · ${owners.join(', ')}` : ''}</small></div>}
+    <div className="route-selected-actions">{source && <SourceLink href={source}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}{!historical && onInspectProof && <button className="route-selected-action" type="button" onClick={onInspectProof}>Open proof <ArrowUpRight size={13} /></button>}</div>
+  </section>
 }
 
 function SourceImpactEvidence({ finding }) {
@@ -1539,7 +1575,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     <HydraComparisonLine findings={findings} challenges={historical ? [] : report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
-      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
+      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={primaryFinding} challenge={primaryChallenge} earliestReached={earliestReached} onInspectProof={() => inspectProof(primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
