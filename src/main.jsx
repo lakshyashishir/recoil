@@ -1,6 +1,7 @@
 import { Component, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Download, ExternalLink, FileCode2, FileText, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
+import { recordingBlockers as getRecordingBlockers } from './core/recording.js'
 import './style.css'
 
 const DEFAULT_SCENARIO_ID = '0017'
@@ -1293,7 +1294,7 @@ function CaseChronology({ finding, report, challenge, historical, onOpenHistory 
   </section>
 }
 
-function IntegrityDetails({ report, hydra, evidenceStatus }) {
+function IntegrityDetails({ report, hydra, evidenceStatus, historical = false }) {
   const quality = report?.evidenceQuality || {}
   const coverage = quality.sourceCoverage || {}
   const sourceCount = report?.sources?.length || 0
@@ -1309,7 +1310,9 @@ function IntegrityDetails({ report, hydra, evidenceStatus }) {
         : 'module-level only'
   const graphVerification = hydra?.graphVerification
   const graphRelation = graphVerification?.graphContext?.triplets?.[0]
-  return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.note || (scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.')}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div>{graphVerification && <div className={`audit-graph-verification audit-graph-verification-${graphVerification.status}`}><div><span className="section-kicker">Current HydraDB graph read</span><strong>{graphVerification.status === 'verified' ? `${graphVerification.tripletCount || 0} scoped relation${graphVerification.tripletCount === 1 ? '' : 's'} returned` : graphVerification.status.replaceAll('_', ' ')}</strong><p>{graphRelation ? `${graphRelation.source} ${graphRelation.predicate || 'connected to'} ${graphRelation.target}` : graphVerification.reason || 'The current case graph was not returned by the scoped read.'}</p></div><span>{graphVerification.memoryCount || 0} observed-graph memor{graphVerification.memoryCount === 1 ? 'y' : 'ies'}</span></div>}<p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of runtime execution.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
+  const strictRecordingReady = !historical && getRecordingBlockers({ report, evidenceStatus, hydra, requireContrast: true, requireHydra: true }).length === 0
+  const auditStatus = strictRecordingReady ? 'recording-ready' : quality.readyForRecording ? 'evidence gate passed' : 'review required'
+  return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{auditStatus}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.note || (scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.')}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div>{graphVerification && <div className={`audit-graph-verification audit-graph-verification-${graphVerification.status}`}><div><span className="section-kicker">Current HydraDB graph read</span><strong>{graphVerification.status === 'verified' ? `${graphVerification.tripletCount || 0} scoped relation${graphVerification.tripletCount === 1 ? '' : 's'} returned` : graphVerification.status.replaceAll('_', ' ')}</strong><p>{graphRelation ? `${graphRelation.source} ${graphRelation.predicate || 'connected to'} ${graphRelation.target}` : graphVerification.reason || 'The current case graph was not returned by the scoped read.'}</p></div><span>{graphVerification.memoryCount || 0} observed-graph memor{graphVerification.memoryCount === 1 ? 'y' : 'ies'}</span></div>}<p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of runtime execution.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
 }
 
 function ReceiptLink({ scenarioId = DEFAULT_SCENARIO_ID }) {
@@ -1895,12 +1898,15 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const recordingReady = report?.evidenceQuality?.readyForRecording
   const hydraReady = hydra?.status === 'persisted' && hydra?.recall?.status === 'recalled' && !hydra?.indexingError
   const hydraSkipped = hydra?.status === 'skipped'
+  const strictRecordingReady = getRecordingBlockers({ report, evidenceStatus, hydra, requireContrast: true, requireHydra: true }).length === 0
   const reportState = !recordingReady
     ? { label: 'Review required', icon: 'working', className: '' }
     : hydra?.recall?.status === 'failed'
       ? { label: 'HydraDB read failed', icon: 'failed', className: 'case-state-error' }
-      : hydraReady
+      : strictRecordingReady
         ? { label: 'Recording-ready', icon: 'complete', className: 'case-state-ready' }
+        : hydraReady
+          ? { label: 'Evidence ready', icon: 'complete', className: 'case-state-ready' }
         : hydraSkipped
           ? { label: 'Local evidence ready', icon: 'complete', className: 'case-state-local' }
           : { label: 'HydraDB pending', icon: 'working', className: 'case-state-pending' }
@@ -1974,7 +1980,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
-      {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
+      {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} historical={historical} />}
     </div>
     <CaseConclusion report={report} findings={findings} historical={historical} hydra={hydra} />
   </main>
