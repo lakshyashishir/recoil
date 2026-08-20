@@ -182,6 +182,20 @@ test('HydraDB graph payload preserves observed package dependency edges', () => 
   assert.equal(graphMemory._recoilGraphPayload.relations[0].predicate, 'DEPENDS_ON')
 })
 
+test('HydraDB stores a repository negative result without submitting an empty graph payload', () => {
+  const memories = buildInvestigationMemories({
+    scenarioId: 'negative-inventory-test',
+    mode: 'repository',
+    package: null,
+    discovery: { status: 'completed', packagesChecked: 40, advisoryCount: 0, sourceUrl: 'https://api.osv.dev/v1/querybatch' },
+    sources: ['https://github.com/example/app'],
+    graph: { nodes: [], edges: [] },
+  }, { advisory: null, generatedAt: '2026-08-20T00:00:00.000Z', repositories: [], challenge: [], crossRepositoryCorrelations: [] })
+  assert.ok(memories.some((memory) => memory.additional_metadata.recoil_kind === 'inventory_scan'))
+  const graphMemory = memories.find((memory) => memory.additional_metadata.recoil_kind === 'observed_graph')
+  assert.equal('_recoilGraphPayload' in graphMemory, false)
+})
+
 test('HydraDB graph payload preserves local source imports as typed edges', () => {
   const memories = buildInvestigationMemories({
     scenarioId: 'source-cone-graph-test',

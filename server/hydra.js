@@ -560,15 +560,27 @@ export function buildInvestigationMemories(ingestion, report) {
   const advisory = report.advisory
   const graph = ingestion.graph || { nodes: [], edges: [] }
   const memories = []
-  memories.push(temporalMemory({
-    id: `recoil:temporal:advisory:${stableId(`${scenarioId}:${advisory?.id || ingestion.package}`)}`,
-    title: `Recoil advisory fact · ${advisory?.id || ingestion.package || 'unknown'}`,
-    kind: 'temporal_fact',
-    scenarioId,
-    validFrom: advisory?.published,
-    sourceUrls: [advisory?.sourceUrl].filter(Boolean),
-    text: `# Advisory fact\n\n- Advisory: ${advisory?.id || 'unknown'}\n- Package: ${ingestion.package || 'unknown'}\n- Published: ${advisory?.published || 'unknown'}\n- Fixed versions: ${(advisory?.fixedVersions || []).join(', ') || 'not available'}\n- Validated symbol scope: ${ingestion.advisoryScope?.status || 'not requested'}\n- Candidate symbols: ${(ingestion.advisoryScope?.affectedSymbols || []).map((item) => item.name).join(', ') || 'none'}\n- Source: ${advisory?.sourceUrl || 'not available'}`,
-  }))
+  if (advisory?.id || ingestion.package) {
+    memories.push(temporalMemory({
+      id: `recoil:temporal:advisory:${stableId(`${scenarioId}:${advisory?.id || ingestion.package}`)}`,
+      title: `Recoil advisory fact · ${advisory?.id || ingestion.package || 'unknown'}`,
+      kind: 'temporal_fact',
+      scenarioId,
+      validFrom: advisory?.published,
+      sourceUrls: [advisory?.sourceUrl].filter(Boolean),
+      text: `# Advisory fact\n\n- Advisory: ${advisory?.id || 'unknown'}\n- Package: ${ingestion.package || 'unknown'}\n- Published: ${advisory?.published || 'unknown'}\n- Fixed versions: ${(advisory?.fixedVersions || []).join(', ') || 'not available'}\n- Validated symbol scope: ${ingestion.advisoryScope?.status || 'not requested'}\n- Candidate symbols: ${(ingestion.advisoryScope?.affectedSymbols || []).map((item) => item.name).join(', ') || 'none'}\n- Source: ${advisory?.sourceUrl || 'not available'}`,
+    }))
+  } else if (ingestion.mode === 'repository' && ingestion.discovery?.status === 'completed') {
+    memories.push(temporalMemory({
+      id: `recoil:temporal:inventory:${stableId(scenarioId)}`,
+      title: `Recoil inventory scan · ${scenarioId}`,
+      kind: 'inventory_scan',
+      scenarioId,
+      validFrom: report.generatedAt || ingestion.completedAt || new Date().toISOString(),
+      sourceUrls: [ingestion.discovery.sourceUrl, ...(ingestion.sources || [])].filter(Boolean),
+      text: `# Repository inventory scan\n\n- Case: ${scenarioId}\n- Packages checked: ${ingestion.discovery.packagesChecked || 0}\n- Affected advisories: ${ingestion.discovery.advisoryCount || 0}\n- Result: no affected advisory matched the recorded dependency inventory.\n- Scope: public manifests and lockfiles only; no package code was installed or executed.\n- Source: ${ingestion.discovery.sourceUrl || 'not available'}`,
+    }))
+  }
   memories.push(memory({
     id: `recoil:observed-graph:${stableId(`${scenarioId}:${ingestion.package || advisory?.id || 'unknown'}`)}`,
     title: `Recoil observed graph · ${ingestion.package || advisory?.id || 'unknown'}`,
@@ -581,7 +593,7 @@ export function buildInvestigationMemories(ingestion, report) {
       recoil_graph_edge_count: graph.edges.length,
       source_urls: sourceMetadata(ingestion.sources || []),
     },
-    graphPayload: buildGraphPayload(graph, report.generatedAt),
+    graphPayload: graph.edges?.length ? buildGraphPayload(graph, report.generatedAt) : null,
   }))
   for (const correlation of report.crossRepositoryCorrelations || []) {
     const datedObservations = (correlation.repositories || []).map((item) => item.pathObservedAt).filter(Boolean).sort()
@@ -747,6 +759,7 @@ export async function recallTemporal(queryText, asOf, signal, { excludeScenarioI
 export async function recallStoredGraph(scenarioId, packageName = null, graph = null, signal) {
   if (!enabled()) return { status: 'skipped', scenarioId, graphContext: null, memoryCount: 0, tripletCount: 0, sourceIds: [] }
   if (!scenarioId) return { status: 'skipped', reason: 'No scenario ID was supplied for graph verification', graphContext: null, memoryCount: 0, tripletCount: 0, sourceIds: [] }
+  if (!observedGraphEdges(graph).length) return { status: 'skipped', reason: 'The current observed graph has no relationships to verify', scenarioId, graphContext: null, memoryCount: 0, tripletCount: 0, sourceIds: [] }
   const edgeTerms = observedGraphEdges(graph)
     .sort((left, right) => (left.from.type === 'code' && left.to.type === 'code' ? -1 : 0) - (right.from.type === 'code' && right.to.type === 'code' ? -1 : 0))
     .slice(0, 3)
