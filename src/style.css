@@ -589,6 +589,13 @@ h1, h2, p { margin-top: 0; }
 .incident-repository-list > button { width: 100%; min-height: 54px; padding: 8px 0; border-top: 1px solid var(--console-line-soft); color: var(--console-muted); background: transparent; text-align: left; }
 .incident-repository-list > button:hover { color: var(--console-text); background: var(--console-hover); }
 .incident-repository-list > button strong, .incident-repository-list > button > span:not(.verdict) { overflow: hidden; font: 10px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.incident-proof-overlay { position: fixed; z-index: 40; inset: 0; display: flex; justify-content: flex-end; background: rgb(0 0 0 / .46); animation: console-fade-in .18s ease-out both; }
+.incident-proof-drawer { width: min(390px, 100%); height: 100dvh; overflow-y: auto; padding: 17px; border-left: 1px solid var(--console-line); background: var(--console-sidebar-bg); box-shadow: -20px 0 60px rgb(0 0 0 / .2); animation: proof-drawer-in .24s cubic-bezier(.22, .8, .3, 1) both; }
+.incident-proof-close { display: block; margin: 0 0 12px auto; padding: 6px 8px; border: 1px solid var(--console-line); border-radius: 3px; color: var(--console-muted); background: transparent; font-size: 9px; }
+.incident-proof-close:hover { border-color: var(--console-accent); color: var(--console-text); }
+.incident-proof-drawer .selected-finding-panel { position: static; border: 0; padding: 0; background: transparent; }
+@keyframes console-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes proof-drawer-in { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: translateX(0); } }
 
 .watch-repository-form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 9px; align-items: center; margin-top: 24px; padding: 8px 9px 8px 13px; border: 1px solid var(--console-line); color: var(--console-faint); background: var(--console-panel); }
 .watch-repository-form input { min-width: 0; border: 0; outline: 0; color: var(--console-text); background: transparent; font: 11px/1.3 var(--mono); }
