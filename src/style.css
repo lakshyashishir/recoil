@@ -19,6 +19,7 @@
   --button-text: #ffffff;
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --radius: 8px;
 }
 
@@ -189,10 +190,11 @@ h1, h2, p { margin-top: 0; }
 .graph-inspector svg { width: auto; height: auto; }
 .map-layer-label { fill: var(--faint); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
 .map-edge { color: var(--line); stroke: currentColor; stroke-width: 1.4; opacity: .72; }
-.map-edge-selected { color: var(--accent); stroke-width: 2.3; opacity: 1; stroke-dasharray: 7 6; }
+.map-edge-selected { color: var(--accent); stroke-width: 2.3; opacity: 1; stroke-dasharray: 7 6; animation: map-route-reveal 220ms var(--ease-out) var(--map-route-delay, 0ms) both; }
 .map-edge-label { fill: var(--accent); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; font: 9px var(--mono); letter-spacing: .02em; }
 .map-node rect { fill: var(--surface-raised); stroke: var(--line); stroke-width: 1; }
 .map-node.node-selected rect { stroke: var(--accent); stroke-width: 1.8; }
+.map-node.node-selected { animation: map-route-reveal 220ms var(--ease-out) var(--map-route-delay, 0ms) both; }
 .map-node.node-reached rect { stroke: color-mix(in srgb, var(--red) 72%, var(--line)); }
 .map-node.node-not_affected rect { stroke: color-mix(in srgb, var(--green) 72%, var(--line)); }
 .map-node.node-local-import rect { stroke: color-mix(in srgb, var(--accent) 55%, var(--line)); stroke-dasharray: 3 2; }
@@ -398,11 +400,10 @@ h1, h2, p { margin-top: 0; }
 @media (prefers-reduced-motion: no-preference) {
   .live-page, .case-page { animation: page-enter .36s cubic-bezier(.22, 1, .36, 1) both; }
   .event-row { animation: event-in .38s ease both; }
-  .map-edge-selected { animation: route-flow 1.25s linear infinite; }
 }
 @keyframes page-enter { from { opacity: .72; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes event-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes route-flow { to { stroke-dashoffset: -26; } }
+@keyframes map-route-reveal { from { opacity: .42; } to { opacity: 1; } }
 
 @media (max-width: 980px) {
   .landing-grid { grid-template-columns: minmax(0, 1fr); gap: 42px; padding: 9vh 0; }

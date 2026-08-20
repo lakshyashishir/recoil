@@ -542,7 +542,10 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
   const layout = useMemo(() => graphLayout(graph, selectedFinding), [graph, selectedFinding])
   const selected = layout.selected
   const selectedNode = layout.nodes.find((node) => node.id === selectedNodeId) || layout.nodes.find((node) => node.type === 'repository' && node.label === selectedFinding?.repository) || null
-  const selectedEdges = new Set(layout.edges.filter(([from, to]) => selected.has(from) && selected.has(to)).map(([from, to]) => `${from}>${to}`))
+  const selectedEdgeEntries = layout.edges.filter(([from, to]) => selected.has(from) && selected.has(to)).map(([from, to], index) => [`${from}>${to}`, index])
+  const selectedEdges = new Set(selectedEdgeEntries.map(([key]) => key))
+  const selectedEdgeOrder = new Map(selectedEdgeEntries)
+  const selectedNodeOrder = new Map(layout.nodes.filter((node) => selected.has(node.id)).map((node, index) => [node.id, index]))
   const layerLabels = [{ label: 'Advisory', type: 'advisory' }, { label: 'Dependency', type: 'package' }, { label: 'Lockfile', type: 'lockfile' }, { label: 'Repository', type: 'repository' }, { label: 'Source', type: 'code' }]
   const sourceImpact = selectedFinding?.sourceImpact
   const finalFindings = !live ? (report?.repositories || []) : []
@@ -590,7 +593,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
             const isSelected = selectedEdges.has(key)
             const fromNode = layout.nodes.find((node) => node.id === from)
             const toNode = layout.nodes.find((node) => node.id === to)
-            return <g key={key}><line className={`map-edge ${isSelected ? 'map-edge-selected' : ''}`} x1={start.x + 77} y1={start.y} x2={end.x - 77} y2={end.y} markerEnd="url(#recoil-arrow)" />{isSelected && <text className="map-edge-label" x={(start.x + end.x) / 2} y={(start.y + end.y) / 2 - 5} textAnchor="middle">{graphEdgeLabel(fromNode, toNode)}</text>}</g>
+            return <g key={key}><line className={`map-edge ${isSelected ? 'map-edge-selected' : ''}`} style={isSelected ? { '--map-route-delay': `${(selectedEdgeOrder.get(key) || 0) * 45}ms` } : undefined} x1={start.x + 77} y1={start.y} x2={end.x - 77} y2={end.y} markerEnd="url(#recoil-arrow)" />{isSelected && <text className="map-edge-label" x={(start.x + end.x) / 2} y={(start.y + end.y) / 2 - 5} textAnchor="middle">{graphEdgeLabel(fromNode, toNode)}</text>}</g>
           })}
         </g>
         <g className="map-nodes">
@@ -602,7 +605,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
             const findingIndex = findingIndexForNode(node, report?.repositories || [])
             const selectable = Boolean(onSelectNode || (findingIndex >= 0 && onSelectFinding))
             const selectNode = () => { if (findingIndex >= 0 && onSelectFinding) onSelectFinding(findingIndex); if (onSelectNode) onSelectNode(node.id) }
-            return <g className={`map-node node-${node.type} ${node.meta?.role ? `node-${node.meta.role}` : ''} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} aria-label={selectable ? `${node.type}: ${node.label}` : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
+            return <g className={`map-node node-${node.type} ${node.meta?.role ? `node-${node.meta.role}` : ''} ${isSelected ? 'node-selected' : ''} ${verdict ? `node-${verdict.toLowerCase()}` : ''} ${selectable ? 'node-selectable' : ''}`} style={isSelected ? { '--map-route-delay': `${(selectedNodeOrder.get(node.id) || 0) * 45}ms` } : undefined} key={node.id} transform={`translate(${position.x - 77} ${position.y - 24})`} role={selectable ? 'button' : undefined} aria-label={selectable ? `${node.type}: ${node.label}` : undefined} tabIndex={selectable ? 0 : undefined} onClick={selectNode} onKeyDown={(event) => { if (selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectNode() } }}>
               <title>{node.label}</title>
               <rect width="154" height="48" rx="6" />
               <text className="map-node-type" x="10" y="15">{node.meta?.role === 'local-import' ? 'local import' : node.type}</text>
