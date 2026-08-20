@@ -253,7 +253,7 @@ function LiveStageRail({ events = [], investigationStatus }) {
   const completed = statuses.filter((status) => status === 'complete').length
   const activeIndex = statuses.findIndex((status) => ['working', 'review', 'failed'].includes(status))
   const currentIndex = activeIndex >= 0 ? activeIndex : Math.min(completed, stages.length - 1)
-  return <section className="live-stage-rail" aria-label="Investigation stages"><div className="live-stage-rail-heading"><span>Investigation path</span><span>{investigationStatus === 'complete' ? 'complete' : `step ${Math.min(currentIndex + 1, stages.length)} of ${stages.length}`}</span></div><ol>{stages.map((stage, index) => { const status = statuses[index]; const detail = status === 'review' ? 'accepted · indexing unconfirmed' : status === 'failed' ? 'provider follow-up failed' : stage.detail; const iconStatus = status === 'waiting' ? 'idle' : status === 'review' ? 'failed' : status; return <li className={`live-stage live-stage-${status}`} key={stage.id}><span className="live-stage-marker"><StatusIcon status={iconStatus} /></span><span className="live-stage-copy"><strong>{stage.label}</strong><small>{detail}</small></span></li> })}</ol></section>
+  return <section className="live-stage-rail" aria-label="Investigation stages"><div className="live-stage-rail-heading"><span>What Recoil is doing</span><span>{investigationStatus === 'complete' ? 'complete' : `step ${Math.min(currentIndex + 1, stages.length)} of ${stages.length}`}</span></div><ol>{stages.map((stage, index) => { const status = statuses[index]; const detail = status === 'review' ? 'accepted · indexing unconfirmed' : status === 'failed' ? 'provider follow-up failed' : stage.detail; const iconStatus = status === 'waiting' ? 'idle' : status === 'review' ? 'failed' : status; return <li className={`live-stage live-stage-${status}`} key={stage.id}><span className="live-stage-marker"><StatusIcon status={iconStatus} /></span><span className="live-stage-copy"><strong>{stage.label}</strong><small>{detail}</small></span></li> })}</ol></section>
 }
 
 function LiveRepositoryProgress({ query, events = [], report = null, graphProgress = null }) {
@@ -355,47 +355,6 @@ function findingParts(finding) {
     if (packageIndex >= 0) parts.splice(packageIndex, 0, ...dependencyParts.slice(0, -1))
   }
   return [...new Set(parts.filter(Boolean))]
-}
-
-function pathStepType(node, part, finding = null) {
-  if (node?.type === 'code') return 'source'
-  if (node?.type) return node.type
-  if (part?.startsWith('symbol:')) return 'symbol'
-  if (part === finding?.advisoryId) return 'advisory'
-  if (part === finding?.repository) return 'repository'
-  if (/lock/i.test(part || '')) return 'lockfile'
-  if ((part || '').includes('@')) return 'package'
-  return 'evidence'
-}
-
-function observedGraphRoute(graph = {}) {
-  const nodes = graph.nodes || []
-  const edges = graph.edges || []
-  const byId = new Map(nodes.map((node) => [node.id, node]))
-  const root = nodes.find((node) => node.type === 'advisory')
-  if (!root) return []
-  const outgoing = new Map()
-  for (const [from, to] of edges) {
-    const next = outgoing.get(from) || []
-    next.push(to)
-    outgoing.set(from, next)
-  }
-  const queue = [[root.id]]
-  const visited = new Set([root.id])
-  let deepest = [root.id]
-  while (queue.length) {
-    const route = queue.shift()
-    const current = byId.get(route.at(-1))
-    if (!current) continue
-    if (route.length > deepest.length) deepest = route
-    if (current.type === 'code') return route.map((id) => byId.get(id)).filter(Boolean)
-    for (const nextId of outgoing.get(current.id) || []) {
-      if (visited.has(nextId) || !byId.has(nextId)) continue
-      visited.add(nextId)
-      queue.push([...route, nextId])
-    }
-  }
-  return deepest.map((id) => byId.get(id)).filter(Boolean)
 }
 
 function nodeMatchesPart(node, part, finding) {
@@ -1521,28 +1480,6 @@ function CaseContrast({ findings = [], selectedIndex = 0, onSelect, historical =
   </section>
 }
 
-function LiveEvidenceRoute({ graph = {}, graphProgress = null, events = [], investigationStatus }) {
-  const route = observedGraphRoute(graph)
-  const current = currentInvestigationActivity(events, investigationStatus)
-  const nodeCount = graph.nodes?.length || 0
-  const edgeCount = graph.edges?.length || 0
-  const routeLabel = route.length > 1 ? `${route.length - 1} observed hop${route.length === 2 ? '' : 's'}` : 'no connected hop yet'
-  return <section className="live-path-strip-shell case-path-strip-shell" aria-label="Live observed evidence route">
-    <div className="case-path-strip-heading"><div><span className="section-kicker">Live evidence route</span><strong>{route.length > 1 ? 'The path is forming from collected records.' : 'Waiting for the first connected record.'}</strong></div><span>{routeLabel} · {nodeCount} entities · {edgeCount} relationships</span></div>
-    {route.length > 0 ? <div className="case-path-strip" role="list">
-      {route.map((node, index) => <div className="case-path-strip-item-wrap" key={node.id}>
-        <article className={`case-path-strip-item case-path-strip-item-${pathStepType(node, node.label)}`} role="listitem">
-          <span>{pathStepType(node, node.label)}</span>
-          <strong title={node.label}>{node.label}</strong>
-          {node.sourceUrl ? <SourceLink href={node.sourceUrl}>Open record</SourceLink> : <small>record not linked</small>}
-        </article>
-        {index < route.length - 1 && <span className="case-path-strip-arrow" aria-hidden="true">→</span>}
-      </div>)}
-    </div> : <div className="live-path-empty"><span className="status-ring" aria-hidden="true" /><span>{current?.detail || 'The first advisory, lockfile, or repository relationship will appear here.'}</span></div>}
-    <div className="live-path-strip-meta"><span>{graphProgress?.totalRepositories ? `${graphProgress.completedRepositories || 0}/${graphProgress.totalRepositories} repositories mapped` : 'Mapping repositories'}</span><span>{current?.title || 'Collecting public evidence'}</span></div>
-  </section>
-}
-
 function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory, compact = false }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
@@ -2002,7 +1939,7 @@ function RunningView({ snapshot, onOpenReport }) {
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
   const activityDetail = activity?.detail || (finalizing ? 'The observed graph is complete. Recoil is writing dated history and recalling related context.' : 'Recoil adds only relationships supported by public evidence.')
-  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} hydra={snapshot?.hydra || investigation?.hydra} onOpenReport={onOpenReport} />}<LiveEvidenceRoute graph={graph} graphProgress={progress} events={events} investigationStatus={investigation?.status} /><div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} graphProgress={progress} report={investigation?.report} /><EvidenceMap report={graphReport} selectedFinding={selectedLiveFinding} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} events={events} live graphProgress={progress} /></div></main>
+  return <main className="live-page"><div className="live-heading"><div><span className="section-kicker">Live investigation</span><div className="live-subject"><strong>{advisory}</strong><span>{repositoryCount ? `against ${repositoryCount} public repositor${repositoryCount === 1 ? 'y' : 'ies'}` : 'public records only'}</span></div><h1 aria-live="polite" aria-atomic="true">{activityTitle}</h1><p aria-live="polite" aria-atomic="true">{progressLabel}. {activityDetail}</p></div><span className="live-safety">No install · no execution</span></div><LiveStageRail events={events} investigationStatus={investigation?.status} />{finalizing && <LiveEvidenceCheckpoint report={investigation?.report} hydra={snapshot?.hydra || investigation?.hydra} onOpenReport={onOpenReport} />}<div className="live-workspace"><EventStream events={events} investigationStatus={investigation?.status} query={query} graphProgress={progress} report={investigation?.report} /><EvidenceMap report={graphReport} selectedFinding={selectedLiveFinding} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} events={events} live graphProgress={progress} /></div></main>
 }
 
 function FailedView({ snapshot, onNewCase }) {
