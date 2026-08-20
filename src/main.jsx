@@ -27,7 +27,7 @@ const THEME_STORAGE_KEY = 'recoil-theme-v2'
 
 function initialScenarioId() {
   if (typeof window === 'undefined') return DEFAULT_SCENARIO_ID
-  return window.localStorage.getItem(SCENARIO_STORAGE_KEY) || DEFAULT_SCENARIO_ID
+  return new URLSearchParams(window.location.search).get('case') || window.localStorage.getItem(SCENARIO_STORAGE_KEY) || DEFAULT_SCENARIO_ID
 }
 
 function initialLanding() {
@@ -2047,6 +2047,12 @@ const CONSOLE_NAVIGATION = [
   { id: 'connect', label: 'Connect', detail: 'CLI and receipts', icon: Terminal },
 ]
 
+function initialConsoleView() {
+  if (typeof window === 'undefined') return 'incidents'
+  const requested = window.location.hash.replace(/^#/, '')
+  return CONSOLE_NAVIGATION.some((item) => item.id === requested) ? requested : 'incidents'
+}
+
 function compactDate(value) {
   if (!value) return 'not recorded'
   const date = new Date(value)
@@ -2221,13 +2227,24 @@ function App() {
   const [error, setError] = useState('')
   const [showReportEarly, setShowReportEarly] = useState(false)
   const [workspace, setWorkspace] = useState(null)
-  const [activeView, setActiveView] = useState('incidents')
+  const [activeView, setActiveView] = useState(initialConsoleView)
   const [theme, toggleTheme] = useTheme()
   const investigation = snapshot?.investigation
+  const activeReport = report || investigation?.report
+  const hasInvestigation = Boolean(investigation && investigation.status !== 'idle')
+  const isComplete = investigation?.status === 'complete' && activeReport
 
   useEffect(() => {
     window.localStorage.setItem(SCENARIO_STORAGE_KEY, scenarioId)
   }, [scenarioId])
+
+  useEffect(() => {
+    if (!activeReport || landing) return
+    const url = new URL(window.location.href)
+    url.searchParams.set('case', scenarioId)
+    url.hash = activeView === 'incidents' ? '' : activeView
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [activeReport, activeView, landing, scenarioId])
 
   useEffect(() => {
     let active = true
@@ -2270,10 +2287,6 @@ function App() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [busy, scenarioId, snapshot?.investigation?.status])
 
-  const activeReport = report || investigation?.report
-  const hasInvestigation = Boolean(investigation && investigation.status !== 'idle')
-  const isComplete = investigation?.status === 'complete' && activeReport
-
   async function investigate() {
     if (!input.trim() || busy) return
     const query = input.trim()
@@ -2312,6 +2325,10 @@ function App() {
     // completed case remains available in HydraDB instead of being destroyed
     // by a UI reset.
     window.localStorage.setItem(LANDING_STORAGE_KEY, '1')
+    const url = new URL(window.location.href)
+    url.searchParams.delete('case')
+    url.hash = ''
+    window.history.replaceState(null, '', `${url.pathname}${url.search}`)
     setLanding(true); setSnapshot(null); setReport(null); setHydra(null); setError(''); setInput(DEFAULT_INPUT); setShowReportEarly(false); setBusy(false); setActiveView('incidents')
   }
 
