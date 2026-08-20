@@ -32,15 +32,20 @@ export function buildEvidenceQuality({ status = 'unknown', collectors = [], repo
   const ambiguousVersions = repositories
     .filter((finding) => Array.isArray(finding.resolvedVersions) && finding.resolvedVersions.length > 1 && finding.verdict === 'UNKNOWN')
     .map((finding) => ({ repository: finding.repository || 'unknown repository', packageName: finding.packageName || null, versions: finding.resolvedVersions }))
-  const sourceCoverage = repositories.reduce((coverage, finding) => {
+  const sourceCoverageByRepository = new Map()
+  for (const finding of repositories) {
     const sampled = finiteNumber(finding.sourceSampleSize)
     const candidates = finiteNumber(finding.sourceCandidateCount)
-    if (sampled || candidates) {
-      coverage.sampledFiles += sampled
-      coverage.candidateFiles += candidates || sampled
-      coverage.repositories += 1
-      if (candidates > sampled) coverage.boundedRepositories += 1
-    }
+    if (!sampled && !candidates) continue
+    const key = finding.repository || `repository-${sourceCoverageByRepository.size}`
+    const current = sourceCoverageByRepository.get(key) || { sampled: 0, candidates: 0 }
+    sourceCoverageByRepository.set(key, { sampled: Math.max(current.sampled, sampled), candidates: Math.max(current.candidates, candidates || sampled) })
+  }
+  const sourceCoverage = [...sourceCoverageByRepository.values()].reduce((coverage, item) => {
+    coverage.sampledFiles += item.sampled
+    coverage.candidateFiles += item.candidates
+    coverage.repositories += 1
+    if (item.candidates > item.sampled) coverage.boundedRepositories += 1
     return coverage
   }, { sampledFiles: 0, candidateFiles: 0, repositories: 0, boundedRepositories: 0 })
   const complete = status === 'completed'

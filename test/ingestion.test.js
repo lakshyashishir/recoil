@@ -391,6 +391,107 @@ test('Cargo ingestion resolves an external crate import and registry fixed versi
   }
 })
 
+test('Cargo ingestion merges virtual workspace member manifests into reachability evidence', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const advisory = {
+    id: 'GHSA-cargo-workspace-test',
+    summary: 'Workspace fixture advisory',
+    affected: [{ package: { ecosystem: 'crates.io', name: 'bytes' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.11.1' }] }] }],
+  }
+  const rootManifest = '[workspace]\nmembers = ["crates/api"]\n\n[workspace.dependencies]\nbytes = "1.10"\n'
+  const memberManifest = '[package]\nname = "workspace-api"\nversion = "0.1.0"\n\n[dependencies]\nbytes = { workspace = true }\n\n[dev-dependencies]\ninsta = "1.42"\n'
+  const cargoLock = '[[package]]\nname = "workspace-api"\nversion = "0.1.0"\ndependencies = ["bytes", "insta"]\n\n[[package]]\nname = "bytes"\nversion = "1.10.0"\n\n[[package]]\nname = "insta"\nversion = "1.42.0"\n'
+  globalThis.fetch = async (input) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') return response(advisory)
+    if (url.hostname === 'crates.io') return response({ crate: { name: 'bytes', max_version: '1.11.1' }, versions: [{ num: '1.10.0' }, { num: '1.11.1' }] })
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const operation = url.pathname.split('/repos/example/cargo-workspace/')[1] || ''
+    if (operation.startsWith('git/trees/')) return response({ tree: [
+      { type: 'blob', path: 'Cargo.toml' },
+      { type: 'blob', path: 'crates/api/Cargo.toml' },
+      { type: 'blob', path: 'crates/api/src/lib.rs' },
+    ] })
+    if (operation.startsWith('commits')) return url.searchParams.has('path') ? response([]) : response([])
+    if (operation.startsWith('contents/')) {
+      const path = decodeURIComponent(operation.slice('contents/'.length))
+      if (path === 'Cargo.toml') return response(githubFile(path, rootManifest, 'example/cargo-workspace'))
+      if (path === 'Cargo.lock') return response(githubFile(path, cargoLock, 'example/cargo-workspace'))
+      if (path === 'crates/api/Cargo.toml') return response(githubFile(path, memberManifest, 'example/cargo-workspace'))
+      if (path === 'crates/api/src/lib.rs') return response(githubFile(path, 'use bytes::BytesMut;\npub fn parse() { let _ = BytesMut::new(); }', 'example/cargo-workspace'))
+      return response({}, 404)
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'GHSA-cargo-workspace-test https://github.com/example/cargo-workspace', scenarioId: 'cargo-workspace-test' })
+    const repository = ingestion.repositories[0]
+    assert.equal(ingestion.findings[0].verdict, 'REACHED')
+    assert.equal(repository.manifest.dependencies.bytes, '1.10')
+    assert.equal(repository.manifest.dependencies.insta, '1.42')
+    assert.deepEqual(repository.manifest.workspaces.files, ['crates/api/Cargo.toml'])
+    assert.equal(repository.manifest.workspaces.packages[0].name, 'workspace-api')
+    assert.equal(repository.manifest.codeGraph.externalImports[0].packageName, 'bytes')
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+  }
+})
+
+test('repository discovery checks a complete Cargo inventory in bounded OSV batches', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  const previousBatch = process.env.RECOIL_OSV_BATCH_SIZE
+  const previousLimit = process.env.RECOIL_DISCOVERY_PACKAGE_LIMIT
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  process.env.RECOIL_OSV_BATCH_SIZE = '40'
+  process.env.RECOIL_DISCOVERY_PACKAGE_LIMIT = '2000'
+  const dependencyNames = Array.from({ length: 105 }, (_, index) => `crate-${index}`)
+  const manifest = `[package]\nname = "large-app"\nversion = "0.1.0"\n\n[dependencies]\n${dependencyNames.map((name) => `${name} = "1"`).join('\n')}\n`
+  const lock = [
+    '[[package]]\nname = "large-app"\nversion = "0.1.0"',
+    ...dependencyNames.map((name) => `[[package]]\nname = "${name}"\nversion = "1.0.0"`),
+  ].join('\n\n')
+  let osvBatchCalls = 0
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') {
+      osvBatchCalls += 1
+      const body = JSON.parse(options.body)
+      return response({ results: body.queries.map(() => ({})) })
+    }
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const operation = url.pathname.split('/repos/example/large-cargo/')[1] || ''
+    if (operation.startsWith('git/trees/')) return response({ tree: [] })
+    if (operation.startsWith('commits')) return response([])
+    if (operation.startsWith('contents/')) {
+      const path = decodeURIComponent(operation.slice('contents/'.length))
+      if (path === 'Cargo.toml') return response(githubFile(path, manifest, 'example/large-cargo'))
+      if (path === 'Cargo.lock') return response(githubFile(path, lock, 'example/large-cargo'))
+      return response({}, 404)
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'https://github.com/example/large-cargo', scenarioId: 'large-cargo-test' })
+    assert.equal(ingestion.discovery.packagesRecorded, 106)
+    assert.equal(ingestion.discovery.packagesChecked, 106)
+    assert.equal(ingestion.discovery.truncated, false)
+    assert.equal(osvBatchCalls, 3)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
+    if (previousBatch === undefined) delete process.env.RECOIL_OSV_BATCH_SIZE
+    else process.env.RECOIL_OSV_BATCH_SIZE = previousBatch
+    if (previousLimit === undefined) delete process.env.RECOIL_DISCOVERY_PACKAGE_LIMIT
+    else process.env.RECOIL_DISCOVERY_PACKAGE_LIMIT = previousLimit
+  }
+})
+
 test('npm ingestion resolves a nested transitive package from package-lock paths', async () => {
   const previousFetch = globalThis.fetch
   const previousCache = process.env.RECOIL_CACHE_DIR

@@ -293,6 +293,16 @@ Manual checks:
 
 ## Checkpoint history
 
+Current recording gate:
+
+- repository-first scans retain complete parsed npm, Yarn, pnpm, and Cargo lock inventories up to an explicit safety ceiling;
+- Cargo collection follows tracked workspace members and preserves runtime, development, build, target-specific, inherited, multiline, and renamed dependencies;
+- OSV discovery checks exact recorded versions in bounded batches and hydrates advisory records before classification;
+- the HydraDB repository currently produces a complete 371-crate negative scan with a 48-file Rust source sample;
+- the historical HTTP Server 13.0.2 case produces a cited `REACHED` route to `minimist@1.2.5`, dates its lockfile introduction, and verifies the 1.2.6 fix;
+- the three-minute recording path is maintained in `docs/JUDGE-DEMO.md`;
+- `npm run verify` and the strict network doctor are green.
+
 - `f1a0cc8` - isolate mocked public responses from the live evidence cache
 - `d52eac9` - graph-link shared package resolutions across repositories
 - `a755e08` - expose the Red → Blue → Red proof loop across browser, CLI, and TUI

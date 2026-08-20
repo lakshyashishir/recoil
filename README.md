@@ -45,9 +45,11 @@ dependency scanners collapse into one alert:
   investigation is never overwritten by the next one. Receipts and briefs follow that case ID,
   while HydraDB keeps the durable cross-case history.
 - **Repository-first handoff:** a judge can paste any public repository without knowing its package or
-  advisory. Recoil inventories its recorded manifests and lockfiles, checks bounded package versions
-  against OSV in one batch, and returns a complete negative result or expands only the affected advisory
-  paths. No prepared package selector is required.
+  advisory. Recoil inventories its recorded manifests and complete parsed lockfile, checks every retained
+  package version against OSV in bounded request batches, and returns a complete negative result or expands
+  the highest-signal affected advisory paths. Imported and direct dependencies are ranked ahead of transitive
+  development noise. Any package or advisory safety ceiling remains visible as partial evidence instead of a
+  complete negative result. No prepared package selector is required.
 
 This positions Recoil as a **cross-ecosystem reachability and remediation proof layer** for Track 2:
 Track 2A’s supply-chain blast radius is the entry point, while Cargo/Rust source proof, changed-symbol
@@ -61,6 +63,23 @@ repository → recorded dependency inventory → advisory match → real lockfil
        → REACHED / DECLARED_ONLY / NOT_AFFECTED / UNKNOWN
        → temporal rewind → OSV fixed version → residual-path fix proof
 ```
+
+## Architecture
+
+```text
+GitHub + OSV + npm/crates.io
+        |
+manifest, workspace, lockfile, source, commit, and CODEOWNERS collectors
+        |
+deterministic reachability classification + advisory range fix challenge
+        |
+HydraDB typed evidence graph + dated cross-scan memory
+        |
+web console + CLI + MCP + Markdown brief + integrity-addressed receipt
+```
+
+The browser is one client of the proof engine. CLI, MCP, receipts, and the web console consume the same
+case contract and do not maintain separate verdict logic.
 
 The proof sequence is evidence-first:
 
@@ -196,7 +215,7 @@ npm run server
 npm run dev
 ```
 
-Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `HYDRADB_INGEST_BATCH_SIZE`, `HYDRADB_INDEX_WAIT_MS`, `HYDRADB_INDEX_POLL_MS`, `HYDRADB_RECALL_WAIT_MS`, `HYDRADB_RECALL_POLL_MS`, `HYDRADB_TEMPORAL_RECALL_WAIT_MS`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, `RECOIL_NETWORK_RETRIES`, `RECOIL_SOURCE_FILE_LIMIT`, `RECOIL_WORKSPACE_FILE`, `RECOIL_WORKSPACE_S3_BUCKET`, `RECOIL_WORKSPACE_S3_KEY`, `RECOIL_WATCH_INTERVAL_MS`, and `RECOIL_NOTIFICATION_WEBHOOK_URL`. Recoil ingests a bounded memory batch and polls all acknowledged source IDs together; lower `HYDRADB_INGEST_BATCH_SIZE` only when diagnosing a provider limit. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source. HydraDB recall retries an empty result for a bounded window because accepted memories can become searchable shortly after indexing reports completion. When graph memories arrive before temporal memories, the focused reachability query gets its own bounded `HYDRADB_TEMPORAL_RECALL_WAIT_MS` window; if it remains empty, the report keeps the cloud read visibly empty and strict recording fails. Raise `RECOIL_SOURCE_FILE_LIMIT` for a large, trusted demo repository only when you are comfortable with the extra public reads; the chosen bound is preserved in each finding.
+Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `HYDRADB_INGEST_BATCH_SIZE`, `HYDRADB_INDEX_WAIT_MS`, `HYDRADB_INDEX_POLL_MS`, `HYDRADB_RECALL_WAIT_MS`, `HYDRADB_RECALL_POLL_MS`, `HYDRADB_TEMPORAL_RECALL_WAIT_MS`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, `RECOIL_NETWORK_RETRIES`, `RECOIL_SOURCE_FILE_LIMIT`, `RECOIL_CARGO_MANIFEST_LIMIT`, `RECOIL_DISCOVERY_PACKAGE_LIMIT`, `RECOIL_DISCOVERY_ADVISORY_LIMIT`, `RECOIL_OSV_BATCH_SIZE`, `RECOIL_WORKSPACE_FILE`, `RECOIL_WORKSPACE_S3_BUCKET`, `RECOIL_WORKSPACE_S3_KEY`, `RECOIL_WATCH_INTERVAL_MS`, and `RECOIL_NOTIFICATION_WEBHOOK_URL`. Recoil ingests a bounded memory batch and polls all acknowledged source IDs together; lower `HYDRADB_INGEST_BATCH_SIZE` only when diagnosing a provider limit. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source. Repository scans read all recorded lockfile packages up to an explicit safety ceiling and submit OSV checks in batches. Cargo scans also collect tracked workspace member manifests, including runtime, development, build, target-specific, inherited, and renamed dependencies. Every applied limit is retained in the evidence rather than presented as complete collection. HydraDB recall retries an empty result for a bounded window because accepted memories can become searchable shortly after indexing reports completion. When graph memories arrive before temporal memories, the focused reachability query gets its own bounded `HYDRADB_TEMPORAL_RECALL_WAIT_MS` window; if it remains empty, the report keeps the cloud read visibly empty and strict recording fails. Raise source or manifest limits for a large, trusted demo repository only when you are comfortable with the extra public reads.
 
 Regression tests use a disposable temporary cache, so mocked public responses cannot contaminate a later
 live recording through `.recoil-cache`.

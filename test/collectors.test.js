@@ -109,19 +109,69 @@ test('Cargo manifest preserves renamed package identity for source normalization
   assert.deepEqual(manifest.dependencyAliases, { bytes_alias: 'bytes' })
 })
 
+test('Cargo manifest preserves workspace, development, build, target, and multiline dependencies', () => {
+  const manifest = parseCargoManifest(`
+[workspace]
+members = [
+  "crates/api",
+  "crates/worker",
+]
+exclude = ["crates/legacy"]
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+insta = "1.42"
+
+[build-dependencies]
+cc = "1.2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dependencies]
+bytes_alias = {
+  package = "bytes",
+  version = "1.10",
+}
+`)
+
+  assert.deepEqual(manifest.workspace.members, ['crates/api', 'crates/worker'])
+  assert.deepEqual(manifest.workspace.exclude, ['crates/legacy'])
+  assert.equal(manifest.dependencies.serde, '1.0')
+  assert.equal(manifest.dependencies.insta, '1.42')
+  assert.equal(manifest.dependencies.cc, '1.2')
+  assert.equal(manifest.dependencies.libc, '0.2')
+  assert.equal(manifest.dependencies.bytes_alias, '1.10')
+  assert.equal(manifest.dependencyKinds.insta, 'development')
+  assert.equal(manifest.dependencyKinds.cc, 'build')
+  assert.equal(manifest.dependencyKinds.libc, 'target')
+  assert.deepEqual(manifest.dependencyAliases, { bytes_alias: 'bytes' })
+})
+
+test('Cargo lock parser retains the complete recorded package inventory', () => {
+  const lock = Array.from({ length: 240 }, (_, index) => `[[package]]\nname = "crate-${index}"\nversion = "1.0.${index}"`).join('\n\n')
+  const parsed = parseCargoLock(lock)
+
+  assert.equal(parsed.length, 240)
+  assert.equal(parsed.at(-1).name, 'crate-239')
+})
+
 test('npm lockfile paths normalize nested and scoped package identities', () => {
   assert.equal(packageNameFromNodeModulesPath('node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/minimist'), 'minimist')
   assert.equal(packageNameFromNodeModulesPath('node_modules/parent/node_modules/@scope/parser'), '@scope/parser')
 })
 
-test('npm lock parser keeps a requested package beyond the bounded prefix', () => {
+test('npm lock parser retains packages beyond the former bounded prefix', () => {
   const packages = Object.fromEntries(Array.from({ length: 161 }, (_, index) => [
     `node_modules/package-${index}`,
     { version: '1.0.0' },
   ]))
   packages['node_modules/target-package'] = { version: '2.3.4' }
-  const parsed = parseNpmLockPackages({ packages }, 'target-package')
+  const parsed = parseNpmLockPackages({ packages })
+  assert.equal(parsed.length, 162)
   assert.ok(parsed.some((entry) => entry.name === 'target-package' && entry.version === '2.3.4'))
 })
 

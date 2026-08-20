@@ -274,8 +274,8 @@ async function readGitHubCommitHistory(repository, path) {
 }
 
 async function collectSourceFiles(repository, knownPaths = undefined, knownError = null) {
-  const configuredLimit = Number.parseInt(process.env.RECOIL_SOURCE_FILE_LIMIT || '24', 10)
-  const sourceLimit = Number.isFinite(configuredLimit) ? Math.min(Math.max(configuredLimit, 1), 120) : 24
+  const configuredLimit = Number.parseInt(process.env.RECOIL_SOURCE_FILE_LIMIT || '48', 10)
+  const sourceLimit = Number.isFinite(configuredLimit) ? Math.min(Math.max(configuredLimit, 1), 240) : 48
   let paths = Array.isArray(knownPaths) ? knownPaths : []
   let status = knownPaths !== undefined && knownError ? 'unavailable' : 'collected'
   let error = knownError || null
@@ -292,7 +292,32 @@ async function collectSourceFiles(repository, knownPaths = undefined, knownError
     .filter((path) => /(?:^|\/)(?:src|lib|app|packages|crates|bin|cmd|cli)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
     .filter((path) => isAnalyzableSourcePath(path))
     .filter((path) => !/(?:node_modules|target|dist|build|vendor)\//.test(path))
-  const candidates = eligiblePaths.slice(0, sourceLimit)
+  const sourceGroups = new Map()
+  for (const path of eligiblePaths) {
+    const parts = path.split('/')
+    const group = ['crates', 'packages', 'apps'].includes(parts[0]) && parts[1] ? `${parts[0]}/${parts[1]}` : parts[0]
+    const entries = sourceGroups.get(group) || []
+    entries.push(path)
+    sourceGroups.set(group, entries)
+  }
+  for (const entries of sourceGroups.values()) {
+    entries.sort((left, right) => {
+      const entryScore = (path) => /(?:^|\/)(?:main|lib|mod)\.rs$/.test(path) ? 0 : /(?:^|\/)(?:index|main|lib)\.(?:js|ts)$/.test(path) ? 1 : path.split('/').length
+      return entryScore(left) - entryScore(right) || left.localeCompare(right)
+    })
+  }
+  const candidates = []
+  const queues = [...sourceGroups.entries()].sort(([left], [right]) => {
+    const rootScore = (group) => group === 'src' || group === 'lib' || group === 'app' ? 0 : 1
+    return rootScore(left) - rootScore(right) || left.localeCompare(right)
+  }).map(([, entries]) => [...entries])
+  while (candidates.length < sourceLimit && queues.some((queue) => queue.length)) {
+    for (const queue of queues) {
+      const next = queue.shift()
+      if (next) candidates.push(next)
+      if (candidates.length >= sourceLimit) break
+    }
+  }
   const responses = await Promise.all(candidates.map(async (path) => {
     try {
       return { file: await readGitHubFile(repository, path, { preferRaw: true }), error: null }
@@ -404,30 +429,115 @@ function parseTomlValue(value) {
   return version || trimmed
 }
 
+function stripTomlComment(line = '') {
+  let quote = null
+  let escaped = false
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (character === '\\' && quote === '"') {
+      escaped = true
+      continue
+    }
+    if ((character === '"' || character === "'") && (!quote || quote === character)) {
+      quote = quote ? null : character
+      continue
+    }
+    if (character === '#' && !quote) return line.slice(0, index)
+  }
+  return line
+}
+
+function tomlBalance(value = '') {
+  let quote = null
+  let escaped = false
+  let braces = 0
+  let brackets = 0
+  for (const character of value) {
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (character === '\\' && quote === '"') {
+      escaped = true
+      continue
+    }
+    if ((character === '"' || character === "'") && (!quote || quote === character)) {
+      quote = quote ? null : character
+      continue
+    }
+    if (quote) continue
+    if (character === '{') braces += 1
+    if (character === '}') braces -= 1
+    if (character === '[') brackets += 1
+    if (character === ']') brackets -= 1
+  }
+  return braces + brackets
+}
+
+function cargoManifestStatements(text = '') {
+  const statements = []
+  let pending = ''
+  for (const rawLine of String(text).split(/\r?\n/)) {
+    const line = stripTomlComment(rawLine).trim()
+    if (!line) continue
+    if (!pending && /^\[[^\]]+\]$/.test(line)) {
+      statements.push(line)
+      continue
+    }
+    pending = pending ? `${pending} ${line}` : line
+    const value = pending.includes('=') ? pending.slice(pending.indexOf('=') + 1) : ''
+    if (tomlBalance(value) <= 0) {
+      statements.push(pending)
+      pending = ''
+    }
+  }
+  if (pending) statements.push(pending)
+  return statements
+}
+
+function parseTomlStringArray(value = '') {
+  return [...String(value).matchAll(/["']([^"']+)["']/g)].map((match) => match[1]).filter(Boolean)
+}
+
+function isCargoDependencySection(section = '') {
+  return section === 'workspace.dependencies' || /(?:^|\.)(?:dev-|build-)?dependencies$/.test(section)
+}
+
 function parseCargoManifest(text) {
   let section = ''
   const packageInfo = {}
   const dependencies = {}
   const dependencyAliases = {}
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line || line.startsWith('#')) continue
+  const dependencyKinds = {}
+  const workspace = { members: [], exclude: [], defaultMembers: [] }
+  for (const line of cargoManifestStatements(text)) {
     const sectionMatch = line.match(/^\[([^\]]+)\]$/)
     if (sectionMatch) {
       section = sectionMatch[1]
       continue
     }
-    const assignment = line.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/)
+    const assignment = line.match(/^(?:["']([^"']+)["']|([A-Za-z0-9_.-]+))\s*=\s*(.+)$/)
     if (!assignment) continue
-    const [, key, value] = assignment
+    const key = assignment[1] || assignment[2]
+    const value = assignment[3]
     if (section === 'package' && ['name', 'version'].includes(key)) packageInfo[key] = parseTomlValue(value)
-    if (section === 'dependencies' || section === 'workspace.dependencies' || section.startsWith('target.') && section.endsWith('.dependencies')) {
+    if (section === 'workspace' && key === 'members') workspace.members = parseTomlStringArray(value)
+    if (section === 'workspace' && key === 'exclude') workspace.exclude = parseTomlStringArray(value)
+    if (section === 'workspace' && key === 'default-members') workspace.defaultMembers = parseTomlStringArray(value)
+    if (isCargoDependencySection(section)) {
       dependencies[key] = parseTomlValue(value)
+      dependencyKinds[key] = section.includes('dev-dependencies')
+        ? 'development'
+        : section.includes('build-dependencies') ? 'build' : section.startsWith('target.') ? 'target' : section === 'workspace.dependencies' ? 'workspace' : 'runtime'
       const packageName = value.match(/\bpackage\s*=\s*["']([^"']+)["']/)?.[1]
       if (packageName) dependencyAliases[key] = packageName
     }
   }
-  return { ...packageInfo, dependencies, dependencyAliases }
+  return { ...packageInfo, dependencies, dependencyAliases, dependencyKinds, workspace }
 }
 
 function parseCargoLock(text) {
@@ -438,8 +548,41 @@ function parseCargoLock(text) {
     const dependencies = [...dependenciesBlock.matchAll(/["']([^"']+)["']/g)]
       .map((match) => match[1].split(' ').at(0))
       .filter(Boolean)
-    return name && version ? { name, version, dependencies: [...new Set(dependencies)].slice(0, 8) } : null
-  }).filter(Boolean).slice(0, 160)
+    return name && version ? { name, version, dependencies: [...new Set(dependencies)] } : null
+  }).filter(Boolean)
+}
+
+function cargoWorkspaceManifestPaths(rootManifest, treePaths = []) {
+  const configuredLimit = Number.parseInt(process.env.RECOIL_CARGO_MANIFEST_LIMIT || '120', 10)
+  const limit = Number.isFinite(configuredLimit) ? Math.min(Math.max(configuredLimit, 1), 500) : 120
+  const candidates = treePaths
+    .filter((path) => path.endsWith('/Cargo.toml') && path !== 'Cargo.toml')
+    .filter((path) => !/(?:^|\/)(?:target|vendor|\.cargo\/registry)(?:\/|$)/.test(path))
+  const members = rootManifest?.workspace?.members || []
+  const excludes = rootManifest?.workspace?.exclude || []
+  const memberMatchers = members.map(workspacePatternRegex).filter(Boolean)
+  const excludeMatchers = excludes.map(workspacePatternRegex).filter(Boolean)
+  const selected = candidates.filter((path) => {
+    const directory = path.slice(0, -'/Cargo.toml'.length)
+    if (excludeMatchers.some((matcher) => matcher.test(directory))) return false
+    return memberMatchers.length === 0 || memberMatchers.some((matcher) => matcher.test(directory))
+  })
+  return { paths: selected.slice(0, limit), available: selected.length, limit, truncated: selected.length > limit }
+}
+
+function mergeCargoManifestEvidence(manifests = []) {
+  const dependencies = {}
+  const dependencyAliases = {}
+  const dependencyKinds = {}
+  for (const manifest of manifests) {
+    for (const [name, value] of Object.entries(manifest?.dependencies || {})) {
+      const inheritedOnly = /\bworkspace\s*=\s*true\b/.test(String(value))
+      if (dependencies[name] === undefined || !inheritedOnly) dependencies[name] = value
+    }
+    Object.assign(dependencyAliases, manifest?.dependencyAliases || {})
+    Object.assign(dependencyKinds, manifest?.dependencyKinds || {})
+  }
+  return { dependencies, dependencyAliases, dependencyKinds }
 }
 
 function splitYarnSelectors(header) {
@@ -471,7 +614,7 @@ function packageNameFromYarnSelector(selector = '') {
 function parseNpmLockPackages(lockfile, targetPackage = null) {
   const candidates = Object.entries(lockfile?.packages || {})
     .filter(([path, entry]) => path.startsWith('node_modules/') && entry?.version)
-  const selected = candidates.slice(0, 160)
+  const selected = [...candidates]
   if (targetPackage) {
     const selectedPaths = new Set(selected.map(([path]) => path))
     for (const candidate of candidates) {
@@ -504,7 +647,6 @@ function parseNpmLockPackages(lockfile, targetPackage = null) {
         dependencies: Object.keys(entry.dependencies || {}).slice(0, 12),
       })
       visit(entry.dependencies, path)
-      if (legacyEntries.length >= 160) return
     }
   }
   visit(lockfile?.dependencies)
@@ -565,7 +707,7 @@ export function parseYarnLock(text = '') {
     }
   }
   flush()
-  return entries.slice(0, 240)
+  return entries
 }
 
 function parsePnpmPackageSelector(selector = '') {
@@ -639,7 +781,7 @@ export function parsePnpmLock(text = '') {
     const snapshot = snapshotDependencies.get(`${entry.name}@${entry.version}`) || []
     entry.dependencies = [...new Set([...entry.dependencies, ...snapshot])].slice(0, 12)
   }
-  return entries.filter((entry) => entry.name && entry.version).slice(0, 240)
+  return entries.filter((entry) => entry.name && entry.version)
 }
 
 function resolveLockfileEntries(lockfile, packageName) {
@@ -676,8 +818,10 @@ export async function collectRepository(repository, requestedPackage) {
   const ecosystem = cargoManifestFile ? 'cargo' : 'npm'
   const packageJson = packageFile ? JSON.parse(packageFile.text) : null
   const cargoManifest = cargoManifestFile ? parseCargoManifest(cargoManifestFile.text) : null
-  const dependencies = packageJson ? packageDependencies(packageJson) : cargoManifest.dependencies
-  const inferredPackage = requestedPackage || packageJson?.name || cargoManifest?.name || (cargoManifest ? repository.name : Object.keys(dependencies)[0]) || null
+  let dependencies = packageJson ? packageDependencies(packageJson) : { ...cargoManifest.dependencies }
+  let cargoDependencyAliases = cargoManifest?.dependencyAliases || {}
+  let cargoDependencyKinds = cargoManifest?.dependencyKinds || {}
+  let inferredPackage = requestedPackage || packageJson?.name || cargoManifest?.name || (cargoManifest ? repository.name : Object.keys(dependencies)[0]) || null
   const lockFile = cargoManifestFile
     ? await readGitHubFile(repository, 'Cargo.lock', { preferRaw: true })
     : await readGitHubFile(repository, 'package-lock.json', { preferRaw: true }) || await readGitHubFile(repository, 'npm-shrinkwrap.json', { preferRaw: true }) || await readGitHubFile(repository, 'yarn.lock', { preferRaw: true }) || await readGitHubFile(repository, 'pnpm-lock.yaml', { preferRaw: true })
@@ -713,23 +857,38 @@ export async function collectRepository(repository, requestedPackage) {
   const pnpmWorkspaceFile = ecosystem === 'npm' && Array.isArray(treePaths) && treePaths.includes('pnpm-workspace.yaml')
     ? await readGitHubFile(repository, 'pnpm-workspace.yaml', { preferRaw: true })
     : null
+  const cargoWorkspaceSelection = ecosystem === 'cargo'
+    ? cargoWorkspaceManifestPaths(cargoManifest, treePaths || [])
+    : { paths: [], available: 0, limit: 0, truncated: false }
   const workspacePaths = ecosystem === 'npm'
     ? workspaceManifestPaths(packageJson, treePaths || [], pnpmWorkspaceFile?.text || '')
-    : []
-  const workspacePatterns = ecosystem === 'npm' ? configuredWorkspacePatterns(packageJson, pnpmWorkspaceFile?.text || '') : []
+    : cargoWorkspaceSelection.paths
+  const workspacePatterns = ecosystem === 'npm'
+    ? configuredWorkspacePatterns(packageJson, pnpmWorkspaceFile?.text || '')
+    : cargoManifest?.workspace?.members || []
   const workspaceFiles = (await Promise.all(workspacePaths.map((path) => readGitHubFile(repository, path, { preferRaw: true })))).filter(Boolean)
-  for (const workspaceFile of workspaceFiles) {
-    try {
-      Object.assign(dependencies, packageDependencies(JSON.parse(workspaceFile.text)))
-    } catch {
-      // A malformed optional workspace manifest must not erase the root evidence.
+  const cargoWorkspaceManifests = []
+  if (ecosystem === 'npm') {
+    for (const workspaceFile of workspaceFiles) {
+      try {
+        Object.assign(dependencies, packageDependencies(JSON.parse(workspaceFile.text)))
+      } catch {
+        // A malformed optional workspace manifest must not erase the root evidence.
+      }
     }
+  } else {
+    for (const workspaceFile of workspaceFiles) cargoWorkspaceManifests.push({ path: workspaceFile.path, ...parseCargoManifest(workspaceFile.text) })
+    const mergedCargo = mergeCargoManifestEvidence([cargoManifest, ...cargoWorkspaceManifests])
+    dependencies = mergedCargo.dependencies
+    cargoDependencyAliases = mergedCargo.dependencyAliases
+    cargoDependencyKinds = mergedCargo.dependencyKinds
+    if (!cargoManifest?.name && cargoWorkspaceManifests.length === 1) inferredPackage = requestedPackage || cargoWorkspaceManifests[0].name || repository.name
   }
   const sourceResult = await collectSourceFiles(repository, treePaths, treeError)
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
   let codeGraph = buildCodeGraph(sourceFiles, { maxFiles: sourceResult.limit || sourceFiles.length || 24 })
-  const dependencyAliases = ecosystem === 'cargo' ? cargoManifest.dependencyAliases || {} : {}
+  const dependencyAliases = ecosystem === 'cargo' ? cargoDependencyAliases : {}
   const normalizedDependencies = { ...dependencies }
   for (const [alias, packageName] of Object.entries(dependencyAliases)) {
     if (normalizedDependencies[packageName] === undefined) normalizedDependencies[packageName] = dependencies[alias]
@@ -784,7 +943,14 @@ export async function collectRepository(repository, requestedPackage) {
       workspaces: {
         patterns: workspacePatterns,
         files: workspaceFiles.map((file) => file.path),
+        ...(ecosystem === 'cargo' ? {
+          packages: cargoWorkspaceManifests.map((manifest) => ({ path: manifest.path, name: manifest.name || null, version: manifest.version || null })),
+          available: cargoWorkspaceSelection.available,
+          limit: cargoWorkspaceSelection.limit,
+          truncated: cargoWorkspaceSelection.truncated,
+        } : {}),
       },
+      dependencyKinds: cargoDependencyKinds,
       ciSignals,
       deploymentSignals,
       collection: {
@@ -936,82 +1102,108 @@ function repositoryPackageInventory(repositoryResults = []) {
     const manifest = repository.manifest || {}
     const ecosystem = repository.ecosystem || 'npm'
     const direct = new Set(Object.keys({ ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) }))
+    const imported = new Set((manifest.codeGraph?.externalImports || []).map((item) => item.packageName).filter(Boolean))
     for (const entry of manifest.lockPackages || []) {
       if (!entry?.name) continue
       const key = `${ecosystem}:${entry.name}`
-      const item = packages.get(key) || { ecosystem, name: entry.name, direct: false, versions: new Set(), repositories: new Set() }
+      const item = packages.get(key) || { ecosystem, name: entry.name, direct: false, imported: false, versions: new Set(), repositories: new Set() }
       if (entry.version) item.versions.add(entry.version)
       if (direct.has(entry.name)) item.direct = true
+      if (imported.has(entry.name)) item.imported = true
       if (repository.repository) item.repositories.add(repository.repository)
       packages.set(key, item)
     }
     for (const [name] of Object.entries({ ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) })) {
       const key = `${ecosystem}:${name}`
-      const item = packages.get(key) || { ecosystem, name, direct: true, versions: new Set(), repositories: new Set() }
+      const item = packages.get(key) || { ecosystem, name, direct: true, imported: false, versions: new Set(), repositories: new Set() }
       item.direct = true
+      if (imported.has(name)) item.imported = true
       if (repository.repository) item.repositories.add(repository.repository)
       packages.set(key, item)
     }
   }
   return [...packages.values()]
-    .sort((left, right) => Number(right.direct) - Number(left.direct) || right.versions.size - left.versions.size || left.name.localeCompare(right.name))
+    .sort((left, right) => Number(right.imported) - Number(left.imported) || Number(right.direct) - Number(left.direct) || right.versions.size - left.versions.size || left.name.localeCompare(right.name))
 }
 
 async function collectRepositoryAdvisories(repositoryResults) {
-  const configuredPackageLimit = Number.parseInt(process.env.RECOIL_DISCOVERY_PACKAGE_LIMIT || '40', 10)
-  const packageLimit = Number.isFinite(configuredPackageLimit) ? Math.min(Math.max(configuredPackageLimit, 1), 100) : 40
-  const configuredAdvisoryLimit = Number.parseInt(process.env.RECOIL_DISCOVERY_ADVISORY_LIMIT || '12', 10)
-  const advisoryLimit = Number.isFinite(configuredAdvisoryLimit) ? Math.min(Math.max(configuredAdvisoryLimit, 1), 50) : 12
-  const inventory = repositoryPackageInventory(repositoryResults).slice(0, packageLimit)
+  const configuredPackageLimit = Number.parseInt(process.env.RECOIL_DISCOVERY_PACKAGE_LIMIT || '2000', 10)
+  const packageLimit = Number.isFinite(configuredPackageLimit) ? Math.min(Math.max(configuredPackageLimit, 1), 5000) : 2000
+  const configuredAdvisoryLimit = Number.parseInt(process.env.RECOIL_DISCOVERY_ADVISORY_LIMIT || '50', 10)
+  const advisoryLimit = Number.isFinite(configuredAdvisoryLimit) ? Math.min(Math.max(configuredAdvisoryLimit, 1), 200) : 50
+  const configuredBatchSize = Number.parseInt(process.env.RECOIL_OSV_BATCH_SIZE || '100', 10)
+  const batchSize = Number.isFinite(configuredBatchSize) ? Math.min(Math.max(configuredBatchSize, 1), 1000) : 100
+  const fullInventory = repositoryPackageInventory(repositoryResults)
+  const inventory = fullInventory.slice(0, packageLimit)
   if (!inventory.length) {
-    return { status: 'completed', packagesChecked: 0, advisoryCount: 0, truncated: false, packages: [], advisories: [], sourceUrl: 'https://api.osv.dev/v1/querybatch' }
+    return { status: 'completed', packagesChecked: 0, packagesRecorded: 0, versionChecks: 0, unresolvedPackages: [], advisoryCount: 0, truncated: false, packages: [], advisories: [], sourceUrl: 'https://api.osv.dev/v1/querybatch' }
   }
-  const queries = inventory.map((item) => ({ package: { ecosystem: item.ecosystem === 'cargo' ? 'crates.io' : 'npm', name: item.name } }))
   const url = 'https://api.osv.dev/v1/querybatch'
-  let response
-  try {
-    response = await fetchWithNetworkRetry(url, {
-      method: 'POST',
-      headers: { accept: 'application/json', 'content-type': 'application/json' },
-      body: JSON.stringify({ queries }),
-    })
-  } catch (error) {
-    throw networkError(url, error)
-  }
-  if (!response.ok) throw httpError(response, url)
-  const payload = await response.json()
-  const candidates = []
-  for (const [index, result] of (payload.results || []).entries()) {
-    const packageRecord = inventory[index]
-    if (!packageRecord) continue
-    for (const vulnerability of result?.vulns || []) {
-      const packageName = packageRecord.name
-      const affectedVersions = [...packageRecord.versions].filter((version) => versionAffectedByAdvisory(vulnerability, packageName, version) === true)
-      if (!affectedVersions.length) continue
-      const id = vulnerability.id || vulnerability.aliases?.[0]
-      if (!id) continue
-      candidates.push({
-        packageName,
-        ecosystem: packageRecord.ecosystem,
-        affectedVersions,
-        advisory: {
-          ...vulnerability,
-          id,
-          sourceUrl: `https://osv.dev/vulnerability/${encodeURIComponent(id)}`,
-        },
+  const queryRecords = inventory.flatMap((item) => [...item.versions].map((version) => ({ item, version })))
+  const unresolvedPackages = inventory.filter((item) => item.versions.size === 0).map((item) => item.name)
+  const candidateMap = new Map()
+  for (let offset = 0; offset < queryRecords.length; offset += batchSize) {
+    const batch = queryRecords.slice(offset, offset + batchSize)
+    const queries = batch.map(({ item, version }) => ({ version, package: { ecosystem: item.ecosystem === 'cargo' ? 'crates.io' : 'npm', name: item.name } }))
+    let response
+    try {
+      response = await fetchWithNetworkRetry(url, {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: JSON.stringify({ queries }),
       })
+    } catch (error) {
+      throw networkError(url, error)
+    }
+    if (!response.ok) throw httpError(response, url)
+    const payload = await response.json()
+    for (const [index, result] of (payload.results || []).entries()) {
+      const queryRecord = batch[index]
+      if (!queryRecord) continue
+      const packageRecord = queryRecord.item
+      for (const vulnerability of result?.vulns || []) {
+        const packageName = packageRecord.name
+        const id = vulnerability.id || vulnerability.aliases?.[0]
+        if (!id) continue
+        const key = `${packageRecord.ecosystem}:${packageName}:${id}`
+        const candidate = candidateMap.get(key) || { packageName, ecosystem: packageRecord.ecosystem, direct: packageRecord.direct, imported: packageRecord.imported, affectedVersions: new Set(), advisory: vulnerability }
+        candidate.affectedVersions.add(queryRecord.version)
+        if ((vulnerability.affected || []).length || vulnerability.summary || vulnerability.published) candidate.advisory = vulnerability
+        candidateMap.set(key, candidate)
+      }
     }
   }
-  const unique = [...new Map(candidates.map((candidate) => [`${candidate.ecosystem}:${candidate.packageName}:${candidate.advisory.id}`, candidate])).values()]
+  const candidateStubs = [...candidateMap.values()]
+    .sort((left, right) => Number(right.imported) - Number(left.imported) || Number(right.direct) - Number(left.direct) || right.affectedVersions.size - left.affectedVersions.size || left.packageName.localeCompare(right.packageName) || String(left.advisory.id).localeCompare(String(right.advisory.id)))
+  const hydrated = await Promise.all(candidateStubs.slice(0, advisoryLimit).map(async (candidate) => {
+    const embedded = candidate.advisory
+    const full = (embedded.affected || []).length
+      ? embedded
+      : await collectAdvisoryById(embedded.id).catch(() => null)
+    return {
+      packageName: candidate.packageName,
+      ecosystem: candidate.ecosystem,
+      affectedVersions: [...candidate.affectedVersions],
+      advisory: {
+        ...(full && !full.error ? full : embedded),
+        id: embedded.id,
+        sourceUrl: `https://osv.dev/vulnerability/${encodeURIComponent(embedded.id)}`,
+      },
+    }
+  }))
+  const unique = hydrated
     .sort((left, right) => right.affectedVersions.length - left.affectedVersions.length || String(right.advisory.published || '').localeCompare(String(left.advisory.published || '')) || left.packageName.localeCompare(right.packageName))
   return {
-    status: 'completed',
-    packagesChecked: inventory.length,
+    status: unresolvedPackages.length ? 'partial' : 'completed',
+    packagesChecked: inventory.length - unresolvedPackages.length,
+    packagesRecorded: fullInventory.length,
+    versionChecks: queryRecords.length,
+    unresolvedPackages,
     packageLimit,
-    advisoryCount: Math.min(unique.length, advisoryLimit),
-    truncated: unique.length > advisoryLimit || repositoryPackageInventory(repositoryResults).length > packageLimit,
-    packages: inventory.map((item) => ({ ecosystem: item.ecosystem, name: item.name, direct: item.direct, versions: [...item.versions], repositories: [...item.repositories] })),
-    advisories: unique.slice(0, advisoryLimit),
+    advisoryCount: unique.length,
+    truncated: candidateStubs.length > advisoryLimit || fullInventory.length > packageLimit,
+    packages: inventory.map((item) => ({ ecosystem: item.ecosystem, name: item.name, direct: item.direct, imported: item.imported, versions: [...item.versions], repositories: [...item.repositories] })),
+    advisories: unique,
     sourceUrl: url,
   }
 }
@@ -1316,6 +1508,8 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   ].filter(Boolean))]
   const failed = [advisoryRecord, registry, discovery, ...repositoryResults].some((collector) => collector?.status === 'failed')
   const partialEvidence = repositoryResults.some((repository) => repository.manifest?.collection?.sourceFiles?.status && repository.manifest.collection.sourceFiles.status !== 'collected')
+    || discovery?.status === 'partial'
+    || discovery?.truncated === true
   onProgress({ type: 'step', key: 'classification', status: 'complete', detail: findings.map((finding) => `${finding.repository}: ${finding.verdict}`).join(' · ') || (repositoryOnly && discovery?.advisoryCount === 0 ? `No affected advisory matched ${discovery.packagesChecked} recorded packages.` : 'No repositories were classified.'), title: 'Reachability classified' })
   return {
     status: failed || partialEvidence ? 'partial' : repositoryOnly ? 'completed' : packageName && advisory ? 'completed' : 'partial',

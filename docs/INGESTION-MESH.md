@@ -13,7 +13,7 @@ GitHub repo ──┘                                  ↓
 
 - **Advisory resolver:** retrieves one OSV record by GHSA/CVE identifier.
 - **Registry resolver:** retrieves published versions and maintainers from npm or crates.io.
-- **Repository extractor:** reads root and bounded workspace `package.json` manifests, npm/Yarn/pnpm/Cargo lockfiles, bounded source files, workflows, containers, CODEOWNERS, and lockfile commit history. Legacy npm nested trees, Yarn selectors, and pnpm snapshots are normalized without treating them as an npm install tree.
+- **Repository extractor:** reads root and bounded workspace `package.json` manifests, tracked Cargo workspace member manifests, complete parsed npm/Yarn/pnpm/Cargo lockfile inventories, bounded source files, workflows, containers, CODEOWNERS, and lockfile commit history. Cargo runtime, development, build, target-specific, inherited, multiline, and renamed dependencies are retained. Legacy npm nested trees, Yarn selectors, and pnpm snapshots are normalized without treating them as an npm install tree.
 - **Source graph:** resolves local imports/modules and preserves external package imports with source URLs and line numbers.
 - **Advisory scope agent:** optional structured extraction of candidate affected symbols; exact source-index matching is mandatory before attachment.
 
