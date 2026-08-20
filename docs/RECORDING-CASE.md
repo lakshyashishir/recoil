@@ -1,7 +1,8 @@
 # Verified live recording case
 
-This case passed the strict live gate again on 20 August 2026. Re-run it before recording so the verdicts and
-HydraDB receipt are freshly calculated from public OSV, GitHub, registry, source, and HydraDB responses.
+This case passed the strict live gate again on 20 August 2026. Re-run it before recording so the verdicts,
+current-case graph verification, and HydraDB receipt are freshly calculated from public OSV, GitHub, registry,
+source, and HydraDB responses.
 The receipt is a handoff artifact, not hardcoded product output.
 
 ## Query
@@ -41,3 +42,5 @@ npm run tui -- --recording "$QUERY"
 
 Use the receipt written by `smoke:recording` only when the strict gate passes. Keep it outside Git; it
 contains the live evidence summary and is not a substitute for the browser/CLI cross-client check.
+The smoke output should include `graph-read verified`; that is a separate current-case HydraDB graph proof,
+not a count copied from prior temporal recall.

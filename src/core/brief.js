@@ -126,6 +126,7 @@ export function buildEvidenceBrief({ scenarioId, query, report, hydra } = {}) {
     `- Dated facts recalled: ${memory.datedChunkCount || 0}`,
     `- Related cases: ${memory.relatedCaseCount || 0}`,
     `- Graph triplets returned: ${graphContext.tripletCount || 0}`,
+    `- Current case graph: ${hydra?.graphVerification?.status || 'not verified'} · ${hydra?.graphVerification?.tripletCount || 0} scoped relations`,
     '',
     'HydraDB stores and recalls dated evidence context. It does not override the local source-backed verdict.',
     '',
@@ -143,4 +144,3 @@ export function buildEvidenceBrief({ scenarioId, query, report, hydra } = {}) {
   ]
   return `${lines.join('\n')}\n`
 }
-

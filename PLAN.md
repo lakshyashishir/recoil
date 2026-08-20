@@ -91,6 +91,7 @@ observed path → proposed fix → residual re-check
 - [x] Prefer raw GitHub reads for known manifests, lockfiles, workflows, containers, and ownership files; keep optional directory metadata non-fatal during API outages.
 - [x] Add an explicit in-process CLI transport that reuses the autonomous state machine when an API server is not available.
 - [x] Make strict recording require an actual HydraDB graph triplet, not only a successful memory write and dated recall.
+- [x] Verify the current case graph with a scenario-scoped HydraDB read, separate from prior temporal recall, and reject duplicate provider triplets in the proof count.
 - [x] Reuse one recursive GitHub tree for source and workflow discovery, keeping the workflow directory API as a failure fallback.
 - [x] Allow the CLI to target a caller-supplied case ID so browser and terminal clients can inspect the same API-backed investigation.
 - [x] Include OpenTUI compilation in the reproducible `npm run verify` gate.

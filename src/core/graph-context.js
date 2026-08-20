@@ -17,16 +17,20 @@ export function summarizeGraphContext(input) {
   const rawTriplets = Array.isArray(context.triplets)
     ? context.triplets
     : [...queryPaths, ...chunkRelations].flatMap((path) => path?.triplets || [])
-  const triplets = rawTriplets.map((triplet) => ({
+  const normalizedTriplets = rawTriplets.map((triplet) => ({
     source: tripletValue(triplet.source),
     predicate: triplet.predicate || triplet.relation?.canonical_predicate || triplet.relation?.canonicalPredicate || triplet.relation?.predicate || null,
     target: tripletValue(triplet.target),
     origin: triplet.origin || triplet.relation?.origin || null,
-  })).filter((triplet) => triplet.source && triplet.target).slice(0, 12)
+  })).filter((triplet) => triplet.source && triplet.target)
+  const triplets = [...new Map(normalizedTriplets.map((triplet) => [
+    `${triplet.source}\u0000${triplet.predicate || ''}\u0000${triplet.target}\u0000${triplet.origin || ''}`,
+    triplet,
+  ])).values()].slice(0, 12)
   return {
     queryPathCount: context.queryPathCount ?? queryPaths.length,
     chunkRelationCount: context.chunkRelationCount ?? chunkRelations.length,
-    tripletCount: context.tripletCount ?? triplets.length,
+    tripletCount: triplets.length,
     triplets,
   }
 }

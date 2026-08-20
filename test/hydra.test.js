@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildInvestigationMemories, persistInvestigation, priorScenarioIds, recallTemporal, settleHydraIndexing, summarizeRelatedCases } from '../server/hydra.js'
+import { buildInvestigationMemories, persistInvestigation, priorScenarioIds, recallStoredGraph, recallTemporal, settleHydraIndexing, summarizeRelatedCases } from '../server/hydra.js'
+import { summarizeGraphContext } from '../src/core/graph-context.js'
 
 test('HydraDB recall distinguishes prior cases from the current case', () => {
   const chunks = [
@@ -23,6 +24,56 @@ test('HydraDB recall summarizes prior case metadata without exposing chunks', ()
     { scenarioId: 'prior-a', kinds: ['observed_graph', 'temporal_fact'], repositories: ['example/a'], validFrom: '2023-01-01T00:00:00Z', sourceUrls: ['https://example.com/a', 'https://example.com/a/path'] },
     { scenarioId: 'prior-b', kinds: ['temporal_fact'], repositories: ['example/b'], validFrom: '2024-02-01T00:00:00Z', sourceUrls: ['https://example.com/b'] },
   ])
+})
+
+test('HydraDB current graph verification is scoped to the case metadata', async () => {
+  const previousFetch = globalThis.fetch
+  const previousKey = process.env.HYDRA_DB_API_KEY
+  const previousDatabase = process.env.HYDRADB_DATABASE_ID
+  process.env.HYDRA_DB_API_KEY = 'test-key'
+  process.env.HYDRADB_DATABASE_ID = 'test-database'
+  let requestBody
+  globalThis.fetch = async (input, options = {}) => {
+    assert.match(String(input), /\/query$/)
+    requestBody = JSON.parse(options.body)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { inner: {
+        chunks: [{ id: 'graph-memory', additional_metadata: { app: 'recoil', recoil_scenario_id: 'current-case', recoil_kind: 'observed_graph' } }],
+        graph_context: { query_paths: [{ triplets: [{ source: { name: 'entry.js' }, relation: { canonical_predicate: 'IMPORTS', origin: 'byog' }, target: { name: 'server.js' } }] }] },
+      } } }),
+    }
+  }
+  try {
+    const result = await recallStoredGraph('current-case', 'minimist', {
+      nodes: [{ id: 'entry', label: 'entry.js', type: 'code' }, { id: 'server', label: 'server.js', type: 'code' }],
+      edges: [['entry', 'server']],
+    })
+    assert.equal(result.status, 'verified')
+    assert.equal(result.memoryCount, 1)
+    assert.equal(result.tripletCount, 1)
+    assert.deepEqual(result.graphContext.triplets, [{ source: 'entry.js', predicate: 'IMPORTS', target: 'server.js', origin: 'byog' }])
+    assert.deepEqual(requestBody.metadata_filters, { additional_metadata: { app: 'recoil', recoil_scenario_id: 'current-case' } })
+    assert.match(requestBody.query, /current-case/)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
+    else process.env.HYDRA_DB_API_KEY = previousKey
+    if (previousDatabase === undefined) delete process.env.HYDRADB_DATABASE_ID
+    else process.env.HYDRADB_DATABASE_ID = previousDatabase
+  }
+})
+
+test('HydraDB graph summaries count unique relations when provider paths repeat them', () => {
+  const summary = summarizeGraphContext({
+    triplets: [
+      { source: { name: 'entry.js' }, predicate: 'IMPORTS', target: { name: 'server.js' } },
+      { source: { name: 'entry.js' }, predicate: 'IMPORTS', target: { name: 'server.js' } },
+    ],
+  })
+  assert.equal(summary.tripletCount, 1)
+  assert.equal(summary.triplets.length, 1)
 })
 
 test('HydraDB recall keeps the latest comparable repository snapshot', () => {

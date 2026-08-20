@@ -1198,7 +1198,9 @@ function IntegrityDetails({ report, hydra, evidenceStatus }) {
       : scope.status === 'failed'
         ? 'unavailable'
         : 'module-level only'
-  return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.note || (scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.')}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div><p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of runtime execution.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
+  const graphVerification = hydra?.graphVerification
+  const graphRelation = graphVerification?.graphContext?.triplets?.[0]
+  return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{quality.readyForRecording ? 'recording-ready' : 'review required'}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.note || (scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.')}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div>{graphVerification && <div className={`audit-graph-verification audit-graph-verification-${graphVerification.status}`}><div><span className="section-kicker">Current HydraDB graph read</span><strong>{graphVerification.status === 'verified' ? `${graphVerification.tripletCount || 0} scoped relation${graphVerification.tripletCount === 1 ? '' : 's'} returned` : graphVerification.status.replaceAll('_', ' ')}</strong><p>{graphRelation ? `${graphRelation.source} ${graphRelation.predicate || 'connected to'} ${graphRelation.target}` : graphVerification.reason || 'The current case graph was not returned by the scoped read.'}</p></div><span>{graphVerification.memoryCount || 0} observed-graph memor{graphVerification.memoryCount === 1 ? 'y' : 'ies'}</span></div>}<p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of runtime execution.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
 }
 
 function ReceiptLink({ scenarioId = DEFAULT_SCENARIO_ID }) {
@@ -1365,6 +1367,7 @@ function CaseScopeLine({ report, hydra, historical = false }) {
   const entities = report?.graph?.nodes?.length
   const memory = report?.rewind?.memory || hydra?.recall
   const datedFacts = memory?.datedChunkCount
+  const graphVerification = hydra?.graphVerification
   const memoryLabel = memory?.status === 'recalled'
     ? `${datedFacts || 0} dated facts recalled`
     : memory?.status === 'queued'
@@ -1374,6 +1377,7 @@ function CaseScopeLine({ report, hydra, historical = false }) {
     Number.isFinite(sampledFiles) ? `${sampledFiles} files sampled` : null,
     Number.isFinite(entities) ? `${entities} graph entities` : null,
     historical ? 'historical snapshot' : memoryLabel,
+    graphVerification?.status === 'verified' ? `${graphVerification.tripletCount || 0} HydraDB graph relation${graphVerification.tripletCount === 1 ? '' : 's'} verified` : graphVerification?.status && graphVerification.status !== 'skipped' ? `HydraDB graph ${graphVerification.status.replaceAll('_', ' ')}` : null,
   ].filter(Boolean)
   if (!signals.length) return null
   return <div className="case-scope-line" aria-label="Evidence scope"><span>{signals.join(' · ')}</span><span className="case-scope-boundary">No install · no execution</span></div>

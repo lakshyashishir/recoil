@@ -1,3 +1,5 @@
+import { summarizeGraphContext } from '../src/core/graph-context.js'
+
 const DEFAULT_API_URL = 'https://api.hydradb.com'
 const MAX_MEMORY_CHARS = 2200
 const MAX_METADATA_SOURCE_URLS = 4
@@ -337,6 +339,29 @@ function graphContextScore(context) {
   const paths = Array.isArray(context.query_paths || context.queryPaths) ? (context.query_paths || context.queryPaths).length : 0
   const relations = Array.isArray(context.chunk_relations || context.chunkRelations) ? (context.chunk_relations || context.chunkRelations).length : 0
   return triplets + paths + relations
+}
+
+function graphContextValue(result) {
+  return result?.graph_context || result?.graphContext || null
+}
+
+function observedGraphEdges(graph = {}) {
+  const nodes = new Map((graph.nodes || []).map((node) => [node.id, node]))
+  return (graph.edges || []).map(([fromId, toId]) => ({ from: nodes.get(fromId), to: nodes.get(toId) })).filter(({ from, to }) => from && to)
+}
+
+function graphToken(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function matchingGraphTriplets(triplets = [], graph = {}) {
+  const edges = observedGraphEdges(graph)
+  return triplets.filter((triplet) => edges.some(({ from, to }) => {
+    const source = graphToken(triplet.source)
+    const target = graphToken(triplet.target)
+    return [from.label, from.id].some((value) => graphToken(value) === source)
+      && [to.label, to.id].some((value) => graphToken(value) === target)
+  }))
 }
 
 function focusedRecallText(queryText) {
@@ -696,4 +721,53 @@ export async function recallTemporal(queryText, asOf, signal, { excludeScenarioI
   const graphContext = graphContextScore(focusedGraph) > graphContextScore(primaryGraph) ? focusedGraph : primaryGraph
   const sources = [...new Set([...(result?.sources || result?.documents || []), ...(focusedResult?.sources || focusedResult?.documents || [])])]
   return { status: 'recalled', asOf, chunks, rawChunkCount: rawChunks.length, datedChunkCount, relatedScenarioIds, priorScenarioIds: priorCases, relatedCases, sources, graphContext, focusedRecall: Boolean(focusedResult), focusedRecallError: focusedError, raw: { ...result, chunks: result?.chunks ? rawChunks : undefined, results: result?.results ? rawChunks : undefined, graph_context: graphContext } }
+}
+
+/**
+ * Verify the graph written by this case, separately from the temporal query
+ * that intentionally excludes the current scenario and returns prior context.
+ * The metadata filter keeps the read scoped to this case's observed-graph
+ * memory, so a relation from another recording cannot satisfy the check.
+ */
+export async function recallStoredGraph(scenarioId, packageName = null, graph = null, signal) {
+  if (!enabled()) return { status: 'skipped', scenarioId, graphContext: null, memoryCount: 0, tripletCount: 0, sourceIds: [] }
+  if (!scenarioId) return { status: 'skipped', reason: 'No scenario ID was supplied for graph verification', graphContext: null, memoryCount: 0, tripletCount: 0, sourceIds: [] }
+  const edgeTerms = observedGraphEdges(graph)
+    .sort((left, right) => (left.from.type === 'code' && left.to.type === 'code' ? -1 : 0) - (right.from.type === 'code' && right.to.type === 'code' ? -1 : 0))
+    .slice(0, 3)
+    .flatMap(({ from, to }) => [from.id, from.label, to.id, to.label])
+    .filter(Boolean)
+    .join(' ')
+  const request = {
+    database: databaseId(),
+    collection: collectionId(),
+    type: 'all',
+    query: `Recoil observed evidence graph ${scenarioId} ${packageName || ''} ${edgeTerms}`.trim().slice(0, 900),
+    query_by: 'hybrid',
+    mode: 'thinking',
+    max_results: 24,
+    graph_context: true,
+    metadata_filters: { additional_metadata: { app: 'recoil', recoil_scenario_id: scenarioId } },
+    additional_context: 'Return the explicit Recoil observed graph relations for this scenario. Do not substitute unrelated prior cases.',
+  }
+  const result = await queryAfterIndexing(request, signal)
+  const chunks = recallChunks(result)
+  const graphChunks = chunks.filter((chunk) => chunkMetadata(chunk).recoil_kind === 'observed_graph')
+  const graphContext = graphContextValue(result)
+  const summarized = summarizeGraphContext(graphContext) || { queryPathCount: 0, chunkRelationCount: 0, tripletCount: 0, triplets: [] }
+  const matchedTriplets = matchingGraphTriplets(summarized.triplets, graph)
+  const sourceIds = [...new Set(graphChunks.map((chunk, index) => recallChunkId(chunk, index)).filter(Boolean))]
+  const tripletCount = matchedTriplets.length
+  const scopedGraphContext = { ...summarized, tripletCount, triplets: matchedTriplets }
+  const hasExactRelation = graph ? matchedTriplets.length > 0 : summarized.triplets.length > 0
+  return {
+    status: graphChunks.length > 0 && hasExactRelation ? 'verified' : graphChunks.length > 0 && summarized.triplets.length > 0 ? 'unmatched_relations' : graphChunks.length > 0 ? 'indexed_no_relations' : 'not_found',
+    scenarioId,
+    memoryCount: graphChunks.length,
+    sourceIds,
+    tripletCount,
+    returnedTripletCount: summarized.triplets.length,
+    graphContext: scopedGraphContext,
+    reason: graphChunks.length > 0 && hasExactRelation ? null : graphChunks.length > 0 && summarized.triplets.length > 0 ? 'HydraDB returned scoped relations, but none matched an exact edge in the local observed graph.' : graphChunks.length > 0 ? 'The current graph memory was found, but HydraDB returned no relation for the scoped query.' : 'The current observed-graph memory was not returned by the scoped query.',
+  }
 }

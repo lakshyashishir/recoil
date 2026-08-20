@@ -65,10 +65,13 @@ test('public API HydraDB state excludes raw recall chunks and provider payloads'
   assert.equal('raw' in recall, false)
   assert.deepEqual(recall.graphContext.triplets, [{ source: 'advisory', predicate: 'AFFECTS', target: 'package', origin: null }])
 
-  const state = publicHydraState({ status: 'persisted', memoryCount: 2, result: { chunks: ['provider payload'] }, recall: { chunks: [{ text: 'private provider chunk' }] } })
+  const state = publicHydraState({ status: 'persisted', memoryCount: 2, result: { chunks: ['provider payload'] }, recall: { chunks: [{ text: 'private provider chunk' }] }, graphVerification: { status: 'verified', scenarioId: 'case-1', memoryCount: 1, tripletCount: 1, graphContext: { triplets: [{ source: 'entry', target: 'server', predicate: 'IMPORTS' }] }, raw: { secret: true } } })
   assert.equal(state.status, 'persisted')
   assert.equal('result' in state, false)
   assert.equal('chunks' in state.recall, false)
+  assert.equal(state.graphVerification.status, 'verified')
+  assert.equal(state.graphVerification.tripletCount, 1)
+  assert.equal('raw' in state.graphVerification, false)
 })
 
 test('API rejects an investigation without a repository before collection', async () => {
@@ -174,6 +177,7 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     assert.equal(health.body.recordingContract.requiresHydraTemporalRecall, true)
     assert.equal(health.body.recordingContract.requiresDatedTemporalFact, true)
     assert.equal(health.body.recordingContract.requiresHydraGraphContext, true)
+    assert.equal(health.body.recordingContract.requiresHydraCurrentGraphVerification, true)
     assert.equal(health.body.recordingContract.incompleteHydraWrites, false)
     assert.ok(health.body.capabilities.includes('per-hop-provenance'))
     assert.ok(health.body.capabilities.includes('legacy-npm-lockfile'))

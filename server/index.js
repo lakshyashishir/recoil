@@ -74,6 +74,19 @@ export function publicHydraRecall(recall = {}) {
   }
 }
 
+function publicHydraGraphVerification(graph = {}) {
+  return {
+    status: graph.status || 'not_requested',
+    scenarioId: graph.scenarioId || null,
+    memoryCount: graph.memoryCount || 0,
+    tripletCount: graph.tripletCount || 0,
+    returnedTripletCount: graph.returnedTripletCount || graph.tripletCount || 0,
+    sourceIds: Array.isArray(graph.sourceIds) ? graph.sourceIds : [],
+    graphContext: summarizeGraphContext(graph.graphContext),
+    reason: graph.reason || graph.error || null,
+  }
+}
+
 export function publicHydraState(hydra = {}) {
   return {
     status: hydra.status || 'not_started',
@@ -83,6 +96,7 @@ export function publicHydraState(hydra = {}) {
     indexingPending: Boolean(hydra.indexingPending),
     indexingError: hydra.indexingError || null,
     recall: publicHydraRecall(hydra.recall || {}),
+    graphVerification: publicHydraGraphVerification(hydra.graphVerification || {}),
   }
 }
 
@@ -168,6 +182,7 @@ async function route(req, res) {
         requiresHydraTemporalRecall: true,
         requiresDatedTemporalFact: true,
         requiresHydraGraphContext: true,
+        requiresHydraCurrentGraphVerification: true,
         incompleteHydraWrites: process.env.RECOIL_HYDRA_PERSIST_PARTIAL === '1',
       },
       capabilities: [

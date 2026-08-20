@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import { parseGitHubRepositories, parseInvestigationInput, runMultiRepositoryIngestion } from '../server/collectors.js'
 import { buildInvestigationReport } from '../src/core/investigation.js'
 import { summarizeGraphContext } from '../src/core/graph-context.js'
-import { hydraStatus, persistInvestigation, recallTemporal, settleHydraIndexing } from '../server/hydra.js'
+import { hydraStatus, persistInvestigation, recallStoredGraph, recallTemporal, settleHydraIndexing } from '../server/hydra.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { recordingBlockers, recordingPreflight } from '../src/core/recording.js'
 import { recordingNetworkFailures } from '../src/core/network-preflight.js'
@@ -73,6 +73,9 @@ if (hydra.status === 'queued' && hydra.result) {
 const recall = ['persisted', 'queued'].includes(hydra.status)
   ? await recallTemporal([query, report.package, report.advisory?.id].filter(Boolean).join(' '), report.rewind.currentAsOf, undefined, { excludeScenarioId: scenarioId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
   : { status: hydra.status, chunks: [] }
+const graphVerification = ['persisted', 'queued'].includes(hydra.status)
+  ? await recallStoredGraph(scenarioId, report.package, report.graph).catch((error) => ({ status: 'failed', error: error.message, tripletCount: 0, memoryCount: 0, sourceIds: [] }))
+  : { status: hydra.status, tripletCount: 0, memoryCount: 0, sourceIds: [] }
 
 print('RECOIL', 'real evidence smoke')
 print('target', query)
@@ -90,6 +93,7 @@ print('rewind', `${report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} curren
 const graphContext = summarizeGraphContext(recall.graphContext) || {}
 const graphTriplets = graphContext.tripletCount ?? graphContext.triplets?.length ?? 0
 print('hydra', `${hydra.status} · read ${recall.status || 'not-run'} · ${hydra.memoryCount || 0} memories · ${recall.datedChunkCount || 0} dated facts · ${recall.priorScenarioIds?.length || 0} prior cases · ${graphTriplets} graph triplets`)
+print('graph-read', `${graphVerification.status} · ${graphVerification.tripletCount || 0} current relations · ${graphVerification.memoryCount || 0} graph memories scoped to this case`)
 if (hydra.error) print('hydra-error', hydra.error)
 if (hydra.indexingError) print('hydra-index', hydra.indexingError)
 if (recall.error) print('hydra-read', recall.error)
@@ -98,11 +102,11 @@ if (requiredHydra && recall.status !== 'recalled') print('hydra-gate', `required
 print('sources', `${report.sources?.length || 0} public URLs`)
 print('boundary', 'no install · no repository execution · no exploit payload')
 
-const blockers = recordingBlockers({ report, evidenceStatus: ingestion.status, hydra: { ...hydra, recall }, requireContrast: requiredContrast, requireHydra: requiredHydra })
+const blockers = recordingBlockers({ report, evidenceStatus: ingestion.status, hydra: { ...hydra, recall, graphVerification }, requireContrast: requiredContrast, requireHydra: requiredHydra })
 for (const blocker of blockers) print('gate', blocker)
 if (requiredContrast && blockers.some((blocker) => blocker.startsWith('missing contrast'))) print('contrast', blockers.find((blocker) => blocker.startsWith('missing contrast')))
 if (!blockers.length) {
-  const receipt = buildEvidenceReceipt({ scenarioId, query, report, hydra: { ...hydra, recall } })
+  const receipt = buildEvidenceReceipt({ scenarioId, query, report, hydra: { ...hydra, recall, graphVerification } })
   await mkdir(dirname(receiptPath), { recursive: true })
   await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`)
   print('receipt', receiptPath)

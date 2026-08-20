@@ -3,7 +3,7 @@ import { applyAdvisoryScope } from '../src/core/evidence.js'
 import { attachHydraRewind, buildInvestigationReport, createInvestigationState } from '../src/core/investigation.js'
 import { resolveAdvisoryScope } from './advisory-agent.js'
 import { runMultiRepositoryIngestion } from './collectors.js'
-import { persistInvestigation, recallTemporal, settleHydraIndexing } from './hydra.js'
+import { persistInvestigation, recallStoredGraph, recallTemporal, settleHydraIndexing } from './hydra.js'
 
 function graphSize(graph) {
   return (graph?.nodes?.length || 0) + (graph?.edges?.length || 0)
@@ -46,7 +46,7 @@ function pushEvent(state, event) {
   return next
 }
 
-function hydraState(persisted, recall) {
+function hydraState(persisted, recall, graphVerification = null) {
   return {
     ...persisted,
     status: persisted.status,
@@ -59,10 +59,11 @@ function hydraState(persisted, recall) {
       priorScenarioIds: recall.priorScenarioIds || [],
       relatedCases: recall.relatedCases || [],
     },
+    graphVerification: graphVerification || { status: persisted.status === 'skipped' ? 'skipped' : 'not_requested', tripletCount: 0, memoryCount: 0, sourceIds: [] },
   }
 }
 
-function hydraEventDetail(persisted, recall) {
+function hydraEventDetail(persisted, recall, graphVerification) {
   const memories = persisted?.memoryCount || 0
   const memoryLabel = persisted?.status === 'persisted'
     ? `${memories} evidence memories stored`
@@ -73,8 +74,15 @@ function hydraEventDetail(persisted, recall) {
     ? `${recall.datedChunkCount || 0} dated facts recalled`
     : recall?.status === 'failed'
       ? 'temporal recall failed'
-      : 'temporal recall unavailable'
-  return `${memoryLabel} · ${recallLabel}`
+    : 'temporal recall unavailable'
+  const graphLabel = graphVerification?.status === 'verified'
+    ? `${graphVerification.tripletCount || 0} current graph relation${graphVerification.tripletCount === 1 ? '' : 's'} verified`
+    : graphVerification?.status === 'skipped'
+      ? 'current graph read skipped'
+      : graphVerification?.status === 'failed'
+        ? 'current graph read failed'
+        : 'current graph read not verified'
+  return `${memoryLabel} · ${recallLabel} · ${graphLabel}`
 }
 
 async function reconcileQueuedHydra(record, state, report, queued) {
@@ -106,10 +114,13 @@ async function reconcileQueuedHydra(record, state, report, queued) {
     }
     if (record.investigation !== state) return
     const recallQuery = [record.query, report.package, report.advisory?.id].filter(Boolean).join(' ')
-    const recall = await recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
+    const [recall, graphVerification] = await Promise.all([
+      recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] })),
+      recallStoredGraph(state.caseId, report.package, report.graph).catch((error) => ({ status: 'failed', error: error.message, tripletCount: 0, memoryCount: 0, sourceIds: [] })),
+    ])
     if (record.investigation !== state) return
     const persisted = { ...queued, status: 'persisted', sourceIds: acknowledged, indexingPending: false, indexingError: null, result: indexed }
-    state.hydra = hydraState(persisted, recall)
+    state.hydra = hydraState(persisted, recall, graphVerification)
     record.hydra = state.hydra
     state.report = attachHydraRewind(state.report, recall)
     pushEvent(state, {
@@ -117,7 +128,7 @@ async function reconcileQueuedHydra(record, state, report, queued) {
       key: 'hydra',
       status: 'complete',
       title: 'Evidence graph stored in HydraDB',
-      detail: hydraEventDetail(persisted, recall),
+      detail: hydraEventDetail(persisted, recall, graphVerification),
     })
     state.step = 'complete'
   } catch (error) {
@@ -211,10 +222,13 @@ export async function executeInvestigation(record) {
     state.step = 'hydra'
     const persisted = await persistInvestigation(evidence, report).catch((error) => ({ status: 'failed', error: error.message, memoryCount: 0 }))
     const recallQuery = [record.query, report.package, report.advisory?.id].filter(Boolean).join(' ')
-    const recall = persisted.status === 'persisted' || persisted.status === 'queued'
-      ? await recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] }))
-      : { status: persisted.status, reason: persisted.reason, chunks: [] }
-    state.hydra = hydraState(persisted, recall)
+    const [recall, graphVerification] = persisted.status === 'persisted' || persisted.status === 'queued'
+      ? await Promise.all([
+        recallTemporal(recallQuery, report.rewind.currentAsOf, undefined, { excludeScenarioId: state.caseId }).catch((error) => ({ status: 'failed', error: error.message, chunks: [] })),
+        recallStoredGraph(state.caseId, report.package, report.graph).catch((error) => ({ status: 'failed', error: error.message, tripletCount: 0, memoryCount: 0, sourceIds: [] })),
+      ])
+      : [{ status: persisted.status, reason: persisted.reason, chunks: [] }, { status: persisted.status, reason: persisted.reason, tripletCount: 0, memoryCount: 0, sourceIds: [] }]
+    state.hydra = hydraState(persisted, recall, graphVerification)
     record.hydra = state.hydra
     report = attachHydraRewind(report, recall)
     state.report = report
@@ -223,7 +237,7 @@ export async function executeInvestigation(record) {
       key: 'hydra',
       status: persisted.status === 'failed' ? 'failed' : persisted.status === 'skipped' ? 'skipped' : 'complete',
       title: persisted.status === 'persisted' ? 'Evidence graph stored in HydraDB' : persisted.status === 'queued' ? 'Evidence graph queued in HydraDB' : 'Local evidence record ready',
-      detail: persisted.status === 'failed' ? persisted.error : hydraEventDetail(persisted, recall),
+      detail: persisted.status === 'failed' ? persisted.error : hydraEventDetail(persisted, recall, graphVerification),
     })
     state.status = 'complete'
     state.step = 'complete'

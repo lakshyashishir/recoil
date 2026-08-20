@@ -149,7 +149,8 @@ the browser report. If the case is partial or requires review, the same quality 
 collector, unknown repository, or mixed resolved versions that must be fixed before recording.
 
 For the strict terminal command, also require `recording ready · three-way contrast and HydraDB temporal
-proof verified`. If it prints `recording not-ready`, do not use that run in the demo.
+proof verified`. The browser audit should additionally show a verified current-case graph relation; this is
+separate from prior temporal recall. If it prints `recording not-ready`, do not use that run in the demo.
 
 The CLI prints a receipt URL after completion. The browser exposes the same receipt as a download from the case result.
 

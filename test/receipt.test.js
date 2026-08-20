@@ -104,6 +104,33 @@ test('receipt falls back to top-level HydraDB graph triplets when rewind summary
   assert.deepEqual(receipt.hydra.graphContext.triplets, [{ source: 'advisory', predicate: 'AFFECTS', target: 'minimist', origin: null }])
 })
 
+test('receipt prefers the current-case HydraDB graph proof over prior recall context', () => {
+  const report = {
+    query: 'GHSA-test https://github.com/example/app',
+    repositories: [],
+    graph: { nodes: [], edges: [] },
+    sources: [],
+    rewind: { memory: { graphContext: { triplets: [{ source: 'prior', predicate: 'RELATED_TO', target: 'case' }] } } },
+  }
+  const receipt = buildEvidenceReceipt({
+    report,
+    hydra: {
+      status: 'persisted',
+      graphVerification: {
+        status: 'verified',
+        scenarioId: 'case-1',
+        memoryCount: 2,
+        tripletCount: 1,
+        graphContext: { triplets: [{ source: 'entry.js', predicate: 'IMPORTS', target: 'server.js' }] },
+      },
+      recall: { graphContext: { triplets: [{ source: 'old', predicate: 'RELATED_TO', target: 'case' }] } },
+    },
+  })
+  assert.deepEqual(receipt.hydra.graphContext.triplets, [{ source: 'entry.js', predicate: 'IMPORTS', target: 'server.js', origin: null }])
+  assert.equal(receipt.hydra.graphVerification.status, 'verified')
+  assert.equal(receipt.hydra.graphVerification.scenarioId, 'case-1')
+})
+
 test('receipt verifier rejects unsupported or malformed artifacts', () => {
   assert.equal(verifyEvidenceReceipt(null).valid, false)
   assert.match(verifyEvidenceReceipt({ schema: 'other/v1' }).reason, /unsupported receipt schema/)

@@ -88,8 +88,11 @@ function compactGraph(graph = {}) {
 export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) {
   if (!report) return null
   const reportGraphContext = summarizeGraphContext(report.rewind?.memory?.graphContext)
+  const currentGraphContext = summarizeGraphContext(hydra?.graphVerification?.graphContext)
   const hydraGraphContext = summarizeGraphContext(hydra?.recall?.graphContext)
-  const graphContext = reportGraphContext?.tripletCount || reportGraphContext?.queryPathCount || reportGraphContext?.chunkRelationCount
+  const graphContext = currentGraphContext?.tripletCount
+    ? currentGraphContext
+    : reportGraphContext?.tripletCount || reportGraphContext?.queryPathCount || reportGraphContext?.chunkRelationCount
     ? reportGraphContext
     : hydraGraphContext || reportGraphContext
   const content = {
@@ -115,6 +118,15 @@ export function buildEvidenceReceipt({ scenarioId, query, report, hydra } = {}) 
       indexingError: hydra?.indexingError || null,
       memoryCount: hydra?.memoryCount || 0,
       graphContext,
+      graphVerification: hydra?.graphVerification ? {
+        status: hydra.graphVerification.status || null,
+        scenarioId: hydra.graphVerification.scenarioId || null,
+        memoryCount: hydra.graphVerification.memoryCount || 0,
+        tripletCount: hydra.graphVerification.tripletCount || 0,
+        returnedTripletCount: hydra.graphVerification.returnedTripletCount || hydra.graphVerification.tripletCount || 0,
+        graphContext: summarizeGraphContext(hydra.graphVerification.graphContext),
+        reason: hydra.graphVerification.reason || null,
+      } : null,
       recall: hydra?.recall ? {
         status: hydra.recall.status || null,
         datedChunkCount: hydra.recall.datedChunkCount || 0,

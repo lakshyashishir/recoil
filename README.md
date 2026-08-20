@@ -99,6 +99,13 @@ remains visibly `queued` with its indexing error. Temporal rewind is computed fr
 history and uses HydraDB’s dated evidence as the durable investigation record. Without HydraDB credentials,
 the same local evidence proof remains available and is labelled local replay.
 
+Completed runs perform two deliberately different HydraDB reads. Temporal recall excludes the active case so
+it can provide prior dated context without echoing the current write. A second, case-scoped graph read filters
+`recoil_scenario_id` to the active case and includes observed graph labels in its query; strict recording requires
+that read to return at least one current relation. This prevents an unrelated historical triplet from being
+presented as proof that the current graph was stored. Recoil also intersects returned triplets with the local
+observed edge endpoints; a scoped but unmatched relation remains review-required.
+
 Provider recall payloads stay server-side. Browser/API snapshots expose only bounded counts, source URLs,
 prior-case metadata, and normalized graph triplets; raw HydraDB chunks and transport responses are not sent
 to the client. The report and receipt use the same sanitized temporal summary.
@@ -175,8 +182,8 @@ temporal fact must be present. `--network` performs bounded reachability checks 
 HydraDB; failures are diagnostics, not evidence, and do not create a case.
 
 The strict recording gate also requires HydraDB to report at least one stored memory, one dated fact from
-temporal recall, and one returned graph triplet; an HTTP-successful but empty query cannot be recorded as
-memory or graph proof.
+temporal recall, and one relation from the current-case graph read; an HTTP-successful but empty or unrelated
+query cannot be recorded as memory or graph proof.
 
 To enable the optional advisory-scope pass, provide `OPENAI_API_KEY` and set `RECOIL_ADVISORY_AGENT=on`. It extracts candidate affected symbols from advisory prose using structured output, then the server attaches only exact matches found in the indexed source graph. Leave it off for a fully deterministic run; the package-import verdict does not depend on the model.
 
@@ -246,8 +253,9 @@ When the smoke gate passes, it writes the sanitized receipt to `.recoil-recordin
 credentials, or GitHub cache data are written to the artifact.
 
 Set `RECOIL_SMOKE_REQUIRE_CONTRAST=1` for the recording gate. In that mode the case must contain one
-`REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, and HydraDB must finish indexing and return
-a temporal recall with at least one returned graph triplet, in addition to the normal completeness checks.
+`REACHED`, one `DECLARED_ONLY`, and one `NOT_AFFECTED` repository, and HydraDB must finish indexing, return a
+dated temporal recall, and return at least one graph relation scoped to the active case, in addition to the
+normal completeness checks.
 Use `RECOIL_SMOKE_REQUIRE_HYDRA=1` when you want to require the HydraDB write/read/graph proof without
 requiring the three-way contrast. Strict modes fail before collection when the query has no GHSA/CVE
 advisory, fewer than three GitHub repositories, or the required HydraDB credentials are missing,
