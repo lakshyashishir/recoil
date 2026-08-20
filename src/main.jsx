@@ -1051,7 +1051,7 @@ function TemporalProof({ report, onRewind, loading = false, loadingTarget = null
         : 'The sampled repository classifications stayed the same across the disclosure boundary.'
     : loading
       ? 'Rebuilding the graph from dated evidence…'
-      : 'Rewind once to rebuild the graph at the day before disclosure.'
+      : 'Choose Before disclosure to rebuild the graph one day before the advisory.'
   const triplets = [...new Map((memory?.graphContext?.triplets || []).map((triplet) => {
     const key = [triplet.source, triplet.predicate, triplet.target].map((value) => String(value || '').trim().toLowerCase()).join('|')
     return [key, triplet]
@@ -1061,7 +1061,7 @@ function TemporalProof({ report, onRewind, loading = false, loadingTarget = null
     : (memory?.priorScenarioIds || []).map((scenarioId) => ({ scenarioId }))
   return <section className="temporal-proof" id="case-history" aria-busy={loading}>
     <div className="temporal-copy"><span className="section-kicker">HydraDB history</span><h2>See the case at two points in time.</h2><p>The advisory was published {report.advisory?.published?.slice(0, 10) || 'on an unknown date'}. Recoil uses dated lockfile evidence and HydraDB recall to keep the timeline inspectable.</p><div className={`memory-line ${memory?.status === 'recalled' ? '' : 'memory-line-muted'}`}><span className="memory-mark" /> {memory?.status === 'recalled' ? 'Dated context returned from HydraDB.' : memory?.status === 'queued' ? 'Memory is indexing in HydraDB.' : 'HydraDB history is unavailable.'}</div></div>
-    <div className="temporal-controls"><button className={beforeActive ? 'active' : ''} disabled={loading} aria-busy={beforeLoading} onClick={() => onRewind(before)}>{beforeLoading ? <LoaderCircle className="spin" size={15} /> : <Clock3 size={15} />}<span>{beforeLoading ? 'Rebuilding…' : 'Before disclosure'}</span><small>{before.slice(0, 10)}</small></button><button className={!beforeActive ? 'active' : ''} disabled={loading} aria-busy={currentLoading} onClick={() => onRewind(current)}>{currentLoading ? <LoaderCircle className="spin" size={15} /> : <ShieldCheck size={15} />}<span>{currentLoading ? 'Restoring…' : 'Current evidence'}</span><small>{current?.slice(0, 10) || 'today'}</small></button></div>
+    <div className="temporal-controls" aria-label="Choose a dated case view"><button className={beforeActive ? 'active' : ''} type="button" disabled={loading} aria-busy={beforeLoading} aria-label={`Rebuild the case before disclosure, ${before.slice(0, 10)}`} onClick={() => onRewind(before)}>{beforeLoading ? <LoaderCircle className="spin" size={15} /> : <Clock3 size={15} />}<span>{beforeLoading ? 'Rebuilding…' : 'Before disclosure'}</span><small>{before.slice(0, 10)}</small></button><button className={!beforeActive ? 'active' : ''} type="button" disabled={loading} aria-busy={currentLoading} aria-label={`Show current evidence, ${current?.slice(0, 10) || 'today'}`} onClick={() => onRewind(current)}>{currentLoading ? <LoaderCircle className="spin" size={15} /> : <ShieldCheck size={15} />}<span>{currentLoading ? 'Restoring…' : 'Current evidence'}</span><small>{current?.slice(0, 10) || 'today'}</small></button></div>
     <div className="temporal-compare" aria-live="polite">
       <div className="temporal-compare-heading"><span>Disclosure boundary</span><strong>{temporalConclusion}</strong></div>
       <div className="temporal-compare-points">
