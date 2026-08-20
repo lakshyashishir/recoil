@@ -227,7 +227,7 @@ async function main() {
     line(`input   ${packageResolution.reason || 'Package identity could not be resolved safely.'}`)
   }
   line(`result  ${summary.reached || 0} reached · ${summary.declaredOnly || 0} declared only · ${summary.notAffected || 0} not affected · ${summary.unknown || 0} unknown`)
-  line(`evidence ${quality.status || 'unknown'} · ${quality.readyForRecording ? 'recording-ready' : 'review required'} · ${quality.reason || 'quality not available'}`)
+  line(`evidence ${quality.status || 'unknown'} · ${quality.readyForRecording ? 'evidence gate passed' : 'review required'} · ${quality.reason || 'quality not available'}`)
   if (quality.ambiguousVersions?.length) line(`ambiguity ${quality.ambiguousVersions.map((item) => `${item.repository}: ${item.versions.join(', ')}`).join(' · ')}`)
   if (quality.collectorIssues?.length) line(`blocker  ${quality.collectorIssues.map((item) => `${item.collector}: ${item.status}`).join(' · ')}`)
   if (quality.sourceCoverage) {

@@ -1591,6 +1591,8 @@ function TemporalHighlight({ report, summary = {}, finding, challenge, earliestR
 
 function CaseScopeLine({ report, hydra, historical = false }) {
   const sampledFiles = report?.evidenceQuality?.sourceCoverage?.sampledFiles
+  const candidateFiles = report?.evidenceQuality?.sourceCoverage?.candidateFiles
+  const boundedRepositories = report?.evidenceQuality?.sourceCoverage?.boundedRepositories
   const entities = report?.graph?.nodes?.length
   const memory = report?.rewind?.memory || hydra?.recall
   const datedFacts = memory?.datedChunkCount
@@ -1601,7 +1603,11 @@ function CaseScopeLine({ report, hydra, historical = false }) {
       ? 'dated facts indexing'
       : 'dated facts unavailable'
   const signals = [
-    Number.isFinite(sampledFiles) ? `${sampledFiles} files sampled` : null,
+    Number.isFinite(sampledFiles)
+      ? Number.isFinite(candidateFiles)
+        ? `${sampledFiles}/${candidateFiles} eligible files sampled${boundedRepositories ? ` · ${boundedRepositories} repository${boundedRepositories === 1 ? '' : 'ies'} at sample limit` : ''}`
+        : `${sampledFiles} files sampled`
+      : null,
     Number.isFinite(entities) ? `${entities} graph entities` : null,
     historical ? 'historical snapshot' : memoryLabel,
     graphVerification?.status === 'verified' ? `${graphVerification.tripletCount || 0} HydraDB graph relation${graphVerification.tripletCount === 1 ? '' : 's'} verified` : graphVerification?.status && graphVerification.status !== 'skipped' ? `HydraDB graph ${graphVerification.status.replaceAll('_', ' ')}` : null,
