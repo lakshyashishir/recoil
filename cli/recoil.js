@@ -91,6 +91,27 @@ function printEvents(events, seen) {
   }
 }
 
+function packageFixCommand(finding, challenge) {
+  const version = challenge?.proposedVersion
+  const packageName = finding?.packageName
+  if (!version || !packageName) return null
+  const lockfile = (finding.path || []).find((part) => /(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock)/i.test(part)) || ''
+  if (/Cargo\.lock/i.test(lockfile)) return `cargo update -p ${packageName} --precise ${version}`
+  if (/yarn\.lock/i.test(lockfile)) return `yarn add ${packageName}@${version}`
+  if (/pnpm-lock\.yaml/i.test(lockfile)) return `pnpm add ${packageName}@${version}`
+  return `npm install ${packageName}@${version}`
+}
+
+function nextAction(finding, challenge) {
+  if (!challenge) return 'review the available evidence'
+  if (challenge.status === 'ALREADY_SAFE') return 'no version change required'
+  const command = packageFixCommand(finding, challenge)
+  if (challenge.status === 'FIX_SURVIVES' && command) return `review, then ${command}`
+  if (challenge.status === 'MANIFEST_CHANGE_REQUIRED' && command) return `update the manifest, then ${command}`
+  if (challenge.status === 'NO_REACHABLE_PATH' && command) return `consider defense-in-depth: ${command}`
+  return 'review the proposed fix before changing the repository'
+}
+
 function finalResult(id, queryText, snapshot, receiptPath = `/api/scenarios/${id}/receipt`) {
   const investigation = snapshot.investigation || {}
   const report = investigation.report || {}
@@ -217,6 +238,8 @@ async function main() {
     if (proof.length) line(`proof   ${cited}/${proof.length} hops have cited public evidence`)
     if (finding.dependencyPath?.length > 1) line(`chain   ${finding.dependencyPath.map((item) => `${item.name}@${item.version}`).join(' -> ')}`)
     if (finding.sourceImpact?.files?.length) line(`impact  ${finding.sourceImpact.sampledFileCount} sampled source files · ${finding.sourceImpact.observedEdgeCount} local import edges · bounded depth ${finding.sourceImpact.maxDepth}`)
+    const challenge = (result.report.challenge || []).find((item) => item.repository === finding.repository)
+    if (challenge) line(`next    ${nextAction(finding, challenge)} · no repository change executed`)
     if (proofOutput && finding.sourceImpact?.edges?.length) for (const [from, to] of finding.sourceImpact.edges.slice(0, 12)) line(`        local-import ${from} -> ${to}`)
     if (proofOutput) for (const step of proof) line(`        ${step.status.padEnd(12)} ${step.kind.padEnd(10)} ${step.label}${step.detail ? ` · ${step.detail}` : ''}${step.source ? ` · ${step.source}` : ''}`)
   }

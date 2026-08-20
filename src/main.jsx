@@ -1427,6 +1427,11 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   const unknown = findings.filter((finding) => ['UNKNOWN', 'NOT_YET_OBSERVED'].includes(finding.verdict))
   const primaryFinding = reached[0]
   const primaryChallenge = challenges.find((item) => item.repository === primaryFinding?.repository)
+  const primaryCommand = !historical
+    && primaryChallenge?.proposedVersion
+    && !['ALREADY_SAFE', 'NO_FIXED_VERSION'].includes(primaryChallenge.status)
+    ? packageFixCommand(primaryFinding, primaryChallenge)
+    : null
   const importer = primaryFinding?.imports?.[0]
   const proofFinding = primaryFinding || findings[0]
   const proofImporter = proofFinding?.imports?.[0]
@@ -1463,7 +1468,7 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   return <section className={`case-decision-callout ${historical ? 'case-decision-callout-historical' : ''}`} aria-label="Case decision">
     <div className="case-decision-label"><span className="section-kicker">Decision</span><span>from collected evidence</span></div>
     <div className="case-decision-copy"><h2>{title}</h2><p>{detail}</p></div>
-    <div className="case-decision-meta">{proofRoute && <div className="case-decision-route"><span>Primary evidence</span><strong>{proofRoute}</strong><small>{citedProofLabel(proofFinding)}{sourceCoverageLabel(proofFinding) ? ` · ${sourceCoverageLabel(proofFinding)}` : ''}</small>{proofSource && <SourceLink href={proofSource}>Open evidence</SourceLink>}</div>}<div className="case-decision-basis"><span>Evidence basis</span><strong>{evidenceBasis}</strong></div>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}</div>
+    <div className="case-decision-meta">{proofRoute && <div className="case-decision-route"><span>Primary evidence</span><strong>{proofRoute}</strong><small>{citedProofLabel(proofFinding)}{sourceCoverageLabel(proofFinding) ? ` · ${sourceCoverageLabel(proofFinding)}` : ''}</small>{proofSource && <SourceLink href={proofSource}>Open evidence</SourceLink>}</div>}<div className="case-decision-basis"><span>Evidence basis</span><strong>{evidenceBasis}</strong></div>{primaryCommand && <CopyFixCommand command={primaryCommand} />}{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}</div>
   </section>
 }
 
