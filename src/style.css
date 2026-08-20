@@ -1493,6 +1493,16 @@ body { font-family: var(--sans); line-height: 1.45; }
 .live-heading h1 { max-width: 760px; font-size: clamp(28px, 3.2vw, 42px); letter-spacing: -.035em; line-height: 1.08; }
 .case-hero h1 { max-width: 720px; font-size: clamp(32px, 3.5vw, 48px); letter-spacing: -.04em; line-height: 1.06; }
 
+/* The landing page is an intake surface, not a split marketing hero. Keep
+   the question and the evidence request together so the first action is
+   obvious before any workspace language appears. */
+.landing-grid { width: min(760px, 100%); grid-template-columns: minmax(0, 1fr); gap: 26px; padding: clamp(8vh, 13vh, 132px) 0 clamp(7vh, 10vh, 96px); }
+.landing-intro { text-align: center; }
+.landing-intro h1 { max-width: 720px; margin: 0 auto 16px; font-size: clamp(38px, 4.6vw, 58px); letter-spacing: -.045em; line-height: 1.02; }
+.landing-intro > p:last-child { max-width: 500px; margin: 0 auto; font-size: 14px; line-height: 1.5; }
+.landing-form-wrap { width: min(680px, 100%); justify-self: center; }
+.investigate-form textarea { min-height: 112px; }
+
 /* Durable memory should explain a change in the decision, not become another
    dashboard panel. This line is rendered only when HydraDB returned a real
    comparable repository snapshot. */
@@ -1514,6 +1524,8 @@ body { font-family: var(--sans); line-height: 1.45; }
 .hydra-comparison-meta button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 
 @media (max-width: 720px) {
+  .landing-grid { width: 100%; gap: 23px; padding: 8vh 0 6vh; }
+  .landing-intro h1 { font-size: clamp(36px, 10vw, 48px); }
   .case-facts-line { align-items: flex-start; gap: 7px 10px; }
   .case-facts-line span { gap: 10px; }
   .live-heading h1 { font-size: 34px; }
