@@ -124,6 +124,11 @@ snapshot for each repository with the current public-evidence result and shows o
 History view. This is a durable HydraDB comparison, not a client-side cache or a claim that a deployment
 changed; repositories without comparable prior snapshots are omitted from the delta.
 
+When a dated reconstruction is opened, the History view also compares its observed graph with the current
+case graph. It reports added and removed evidence entities and relationships, with labels taken from the
+two collected snapshots. This is a temporal graph diff over Recoil evidence—not a simulated attack route
+and not a claim about runtime infrastructure.
+
 ## Run locally
 
 ```bash
