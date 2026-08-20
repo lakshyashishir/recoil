@@ -1281,10 +1281,12 @@ function CaseContrast({ findings = [], selectedIndex = 0, onSelect, historical =
             : finding.verdict === 'NOT_AFFECTED'
               ? `${version} · outside affected range`
               : finding.reason || 'Evidence needs review'
+        const coverage = sourceCoverageLabel(finding)
         return <button className={`case-contrast-item ${selectedIndex === index ? 'is-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect?.(index)} aria-pressed={selectedIndex === index}>
           <span className="case-contrast-status"><Verdict value={finding.verdict} compact /><span>0{index + 1}</span></span>
           <strong>{repositoryName(finding.repository)}</strong>
           <small>{detail}</small>
+          {coverage && <span className="case-contrast-coverage">{coverage}</span>}
         </button>
       })}
     </div>
@@ -1674,6 +1676,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     : report?.rewind?.beforeAdvisory ? openHistory : null
   const changeTab = (tab) => {
     setActiveTab(tab)
+    if (tab === 'history' && !historical && report?.rewind?.beforeAdvisory) void rewindTo(report.rewind.beforeAdvisory)
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
