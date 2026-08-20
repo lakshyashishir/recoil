@@ -1279,9 +1279,12 @@ function summarizeFindings(findings = []) {
   }
 }
 
-function CaseFactsLine({ summary = {}, packageName, challenge, historical = false, onOpenProof, onOpenHistory }) {
+function CaseFactsLine({ summary = {}, packageName, finding, challenge, historical = false, onOpenProof, onOpenHistory }) {
   const unknown = summary.unknown || 0
   const proposedVersion = challenge?.proposedVersion
+  const fixCommand = !historical && challenge?.status === 'FIX_SURVIVES'
+    ? packageFixCommand({ ...(finding || {}), packageName: finding?.packageName || packageName }, challenge)
+    : null
   const remediationValue = historical
     ? 'Current proof hidden'
     : summary.fixSurvives && proposedVersion
@@ -1322,9 +1325,10 @@ function CaseFactsLine({ summary = {}, packageName, challenge, historical = fals
           : 'The proposed version is checked against the observed path.',
       action: historical && onOpenHistory ? { label: 'Return to current', onClick: onOpenHistory } : onOpenProof ? { label: 'Inspect fix', onClick: onOpenProof } : null,
       positive: !historical && Boolean(summary.fixSurvives || summary.alreadySafe),
+      command: fixCommand,
     },
   ]
-  return <section className="case-facts-line" aria-label="Case proof summary">{facts.map((fact) => <article className="case-fact" key={fact.label}><span className="case-fact-label">{fact.label}</span><strong className={fact.positive ? 'is-positive' : ''}>{fact.value}</strong><small>{fact.detail}</small>{fact.action && <button type="button" onClick={fact.action.onClick}>{fact.action.label}<ArrowUpRight size={12} /></button>}</article>)}</section>
+  return <section className="case-facts-line" aria-label="Case proof summary">{facts.map((fact) => <article className="case-fact" key={fact.label}><span className="case-fact-label">{fact.label}</span><strong className={fact.positive ? 'is-positive' : ''}>{fact.value}</strong><small>{fact.detail}</small>{fact.command && <code className="case-fact-command" title={fact.command}>{fact.command}</code>}{fact.action && <button type="button" onClick={fact.action.onClick}>{fact.action.label}<ArrowUpRight size={12} /></button>}</article>)}</section>
 }
 
 function CaseContrast({ findings = [], selectedIndex = 0, onSelect, historical = false }) {
@@ -1814,7 +1818,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   }
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
-    <CaseFactsLine summary={summary} packageName={report?.package} challenge={primaryChallenge} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
+    <CaseFactsLine summary={summary} packageName={report?.package} finding={primaryFinding} challenge={primaryChallenge} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
     {!historical && <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} onOpenHistory={historyAction} />}
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
