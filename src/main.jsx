@@ -206,7 +206,13 @@ function currentInvestigationActivity(events = [], investigationStatus) {
 
 function liveProgressSummary(events = [], investigationStatus, graphProgress = null, report = null) {
   const current = currentInvestigationActivity(events, investigationStatus)
-  const graph = events.find((event) => event.graphProgress)?.graph || null
+  const graph = events.reduce((best, event) => {
+    const candidate = event.graph
+    if (!candidate) return best
+    const score = (candidate.nodes?.length || 0) * 2 + (candidate.edges?.length || 0)
+    const bestScore = best ? (best.nodes?.length || 0) * 2 + (best.edges?.length || 0) : -1
+    return score > bestScore ? candidate : best
+  }, null)
   const nodes = graph?.nodes?.length || 0
   const edges = graph?.edges?.length || 0
   const mapped = graphProgress?.totalRepositories
@@ -291,10 +297,11 @@ function LiveRepositoryProgress({ query, events = [], report = null, graphProgre
             `${finding.evidenceSources?.length || 0} citation${finding.evidenceSources?.length === 1 ? '' : 's'}`,
           ].filter(Boolean).join(' · ')
           : event?.sourceUrls?.length ? `${event.sourceUrls.length} public record${event.sourceUrls.length === 1 ? '' : 's'}` : null
-        return <div className={`live-repository live-repository-${status} ${finding ? `live-repository-verdict-${String(finding.verdict || 'UNKNOWN').toLowerCase()}` : ''}`} key={repository}>
+        const current = event?.status === 'working'
+        return <div className={`live-repository live-repository-${status} ${current ? 'live-repository-current' : ''} ${finding ? `live-repository-verdict-${String(finding.verdict || 'UNKNOWN').toLowerCase()}` : ''}`} key={repository} aria-current={current ? 'step' : undefined}>
           <span className="live-repository-index">0{index + 1}</span>
           <div><strong>{repository}</strong><small>{detail}</small>{evidenceMeta && <span className="live-repository-evidence">{evidenceMeta}</span>}</div>
-          <span className="live-repository-status">{statusLabel}</span>
+          <span className="live-repository-status">{current ? 'now' : statusLabel}</span>
         </div>
       })}
     </div>
