@@ -1454,7 +1454,7 @@ function NoFindingsState({ report }) {
   </section>
 }
 
-function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory, onOpenGraph, compact = false }) {
+function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, compact = false }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
   const notAffected = findings.filter((finding) => finding.verdict === 'NOT_AFFECTED')
@@ -1515,7 +1515,7 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   return <section className={`case-decision-callout ${compact ? 'case-decision-callout-compact' : ''} ${historical ? 'case-decision-callout-historical' : ''}`} aria-label="Case decision">
     <div className="case-decision-label"><span className="section-kicker">Recoil's answer</span></div>
     <div className="case-decision-copy"><h2>{title}</h2><p>{detail}</p></div>
-    <div className="case-decision-meta">{proofRoute && <div className="case-decision-route"><span>Primary evidence</span><strong>{proofRoute}</strong><small>{citedProofLabel(proofFinding)}{sourceCoverageLabel(proofFinding) ? ` · ${sourceCoverageLabel(proofFinding)}` : ''}</small>{proofSource && <SourceLink href={proofSource}>Open evidence</SourceLink>}</div>}<div className="case-decision-basis"><span>Evidence basis</span><strong>{evidenceBasis}</strong></div>{primaryCommand && <CopyFixCommand command={primaryCommand} />}{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}{onOpenGraph && <button className="case-decision-graph-link" type="button" onClick={onOpenGraph}>View evidence graph <ArrowUpRight size={13} /></button>}</div>
+    <div className="case-decision-meta">{proofRoute && <div className="case-decision-route"><span>Primary evidence</span><strong>{proofRoute}</strong><small>{citedProofLabel(proofFinding)}{sourceCoverageLabel(proofFinding) ? ` · ${sourceCoverageLabel(proofFinding)}` : ''}</small>{proofSource && <SourceLink href={proofSource}>Open evidence</SourceLink>}</div>}<div className="case-decision-basis"><span>Evidence basis</span><strong>{evidenceBasis}</strong></div>{primaryCommand && <CopyFixCommand command={primaryCommand} />}{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}</div>
   </section>
 }
 
@@ -1901,10 +1901,6 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     if (index >= 0) setSelectedIndex(index)
     revealDashboardSection('dashboard-proof')
   }
-  const inspectGraph = () => {
-    setEvidenceMode('graph')
-    revealDashboardSection('dashboard-evidence')
-  }
   const rewindTo = async (asOf) => {
     if (!onRewind || !asOf || historyLoading) return
     setHistoryLoading(true)
@@ -1935,7 +1931,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   return <main className={`case-page case-dashboard ${historical ? 'case-dashboard-historical' : ''}`}>
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : repositoryScan ? 'Repository scan' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{repositoryScan ? 'Dependency inventory' : report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     {findings.length > 0 && <ReachabilityLedger findings={findings} summary={summary} mode={report?.mode} />}
-    {findings.length > 0 && <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package || null} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} onOpenGraph={!historical && report?.graph?.nodes?.length ? inspectGraph : null} />}
+    {findings.length > 0 && <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package || null} historical={historical} onInspectProof={() => inspectProof()} />}
     {findings.length > 0 ? <>
       <section className="dashboard-evidence" id="dashboard-evidence" aria-label="Evidence dashboard">
         <div className="dashboard-section-heading"><div><span className="section-kicker">Evidence</span><h2>Where the answer comes from</h2><p>Select a finding to keep one proof path in focus. Every visible relationship is tied to a public source.</p></div><span>{evidenceMode === 'graph' ? 'Graph view' : 'Cited paths'}</span></div>
