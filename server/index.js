@@ -1,8 +1,8 @@
 import http from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { hydraStatus } from './hydra.js'
 import { startInvestigation, rewindInvestigation } from './investigation.js'
 import { advisoryAgentStatus } from './advisory-agent.js'
@@ -11,6 +11,7 @@ import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { buildEvidenceBrief } from '../src/core/brief.js'
 import { summarizeGraphContext } from '../src/core/graph-context.js'
 import { answerWorkspaceQuestion, buildFleetGraph, buildIncidentGraph, buildIncidents, normalizedRepository } from './workspace.js'
+import { createWorkspaceStore } from './workspace-store.js'
 
 const port = Number(process.env.RECOIL_PORT || process.env.PORT || 8787)
 const host = process.env.RECOIL_HOST || '127.0.0.1'
@@ -26,7 +27,14 @@ const monitorStartedAt = new Date().toISOString()
 const scanRequests = new Map()
 const workspacePersistenceEnabled = !process.env.NODE_TEST_CONTEXT && process.env.RECOIL_DISABLE_WORKSPACE !== '1'
 const workspaceFile = resolve(process.env.RECOIL_WORKSPACE_FILE || '.recoil-data/workspace.json')
-const persistedWorkspace = loadWorkspace()
+const workspaceStore = createWorkspaceStore({
+  file: workspaceFile,
+  enabled: workspacePersistenceEnabled,
+  bucket: process.env.RECOIL_WORKSPACE_S3_BUCKET,
+  key: process.env.RECOIL_WORKSPACE_S3_KEY,
+  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
+})
+const persistedWorkspace = normalizeWorkspace(workspaceStore.loadLocal())
 const scenarios = new Map(persistedWorkspace.records.map((record) => [record.id, record]))
 const watches = new Map(persistedWorkspace.watches.map((watch) => [watch.id, watch]))
 const workspaceState = {
@@ -276,24 +284,30 @@ function deriveWatches(records = []) {
   return result
 }
 
-function loadWorkspace() {
-  if (!workspacePersistenceEnabled) return { records: [], watches: [] }
-  if (!existsSync(workspaceFile)) return { records: [], watches: [] }
-  try {
-    const payload = JSON.parse(readFileSync(workspaceFile, 'utf8'))
-    const records = Array.isArray(payload?.records) ? payload.records : []
-    return {
-      records,
-      watches: Array.isArray(payload?.watches) ? payload.watches : deriveWatches(records),
-      createdAt: payload?.createdAt || null,
-      lastMonitorAt: payload?.lastMonitorAt || null,
-      notifications: Array.isArray(payload?.notifications) ? payload.notifications : [],
-      processedCaseIds: Array.isArray(payload?.processedCaseIds) ? payload.processedCaseIds : [],
-    }
-  } catch (error) {
-    console.warn(`Recoil workspace could not be read: ${error.message}`)
-    return { records: [], watches: [] }
+function normalizeWorkspace(payload) {
+  const records = Array.isArray(payload?.records) ? payload.records : []
+  return {
+    records,
+    watches: Array.isArray(payload?.watches) ? payload.watches : deriveWatches(records),
+    createdAt: payload?.createdAt || null,
+    lastMonitorAt: payload?.lastMonitorAt || null,
+    notifications: Array.isArray(payload?.notifications) ? payload.notifications : [],
+    processedCaseIds: Array.isArray(payload?.processedCaseIds) ? payload.processedCaseIds : [],
   }
+}
+
+function replaceWorkspace(payload) {
+  const restored = normalizeWorkspace(payload)
+  scenarios.clear()
+  watches.clear()
+  for (const record of restored.records) scenarios.set(record.id, record)
+  for (const watch of restored.watches) watches.set(watch.id, watch)
+  workspaceState.createdAt = restored.createdAt || new Date().toISOString()
+  workspaceState.lastMonitorAt = restored.lastMonitorAt || null
+  workspaceState.notifications = restored.notifications
+  workspaceState.processedCaseIds = new Set(restored.processedCaseIds?.length
+    ? restored.processedCaseIds
+    : restored.records.filter((record) => record.investigation?.status === 'complete').map((record) => record.id))
 }
 
 function notifyWorkspaceChanges() {
@@ -356,12 +370,10 @@ function persistWorkspace() {
   try {
     syncWatches()
     notifyWorkspaceChanges()
-    mkdirSync(dirname(workspaceFile), { recursive: true })
-    const temporary = `${workspaceFile}.tmp`
     const records = [...scenarios.values()]
       .filter((record) => record.investigation || record.query)
       .map(serializableRecord)
-    writeFileSync(temporary, JSON.stringify({
+    workspaceStore.save({
       schema: 'recoil.workspace/v2',
       createdAt: workspaceState.createdAt,
       updatedAt: new Date().toISOString(),
@@ -370,8 +382,7 @@ function persistWorkspace() {
       processedCaseIds: [...workspaceState.processedCaseIds],
       watches: [...watches.values()],
       records,
-    }, null, 2))
-    renameSync(temporary, workspaceFile)
+    })
   } catch (error) {
     console.warn(`Recoil workspace could not be saved: ${error.message}`)
   }
@@ -474,6 +485,7 @@ function workspaceSnapshot() {
         nextCheckAt: watchIntervalMs > 0 ? new Date(new Date(workspaceState.lastMonitorAt || monitorStartedAt).getTime() + watchIntervalMs).toISOString() : null,
         notificationWebhook: Boolean(process.env.RECOIL_NOTIFICATION_WEBHOOK_URL),
       },
+      storage: workspaceStore.status(),
     },
     cases,
     repositories,
@@ -604,6 +616,7 @@ async function route(req, res) {
       version: 'evidence-v1',
       mode: 'autonomous',
       hydra: hydraStatus(),
+      workspaceStorage: workspaceStore.status(),
       advisoryScopeAgent: advisoryAgentStatus(),
       recordingContract: {
         requiresAdvisoryId: true,
@@ -828,25 +841,41 @@ export { route, getOrCreate, findScenario, snapshot, workspaceSnapshot }
 
 const runningAsEntryPoint = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
 if (runningAsEntryPoint) {
-  const server = http.createServer((req, res) => {
-    Promise.resolve(route(req, res)).catch((error) => {
-      console.error(error)
-      if (!res.headersSent) json(res, 500, { error: 'Internal server error' })
-    })
-  })
-
-  server.on('error', (error) => {
-    console.error(`Recoil API could not listen on ${port}: ${error.message}`)
-    process.exitCode = 1
-  })
-
-  server.listen(port, host, () => {
-    persistWorkspace()
-    console.log(`Recoil API listening on http://${host}:${port}`)
-    if (watchIntervalMs > 0) {
-      console.log(`Repository monitor enabled every ${watchIntervalMs}ms`)
-      const timer = setInterval(() => scanAllWatches(), Math.max(60_000, watchIntervalMs))
-      timer.unref()
+  const startServer = async () => {
+    if (process.env.RECOIL_WORKSPACE_S3_BUCKET) {
+      try {
+        const remoteWorkspace = await workspaceStore.loadRemote()
+        if (remoteWorkspace) {
+          replaceWorkspace(remoteWorkspace)
+          console.log(`Recoil workspace restored from s3://${process.env.RECOIL_WORKSPACE_S3_BUCKET}/${process.env.RECOIL_WORKSPACE_S3_KEY || 'recoil/workspace.json'}`)
+        }
+      } catch (error) {
+        console.warn(`Recoil could not restore its S3 workspace; continuing with the local snapshot: ${error.message}`)
+      }
     }
-  })
+
+    const server = http.createServer((req, res) => {
+      Promise.resolve(route(req, res)).catch((error) => {
+        console.error(error)
+        if (!res.headersSent) json(res, 500, { error: 'Internal server error' })
+      })
+    })
+
+    server.on('error', (error) => {
+      console.error(`Recoil API could not listen on ${port}: ${error.message}`)
+      process.exitCode = 1
+    })
+
+    server.listen(port, host, () => {
+      persistWorkspace()
+      console.log(`Recoil API listening on http://${host}:${port}`)
+      if (watchIntervalMs > 0) {
+        console.log(`Repository monitor enabled every ${watchIntervalMs}ms`)
+        const timer = setInterval(() => scanAllWatches(), Math.max(60_000, watchIntervalMs))
+        timer.unref()
+      }
+    })
+  }
+
+  void startServer()
 }

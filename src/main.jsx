@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowLeft, ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, FileText, GitBranch, History, Inbox, LoaderCircle, Moon, PackageCheck, Plus, RotateCcw, RouteOff, Search, ShieldCheck, Sun, Terminal, Waypoints } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, FileText, GitBranch, History, Inbox, LoaderCircle, Moon, PackageCheck, Plus, RotateCcw, RouteOff, Search, ShieldCheck, Sun, Terminal, Waypoints, X } from 'lucide-react'
 import { recordingBlockers as getRecordingBlockers } from './core/recording.js'
 import '@fontsource/outfit/latin-400.css'
 import '@fontsource/outfit/latin-500.css'
@@ -11,34 +11,13 @@ import '@fontsource/ibm-plex-mono/latin-600.css'
 import './style.css'
 
 const DEFAULT_SCENARIO_ID = '0017'
-const SCENARIO_STORAGE_KEY = 'recoil-case-id'
-const LANDING_STORAGE_KEY = 'recoil-new-case'
 const DEFAULT_INPUT = ''
-const INVESTIGATION_EXAMPLES = [
-  {
-    label: 'Verified three-way case',
-    value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/http-party/http-server/tree/v13.0.2\nhttps://github.com/tweenjs/tween.js\nhttps://github.com/axios/axios/tree/v1.x',
-  },
-  {
-    label: 'Explore a package',
-    value: 'npm:minimist\nhttps://github.com/http-party/http-server/tree/v13.0.2\nhttps://github.com/axios/axios/tree/v1.x',
-  },
-  {
-    label: 'One repository',
-    value: 'GHSA-xvch-5gv4-984h\nhttps://github.com/http-party/http-server/tree/v13.0.2',
-  },
-]
 
 const THEME_STORAGE_KEY = 'recoil-theme-v2'
 
 function initialScenarioId() {
-  if (typeof window === 'undefined') return DEFAULT_SCENARIO_ID
-  return new URLSearchParams(window.location.search).get('case') || window.localStorage.getItem(SCENARIO_STORAGE_KEY) || DEFAULT_SCENARIO_ID
-}
-
-function initialLanding() {
-  if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(LANDING_STORAGE_KEY) === '1'
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('case') || null
 }
 
 function initialTheme() {
@@ -147,19 +126,10 @@ function RecoilBrand({ console: inConsole = false }) {
   return <div className={className}><span className="brand-mark"><RouteOff size={15} strokeWidth={2} aria-hidden="true" /></span><span>RECOIL</span></div>
 }
 
-function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme, workspace, onOpenCase }) {
-  const textareaRef = useRef(null)
-  const advisory = value.match(/(?:GHSA|CVE)-[A-Z0-9-]+/i)?.[0]
-  const packageSelector = value.match(/\b(?:npm|cargo):[^\s]+/i)?.[0]
+function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme }) {
+  const inputRef = useRef(null)
   const repositories = queryRepositories(value)
-  const target = advisory || packageSelector
-  const repositoryScan = Boolean(!target && repositories.length)
-  const ready = Boolean(repositories.length && (target || repositoryScan))
-  const latestCase = (workspace?.cases || [])[0]
-  const chooseExample = (example) => {
-    setValue(example.value)
-    window.requestAnimationFrame(() => textareaRef.current?.focus())
-  }
+  const ready = repositories.length === 1
   return <main className="landing-page">
     <header className="landing-header">
       <RecoilBrand />
@@ -167,23 +137,26 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme,
     </header>
     <section className="landing-grid">
       <div className="landing-intro">
-        <h1>Find which vulnerabilities reach your code.</h1>
-        <p>Add a public GitHub repository. Recoil checks its dependencies, traces vulnerable paths to source, and keeps watching for changes.</p>
+        <h1>Watch your repository for reachable vulnerabilities.</h1>
+        <p>Recoil checks every dependency, proves which paths reach source, and watches for changes.</p>
       </div>
       <div className="landing-form-wrap">
-        <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
+        <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); if (ready) onSubmit(value.trim()) }}>
           <label htmlFor="investigation-input">GitHub repository</label>
-          <textarea ref={textareaRef} id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (ready && !busy) onSubmit() } }} placeholder={'https://github.com/org/repository\nOptional: add a GHSA or CVE to investigate one advisory'} rows={3} />
+          <input ref={inputRef} id="investigation-input" type="url" value={value} onChange={(event) => setValue(event.target.value)} placeholder="https://github.com/org/repository" autoComplete="url" />
           <div className="form-footer">
-            <span>{repositoryScan ? 'Runs the first scan and keeps watching' : target ? 'Checks this advisory against the repository' : 'Paste a public GitHub repository'}</span>
-            <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Scanning</> : <>{repositoryScan ? 'Add repository' : 'Check advisory'} <ArrowUpRight size={15} /></>}</button>
+            <span>{ready ? 'Runs the first scan and keeps watching' : 'Paste one public GitHub repository'}</span>
+            <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Adding</> : <>Watch repository <ArrowUpRight size={15} /></>}</button>
           </div>
         </form>
-        <div className="landing-shortcuts"><button type="button" onClick={() => chooseExample(INVESTIGATION_EXAMPLES[0])}>Load demo case</button>{latestCase && <button type="button" onClick={() => onOpenCase(latestCase.id)}>Open workspace <ArrowUpRight size={12} /></button>}</div>
         {error && <div className="error-banner" role="alert"><CircleAlert size={15} /> {error}</div>}
       </div>
     </section>
   </main>
+}
+
+function WorkspaceOpening({ theme, onToggleTheme }) {
+  return <main className="workspace-opening"><header className="landing-header"><RecoilBrand /><ThemeToggle theme={theme} onToggle={onToggleTheme} /></header><div><span className="workspace-opening-line" /><p>Opening workspace</p></div></main>
 }
 
 function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleTheme }) {
@@ -2156,10 +2129,31 @@ function ConsoleContextPicker({ workspace, context, onChange }) {
   </select></label>
 }
 
-function ConsoleTopbar({ workspace, context, onContextChange, onNewCase, investigationStatus, hydra }) {
+function ConsoleTopbar({ workspace, context, onContextChange, onAddRepository, onCheckAdvisory, investigationStatus, hydra }) {
   const indexing = investigationStatus === 'finalizing' || hydra?.indexingPending
   const monitor = workspace?.workspace?.monitor
-  return <header className="console-topbar"><ConsoleContextPicker workspace={workspace} context={context} onChange={onContextChange} /><div className="console-topbar-actions"><span className={`console-complete ${indexing ? 'is-indexing' : ''}`}>{indexing ? <LoaderCircle className="spin" size={12} /> : monitor?.enabled ? <Clock3 size={12} /> : <Check size={12} />}{indexing ? 'Saving evidence' : monitor?.enabled ? 'Watch active' : 'Evidence current'}</span><button type="button" onClick={onNewCase}><Plus size={13} /> Add repository</button></div></header>
+  return <header className="console-topbar"><ConsoleContextPicker workspace={workspace} context={context} onChange={onContextChange} /><div className="console-topbar-actions"><span className={`console-complete ${indexing ? 'is-indexing' : ''}`}>{indexing ? <LoaderCircle className="spin" size={12} /> : monitor?.enabled ? <Clock3 size={12} /> : <Check size={12} />}{indexing ? 'Saving evidence' : monitor?.enabled ? 'Watch active' : 'Evidence current'}</span><button className="console-advisory-action" type="button" onClick={onCheckAdvisory}><Search size={13} /> Check advisory</button><button type="button" onClick={onAddRepository}><Plus size={13} /> Add repository</button></div></header>
+}
+
+function AdvisoryCheckDialog({ open, onClose, onSubmit, repositories = [], context, busy }) {
+  const [advisory, setAdvisory] = useState('')
+  const [repository, setRepository] = useState('')
+  useEffect(() => {
+    if (!open) return
+    const scoped = context?.type === 'repository' ? repositoryKey(context.value).toLowerCase() : ''
+    const selected = repositories.find((item) => repositoryKey(item.repository).toLowerCase() === scoped) || repositories[0]
+    setRepository(selected?.repositoryUrl || (selected?.repository ? `https://github.com/${selected.repository}` : ''))
+  }, [open, context?.type, context?.value, repositories])
+  if (!open) return null
+  const validAdvisory = /^(?:GHSA-[a-z0-9-]+|CVE-\d{4}-\d+)$/i.test(advisory.trim())
+  const ready = validAdvisory && repository
+  const submit = async (event) => {
+    event.preventDefault()
+    if (!ready || busy) return
+    const started = await onSubmit(`${advisory.trim()}\n${repository}`)
+    if (started) onClose()
+  }
+  return <div className="advisory-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="advisory-dialog" role="dialog" aria-modal="true" aria-labelledby="advisory-dialog-title"><header><div><h2 id="advisory-dialog-title">Check one advisory</h2><p>Run an immediate focused check against a watched repository.</p></div><button type="button" onClick={onClose} aria-label="Close advisory check"><X size={16} /></button></header><form onSubmit={submit}><label htmlFor="advisory-id">GHSA or CVE</label><input id="advisory-id" value={advisory} onChange={(event) => setAdvisory(event.target.value)} placeholder="GHSA-xxxx-xxxx-xxxx" autoFocus /><label htmlFor="advisory-repository">Repository</label><select id="advisory-repository" value={repository} onChange={(event) => setRepository(event.target.value)}>{repositories.map((item) => { const url = item.repositoryUrl || `https://github.com/${item.repository}`; return <option value={url} key={item.id || item.repository}>{item.repository}</option> })}</select><footer><button type="button" onClick={onClose}>Cancel</button><button className="advisory-dialog-submit" type="submit" disabled={!ready || busy}>{busy ? 'Starting check' : 'Check advisory'}</button></footer></form></section></div>
 }
 
 function ConsolePageHeading({ eyebrow, title, detail, action = null }) {
@@ -2478,8 +2472,9 @@ function initialWorkspaceContext(report) {
   return advisory ? { type: 'incident', value: String(advisory).toUpperCase() } : { type: 'workspace', value: '' }
 }
 
-function SecurityConsole({ report, hydra, scenarioId, workspace, activeView, onNavigate, onNewCase, onOpenCase, onRewind, onWatchRepository, onScanWatch, onScanAll, onToggleWatch, actionBusy, theme, onToggleTheme, investigationStatus }) {
+function SecurityConsole({ report, hydra, scenarioId, workspace, activeView, onNavigate, onOpenCase, onRewind, onWatchRepository, onCheckAdvisory, onScanWatch, onScanAll, onToggleWatch, actionBusy, theme, onToggleTheme, investigationStatus }) {
   const [context, setContext] = useState(() => initialWorkspaceContext(report))
+  const [advisoryDialogOpen, setAdvisoryDialogOpen] = useState(false)
   let content
   if (activeView === 'repositories') content = <RepositoriesView workspace={workspace} onOpenCase={onOpenCase} onWatchRepository={onWatchRepository} onScanWatch={onScanWatch} onScanAll={onScanAll} onToggleWatch={onToggleWatch} actionBusy={actionBusy} context={context} onContextChange={setContext} />
   else if (activeView === 'graph') content = <GraphView report={report} workspace={workspace} context={context} onContextChange={setContext} />
@@ -2487,13 +2482,14 @@ function SecurityConsole({ report, hydra, scenarioId, workspace, activeView, onN
   else if (activeView === 'ask') content = <AskView report={report} onOpenCase={onOpenCase} context={context} />
   else if (activeView === 'connect') content = <ConnectView report={report} scenarioId={scenarioId} />
   else content = <IncidentView report={report} workspace={workspace} scenarioId={scenarioId} onOpenCase={onOpenCase} context={context} onContextChange={setContext} />
-  return <div className="console-shell"><ConsoleSidebar activeView={activeView} onNavigate={onNavigate} onNewCase={onNewCase} workspace={workspace} theme={theme} onToggleTheme={onToggleTheme} /><div className="console-content"><ConsoleTopbar workspace={workspace} context={context} onContextChange={setContext} onNewCase={onNewCase} investigationStatus={investigationStatus} hydra={hydra} /><main className="console-main">{content}</main></div></div>
+  const openRepositories = () => onNavigate('repositories')
+  return <div className="console-shell"><ConsoleSidebar activeView={activeView} onNavigate={onNavigate} onNewCase={openRepositories} workspace={workspace} theme={theme} onToggleTheme={onToggleTheme} /><div className="console-content"><ConsoleTopbar workspace={workspace} context={context} onContextChange={setContext} onAddRepository={openRepositories} onCheckAdvisory={() => setAdvisoryDialogOpen(true)} investigationStatus={investigationStatus} hydra={hydra} /><main className="console-main">{content}</main></div><AdvisoryCheckDialog open={advisoryDialogOpen} onClose={() => setAdvisoryDialogOpen(false)} onSubmit={onCheckAdvisory} repositories={workspace?.repositories || []} context={context} busy={actionBusy} /></div>
 }
 
 function App() {
   const [input, setInput] = useState(DEFAULT_INPUT)
   const [scenarioId, setScenarioId] = useState(initialScenarioId)
-  const [landing, setLanding] = useState(initialLanding)
+  const [landing, setLanding] = useState(false)
   const [snapshot, setSnapshot] = useState(null)
   const [report, setReport] = useState(null)
   const [hydra, setHydra] = useState(null)
@@ -2501,6 +2497,7 @@ function App() {
   const [error, setError] = useState('')
   const [showReportEarly, setShowReportEarly] = useState(false)
   const [workspace, setWorkspace] = useState(null)
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false)
   const [activeView, setActiveView] = useState(initialConsoleView)
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [theme, toggleTheme] = useTheme()
@@ -2510,8 +2507,23 @@ function App() {
   const isComplete = investigation?.status === 'complete' && activeReport
 
   useEffect(() => {
-    window.localStorage.setItem(SCENARIO_STORAGE_KEY, scenarioId)
-  }, [scenarioId])
+    let active = true
+    api('/api/workspace')
+      .then((next) => { if (active) { setWorkspace(next); setWorkspaceLoaded(true) } })
+      .catch((cause) => { if (active) { setWorkspaceLoaded(true); setLanding(true); setError(`Recoil API unavailable. Start the app with npm run start. ${cause.message}`) } })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!workspaceLoaded || scenarioId) return
+    const latestCaseId = workspace?.cases?.[0]?.id
+    if (latestCaseId) {
+      setScenarioId(latestCaseId)
+      setLanding(false)
+    } else {
+      setLanding(true)
+    }
+  }, [workspaceLoaded, workspace?.cases?.[0]?.id, scenarioId])
 
   useEffect(() => {
     if (!activeReport || landing) return
@@ -2523,16 +2535,17 @@ function App() {
 
   useEffect(() => {
     let active = true
-    if (landing) return undefined
+    if (!workspaceLoaded || landing || !scenarioId) return undefined
     api(`/api/scenarios/${scenarioId}`).then((next) => { if (active) setSnapshot(next) }).catch((cause) => { if (active) setError(`Recoil API unavailable. Start the app with npm run start. ${cause.message}`) })
     return () => { active = false }
-  }, [landing, scenarioId])
+  }, [workspaceLoaded, landing, scenarioId])
 
   useEffect(() => {
+    if (!workspaceLoaded) return undefined
     let active = true
     api('/api/workspace').then((next) => { if (active) setWorkspace(next) }).catch(() => {})
     return () => { active = false }
-  }, [landing, scenarioId, snapshot?.investigation?.status, snapshot?.investigation?.completedAt])
+  }, [workspaceLoaded, scenarioId, snapshot?.investigation?.status, snapshot?.investigation?.completedAt])
 
   useEffect(() => {
     if (!(workspace?.repositories || []).some((repository) => repository.status === 'scanning')) return undefined
@@ -2589,26 +2602,27 @@ function App() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [busy, scenarioId, snapshot?.investigation?.status])
 
-  async function investigate() {
-    if (!input.trim() || busy) return
-    const query = input.trim()
+  async function investigate(queryInput = input) {
+    const query = String(queryInput || '').trim()
+    if (!query || busy) return false
     setBusy(true); setError(''); setReport(null); setHydra(null); setShowReportEarly(false)
     try {
       const created = await api('/api/scenarios', { method: 'POST', body: JSON.stringify({ query }) })
       const nextScenarioId = created.scenarioId || created.id || created.scenario?.id
       if (!nextScenarioId) throw new Error('The API did not return a case ID')
-      window.localStorage.removeItem(LANDING_STORAGE_KEY)
       setScenarioId(nextScenarioId)
       setSnapshot(startingCaseSnapshot(nextScenarioId, query))
       setLanding(false)
       const next = await api(`/api/scenarios/${nextScenarioId}/investigate`, { method: 'POST', body: JSON.stringify({ query }) })
       setSnapshot(next)
+      return true
     } catch (cause) {
       setBusy(false)
       setError(cause.message)
       setSnapshot((current) => current?.investigation?.status === 'running'
         ? { ...current, investigation: { ...current.investigation, status: 'failed', error: cause.message } }
         : current)
+      return false
     }
   }
 
@@ -2626,7 +2640,6 @@ function App() {
     // A new case gets its own server-side record on the next submission. The
     // completed case remains available in HydraDB instead of being destroyed
     // by a UI reset.
-    window.localStorage.setItem(LANDING_STORAGE_KEY, '1')
     const url = new URL(window.location.href)
     url.searchParams.delete('case')
     url.hash = ''
@@ -2656,7 +2669,9 @@ function App() {
       if (!nextScenarioId) throw new Error('The watch was saved but the scan did not return a case ID')
       setScenarioId(nextScenarioId); setSnapshot(next); setReport(null); setHydra(null); setBusy(true); setLanding(false)
       const refreshed = await api('/api/workspace'); setWorkspace(refreshed)
-    } catch (cause) { setWorkspaceBusy(false); setError(cause.message) }
+      setInput(DEFAULT_INPUT)
+      return true
+    } catch (cause) { setWorkspaceBusy(false); setError(cause.message); return false }
   }
 
   async function scanWatch(id) {
@@ -2684,9 +2699,10 @@ function App() {
     finally { setWorkspaceBusy(false) }
   }
 
-  if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} theme={theme} onToggleTheme={toggleTheme} workspace={workspace} onOpenCase={openCase} />
+  if ((!workspaceLoaded || (!scenarioId && workspace?.cases?.length) || (scenarioId && !snapshot && !landing)) && !hasInvestigation) return <WorkspaceOpening theme={theme} onToggleTheme={toggleTheme} />
+  if (!hasInvestigation || landing) return <Landing value={input} setValue={setInput} onSubmit={watchRepository} busy={busy || workspaceBusy} error={error} theme={theme} onToggleTheme={toggleTheme} />
   const showReport = Boolean(activeReport && (isComplete || showReportEarly))
-  if (showReport) return <SecurityConsole key={scenarioId} report={activeReport} hydra={hydra || investigation?.hydra} scenarioId={scenarioId} workspace={workspace} activeView={activeView} onNavigate={setActiveView} onNewCase={newInvestigation} onOpenCase={openCase} onRewind={rewind} onWatchRepository={watchRepository} onScanWatch={scanWatch} onScanAll={scanAll} onToggleWatch={toggleWatch} actionBusy={workspaceBusy} theme={theme} onToggleTheme={toggleTheme} investigationStatus={investigation?.status} />
+  if (showReport) return <SecurityConsole key={scenarioId} report={activeReport} hydra={hydra || investigation?.hydra} scenarioId={scenarioId} workspace={workspace} activeView={activeView} onNavigate={setActiveView} onOpenCase={openCase} onRewind={rewind} onWatchRepository={watchRepository} onCheckAdvisory={investigate} onScanWatch={scanWatch} onScanAll={scanAll} onToggleWatch={toggleWatch} actionBusy={workspaceBusy || busy} theme={theme} onToggleTheme={toggleTheme} investigationStatus={investigation?.status} />
   return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{investigation?.status === 'failed' ? <FailedView snapshot={snapshot} onNewCase={newInvestigation} /> : <RunningView snapshot={snapshot} onOpenReport={() => setShowReportEarly(true)} />}{error && investigation?.status !== 'failed' && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 

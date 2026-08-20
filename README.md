@@ -76,17 +76,18 @@ History exposes HydraDB-backed evidence changes, Ask resolves bounded workspace 
 exposes the same engine through MCP, CLI, Markdown briefs, and verifiable receipts. The graph is an inspection
 surface rather than the verdict itself.
 
-The landing input is the watch entry point. Pasting one repository creates the durable watch and runs its
-first full dependency inventory. Pasting an advisory with repositories runs a focused comparison and adds
-those repositories to the same watchlist. Returning to the landing page never deletes prior watches or cases.
+The landing input is shown only for an empty workspace. Pasting one repository creates the durable watch and
+runs its first full dependency inventory. A populated deployment opens its latest retained case directly.
+Additional repositories and focused advisory checks live inside the dashboard, so onboarding is not mixed
+with incident investigation.
 
 ### Workspace and account model
 
 The hackathon build is intentionally one tenant and does not require an account. The Node service owns one
-workspace file (`.recoil-data/workspace.json` by default) containing the watchlist, immutable case snapshots,
-monitor state, and notification history. This keeps the public demo instant while preserving repositories
-across process restarts. An account-enabled version only needs to partition this same workspace contract by
-tenant ID; it does not require changing the evidence engine or incident model.
+workspace snapshot containing the watchlist, immutable case snapshots, monitor state, and notification
+history. It uses `.recoil-data/workspace.json` locally and can mirror that contract to a private versioned S3
+object in production. An account-enabled version only needs to partition this same contract by tenant ID; it
+does not require changing the evidence engine or incident model.
 
 `Check all` rescans every watched repository within the configured concurrency limit. Set
 `RECOIL_WATCH_INTERVAL_MS` to opt into scheduled checks, and optionally set
@@ -195,7 +196,7 @@ npm run server
 npm run dev
 ```
 
-Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `HYDRADB_INGEST_BATCH_SIZE`, `HYDRADB_INDEX_WAIT_MS`, `HYDRADB_INDEX_POLL_MS`, `HYDRADB_RECALL_WAIT_MS`, `HYDRADB_RECALL_POLL_MS`, `HYDRADB_TEMPORAL_RECALL_WAIT_MS`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, `RECOIL_NETWORK_RETRIES`, `RECOIL_SOURCE_FILE_LIMIT`, `RECOIL_WORKSPACE_FILE`, `RECOIL_WATCH_INTERVAL_MS`, and `RECOIL_NOTIFICATION_WEBHOOK_URL`. Recoil ingests a bounded memory batch and polls all acknowledged source IDs together; lower `HYDRADB_INGEST_BATCH_SIZE` only when diagnosing a provider limit. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source. HydraDB recall retries an empty result for a bounded window because accepted memories can become searchable shortly after indexing reports completion. When graph memories arrive before temporal memories, the focused reachability query gets its own bounded `HYDRADB_TEMPORAL_RECALL_WAIT_MS` window; if it remains empty, the report keeps the cloud read visibly empty and strict recording fails. Raise `RECOIL_SOURCE_FILE_LIMIT` for a large, trusted demo repository only when you are comfortable with the extra public reads; the chosen bound is preserved in each finding.
+Useful environment variables are documented in [.env.example](.env.example): `HYDRA_DB_API_KEY`, `HYDRADB_DATABASE_ID`, `HYDRADB_COLLECTION_ID`, `HYDRADB_INGEST_BATCH_SIZE`, `HYDRADB_INDEX_WAIT_MS`, `HYDRADB_INDEX_POLL_MS`, `HYDRADB_RECALL_WAIT_MS`, `HYDRADB_RECALL_POLL_MS`, `HYDRADB_TEMPORAL_RECALL_WAIT_MS`, `GITHUB_TOKEN`, `RECOIL_CACHE_DIR`, `RECOIL_NETWORK_RETRIES`, `RECOIL_SOURCE_FILE_LIMIT`, `RECOIL_WORKSPACE_FILE`, `RECOIL_WORKSPACE_S3_BUCKET`, `RECOIL_WORKSPACE_S3_KEY`, `RECOIL_WATCH_INTERVAL_MS`, and `RECOIL_NOTIFICATION_WEBHOOK_URL`. Recoil ingests a bounded memory batch and polls all acknowledged source IDs together; lower `HYDRADB_INGEST_BATCH_SIZE` only when diagnosing a provider limit. A GitHub token is optional but prevents unauthenticated API limits. The collector caches GitHub JSON reads locally for the configured TTL and retries transient network failures a bounded number of times; cached evidence is never treated as a substitute for a failed source. HydraDB recall retries an empty result for a bounded window because accepted memories can become searchable shortly after indexing reports completion. When graph memories arrive before temporal memories, the focused reachability query gets its own bounded `HYDRADB_TEMPORAL_RECALL_WAIT_MS` window; if it remains empty, the report keeps the cloud read visibly empty and strict recording fails. Raise `RECOIL_SOURCE_FILE_LIMIT` for a large, trusted demo repository only when you are comfortable with the extra public reads; the chosen bound is preserved in each finding.
 
 Regression tests use a disposable temporary cache, so mocked public responses cannot contaminate a later
 live recording through `.recoil-cache`.

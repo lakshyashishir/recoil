@@ -3793,10 +3793,17 @@ body { background: var(--bg); color: var(--text); letter-spacing: var(--tracking
 [data-theme="dark"] .investigate-form {
   box-shadow: none;
 }
-.investigate-form textarea {
-  min-height: 104px;
-  resize: none;
+.investigate-form input {
+  width: 100%;
+  min-height: 64px;
+  border: 0;
+  padding: 13px 18px 16px;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font: 14px/1.4 var(--mono);
 }
+.investigate-form input::placeholder { color: var(--faint); opacity: .9; }
 .form-footer > span {
   max-width: 360px;
 }
@@ -3812,13 +3819,128 @@ body { background: var(--bg); color: var(--text); letter-spacing: var(--tracking
   .landing-intro h1 {
     font-size: clamp(36px, 10.4vw, 48px);
   }
-  .investigate-form textarea {
-    min-height: 116px;
-  }
   .form-footer {
     align-items: flex-end;
   }
   .form-footer > span {
     max-width: 190px;
   }
+}
+
+/* Workspace entry and focused advisory check ---------------------------- */
+.workspace-opening {
+  min-height: 100dvh;
+  color: var(--text);
+  background: var(--bg);
+}
+.workspace-opening > div {
+  width: min(360px, calc(100% - 40px));
+  margin: 30vh auto 0;
+}
+.workspace-opening p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.workspace-opening-line {
+  display: block;
+  width: 100%;
+  height: 1px;
+  overflow: hidden;
+  background: var(--line);
+}
+.workspace-opening-line::after {
+  content: "";
+  display: block;
+  width: 38%;
+  height: 1px;
+  background: var(--accent);
+  animation: workspace-opening 900ms cubic-bezier(.22, 1, .36, 1) infinite alternate;
+}
+@keyframes workspace-opening {
+  from { transform: translateX(-5%); }
+  to { transform: translateX(175%); }
+}
+.console-advisory-action {
+  color: var(--console-muted) !important;
+  background: transparent !important;
+}
+.console-advisory-action:hover { color: var(--console-text) !important; }
+.advisory-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / .52);
+}
+.advisory-dialog {
+  width: min(470px, 100%);
+  border: 1px solid var(--console-line);
+  border-radius: 6px;
+  color: var(--console-text);
+  background: var(--console-panel);
+  box-shadow: 0 24px 70px rgb(0 0 0 / .25);
+}
+.advisory-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 22px 18px;
+  border-bottom: 1px solid var(--console-line);
+}
+.advisory-dialog h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+.advisory-dialog p { margin: 6px 0 0; color: var(--console-muted); font-size: 11px; line-height: 1.45; }
+.advisory-dialog header button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 1px solid var(--console-line);
+  border-radius: 4px;
+  color: var(--console-muted);
+  background: transparent;
+}
+.advisory-dialog form { display: grid; gap: 8px; padding: 20px 22px 22px; }
+.advisory-dialog label { margin-top: 5px; color: var(--console-muted); font-size: 10px; font-weight: 550; }
+.advisory-dialog input,
+.advisory-dialog select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--console-line);
+  border-radius: 4px;
+  padding: 0 11px;
+  outline: 0;
+  color: var(--console-text);
+  background: var(--console-bg);
+  font: 11px/1.3 var(--mono);
+}
+.advisory-dialog input:focus,
+.advisory-dialog select:focus { border-color: var(--console-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--console-accent) 16%, transparent); }
+.advisory-dialog form footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.advisory-dialog form footer button {
+  min-height: 36px;
+  border: 1px solid var(--console-line);
+  border-radius: 4px;
+  padding: 0 14px;
+  color: var(--console-text);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.advisory-dialog form footer .advisory-dialog-submit { border-color: var(--accent); color: var(--button-text); background: var(--accent); }
+.advisory-dialog form footer button:disabled { cursor: not-allowed; opacity: .45; }
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-opening-line::after { animation: none; width: 100%; opacity: .7; }
+}
+
+@media (max-width: 720px) {
+  .console-advisory-action { display: none !important; }
+  .advisory-dialog-backdrop { align-items: end; padding: 12px; }
+  .advisory-dialog { width: 100%; }
 }

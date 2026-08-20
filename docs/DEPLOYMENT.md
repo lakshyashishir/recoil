@@ -25,12 +25,30 @@ The included `apprunner.yaml` installs the locked dependencies, builds the front
 4. Set a health check to HTTP `/api/health`.
 5. Open the App Runner URL and run one repository scan before adding CloudFront.
 
-The hackathon deployment should run as one instance because it intentionally exposes one tenant. Set
-`RECOIL_WORKSPACE_FILE` to a mounted persistent path when the hosting platform supports volumes. HydraDB is
-the durable temporal evidence record, while the local workspace file owns watch scheduling and recent UI
-state. Without a mounted path, replacing the instance starts a fresh watchlist even though existing HydraDB
-evidence remains valid. Do not scale this single-workspace build horizontally: each instance would otherwise
-run its own monitor.
+The hackathon deployment should run as one instance because it intentionally exposes one tenant. HydraDB is
+the durable temporal evidence record. The operational watchlist, recent cases, monitor state, and
+notifications are mirrored to one private S3 object when `RECOIL_WORKSPACE_S3_BUCKET` is set. The local
+workspace file remains the fast process-local copy. At startup Recoil restores the S3 snapshot before it
+accepts traffic, and every later workspace update is written locally and queued to S3.
+
+Create the private versioned bucket and least-privilege App Runner instance role:
+
+```bash
+aws cloudformation deploy \
+  --template-file infra/workspace-store.yml \
+  --stack-name recoil-workspace \
+  --capabilities CAPABILITY_IAM
+```
+
+Use the stack outputs to configure the App Runner service:
+
+- attach `AppRunnerInstanceRoleArn` as the service instance role;
+- set `RECOIL_WORKSPACE_S3_BUCKET` to `WorkspaceBucketName`;
+- set `RECOIL_WORKSPACE_S3_KEY=recoil/workspace.json`;
+- set `AWS_REGION` to the bucket region.
+
+Do not scale this single-workspace build horizontally. Each instance would otherwise run its own monitor and
+could race to update the same object.
 
 The included App Runner configuration sets `RECOIL_WATCH_INTERVAL_MS=21600000`, so active watches are checked
 every six hours. Change it to `0` for a manual-only deployment. Every interval performs real public
@@ -79,3 +97,14 @@ curl -fsS http://127.0.0.1:8787/api/health
 3. Run one repository-only scan on an unfamiliar public repository.
 4. Confirm the issue draft opens on GitHub and the receipt downloads.
 5. Confirm both theme modes and a direct `?case=` link in a private browser window.
+
+The public root opens the latest retained case when the workspace already contains scans. It shows the
+repository onboarding screen only for an empty workspace. Run the canonical real scan once after the first
+deployment, then verify that a private browser opens directly into the populated dashboard.
+
+## Why not Vercel for this build
+
+The current engine returns `202 Accepted`, continues collection in the Node process, and runs a scheduled
+watch loop. A normal Vercel function can stop after its response and does not own a durable in-process timer.
+Moving Recoil there would require a queue, resumable jobs, and an external scheduler. App Runner keeps the
+working execution model and is the lower-risk hackathon deployment.

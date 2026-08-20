@@ -17,6 +17,7 @@ ENV NODE_ENV=production \
     RECOIL_WORKSPACE_FILE=/app/.recoil-data/workspace.json
 
 COPY package.json ./
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY src/core ./src/core
