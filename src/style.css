@@ -1210,6 +1210,22 @@ body { font-family: var(--sans); line-height: 1.45; }
 .proof-map-source-context strong { color: var(--text); font-size: 11px; font-weight: 600; }
 .proof-map-source-context small { overflow: hidden; color: var(--faint); font: 10px/1.35 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .proof-map-lane-note { margin: 10px 0 0 28px; }
+.proof-map-lane-selected .proof-map-hop,
+.proof-map-lane-selected .proof-map-arrow { animation: proof-hop-reveal 220ms var(--ease-out) var(--proof-hop-delay, 0ms) both; }
+@keyframes proof-hop-reveal {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proof-map-lane-selected .proof-map-hop,
+  .proof-map-lane-selected .proof-map-arrow { animation: proof-hop-reveal-reduced 180ms ease-out var(--proof-hop-delay, 0ms) both; }
+  @keyframes proof-hop-reveal-reduced {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
 .full-graph-disclosure { border-top: 1px solid var(--line); }
 .full-graph-disclosure summary { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 13px 20px; color: var(--text); background: var(--surface); cursor: pointer; font-size: 12px; font-weight: 600; list-style: none; }
 .full-graph-disclosure summary::-webkit-details-marker { display: none; }

@@ -515,12 +515,12 @@ function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historica
             const kind = traceKind(part, partIndex, finding)
             const source = traceSourceForPart(part, finding)
             return <div className="proof-map-hop-wrap" key={`${part}-${partIndex}`}>
-              <div className={`proof-map-hop proof-map-hop-${kind}`}>
+              <div className={`proof-map-hop proof-map-hop-${kind}`} style={{ '--proof-hop-delay': `${partIndex * 45}ms` }}>
                 <span>{kindLabel[kind] || kind}</span>
                 <strong>{shorten(routeDisplayPart(part, finding), 34)}</strong>
                 {source ? <SourceLink href={source}>source</SourceLink> : <small className="proof-map-hop-missing">not collected</small>}
               </div>
-              {partIndex < parts.length - 1 && <i className="proof-map-arrow" aria-hidden="true">→</i>}
+              {partIndex < parts.length - 1 && <i className="proof-map-arrow" style={{ '--proof-hop-delay': `${partIndex * 45 + 25}ms` }} aria-hidden="true">→</i>}
             </div>
           })}
         </div> : <div className="proof-map-no-path"><span>No observed path</span><small>{finding.reason || 'The available evidence does not support a stronger conclusion.'}</small></div>}
