@@ -1330,9 +1330,10 @@ function summarizeFindings(findings = []) {
   }
 }
 
-function CaseFactsLine({ summary = {}, packageName, finding, challenge, historical = false, onOpenProof, onOpenHistory }) {
+function CaseFactsLine({ summary = {}, packageName, finding, challenge, hydra, historical = false, onOpenProof, onOpenHistory }) {
   const unknown = summary.unknown || 0
   const proposedVersion = challenge?.proposedVersion
+  const memory = hydra?.recall || {}
   const fixCommand = !historical && challenge?.status === 'FIX_SURVIVES'
     ? packageFixCommand({ ...(finding || {}), packageName: finding?.packageName || packageName }, challenge)
     : null
@@ -1377,6 +1378,27 @@ function CaseFactsLine({ summary = {}, packageName, finding, challenge, historic
       action: historical && onOpenHistory ? { label: 'Return to current', onClick: onOpenHistory } : onOpenProof ? { label: 'Inspect fix', onClick: onOpenProof } : null,
       positive: !historical && Boolean(summary.fixSurvives || summary.alreadySafe),
       command: fixCommand,
+    },
+    {
+      label: 'Memory',
+      value: historical
+        ? 'Dated reconstruction'
+        : memory.status === 'recalled'
+          ? `${memory.datedChunkCount || 0} dated fact${memory.datedChunkCount === 1 ? '' : 's'} recalled`
+          : hydra?.status === 'persisted'
+            ? 'Case stored in HydraDB'
+            : hydra?.status === 'queued'
+              ? 'Indexing in HydraDB'
+              : hydra?.status === 'skipped'
+                ? 'Local evidence only'
+                : 'Memory not verified',
+      detail: historical
+        ? 'Return to the current case for present-day memory and fix proof.'
+        : hydra?.graphVerification?.status === 'verified'
+          ? `${hydra.graphVerification.tripletCount || 0} current graph relation${hydra.graphVerification.tripletCount === 1 ? '' : 's'} verified.`
+          : hydra?.indexingError || 'HydraDB history was not confirmed for this case.',
+      action: onOpenHistory ? { label: historical ? 'Return to current' : 'Open timeline', onClick: onOpenHistory } : null,
+      positive: !historical && (memory.status === 'recalled' || hydra?.status === 'persisted'),
     },
   ]
   return <section className="case-facts-line" aria-label="Case proof summary">{facts.map((fact) => <article className="case-fact" key={fact.label}><span className="case-fact-label">{fact.label}</span><strong className={fact.positive ? 'is-positive' : ''}>{fact.value}</strong><small>{fact.detail}</small>{fact.command && <CopyFixCommand command={fact.command} compact />}{fact.action && <button type="button" onClick={fact.action.onClick}>{fact.action.label}<ArrowUpRight size={12} /></button>}</article>)}</section>
@@ -1768,7 +1790,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
 }
 
 function CaseNavigator({ finding, activeTab, onTabChange, tabMeta = {} }) {
-  const tabs = [{ id: 'graph', label: 'Source paths', title: 'Cited dependency and source paths' }, { id: 'proof', label: 'Fix check', title: 'Version-level remediation proof' }, { id: 'history', label: 'Timeline', title: 'Dated repository evidence' }, { id: 'audit', label: 'Sources', title: 'Collected records and limits' }]
+  const tabs = [{ id: 'graph', label: 'Evidence', title: 'Observed graph and cited source paths' }, { id: 'proof', label: 'Fix check', title: 'Version-level remediation proof' }, { id: 'history', label: 'Timeline', title: 'Dated repository evidence' }, { id: 'audit', label: 'Sources', title: 'Collected records and limits' }]
   return <nav className="case-navigator" aria-label="Case views">
     <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
@@ -1784,9 +1806,11 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   })
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
-  // Start with the cited paths that decide the case. The full observed graph
-  // remains one click away for reviewers who want topology and local imports.
-  const [graphView, setGraphView] = useState(false)
+  // The graph is the product's differentiator: open the completed case on the
+  // observed topology, with the selected route and repository decisions beside
+  // it. The cited path view remains one click away when a reviewer wants the
+  // proof chain without the surrounding entities.
+  const [graphView, setGraphView] = useState(true)
   const [graphReplayToken, setGraphReplayToken] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyTarget, setHistoryTarget] = useState(null)
@@ -1879,7 +1903,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   }
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
-    <CaseFactsLine summary={summary} packageName={report?.package} finding={primaryFinding} challenge={primaryChallenge} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
+    <CaseFactsLine summary={summary} packageName={report?.package} finding={primaryFinding} challenge={primaryChallenge} hydra={hydra} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
     {!historical && <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} onOpenHistory={historyAction} />}
     <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={selectRepositoryFromSummary} />
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} compact />
