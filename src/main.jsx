@@ -1317,6 +1317,54 @@ function CaseSourcePreview({ finding, historical = false }) {
   </section>
 }
 
+function CasePathStrip({ finding, report, historical = false }) {
+  if (!finding) return null
+  const graphNodes = report?.graph?.nodes || []
+  const rawParts = findingParts(finding)
+  const steps = rawParts.map((part) => {
+    const node = graphNodes.find((candidate) => nodeMatchesPart(candidate, part, finding))
+    const type = node?.type === 'code'
+      ? 'source'
+      : node?.type
+        || (part.startsWith('symbol:')
+          ? 'symbol'
+          : part === finding.advisoryId
+            ? 'advisory'
+            : part === finding.repository
+              ? 'repository'
+              : /lock/i.test(part)
+                ? 'lockfile'
+                : part.includes('@')
+                  ? 'package'
+                  : 'evidence')
+    const source = node?.sourceUrl
+      || (part === finding.repository ? finding.repositoryUrl : null)
+      || (part === finding.path?.at(-1) ? finding.imports?.[0]?.sourceUrl : null)
+    return { part, label: routeDisplayPart(part, finding), type, source }
+  }).filter((step, index, all) => all.findIndex((candidate) => candidate.part === step.part) === index)
+  if (!steps.length) return null
+  const status = finding.verdict === 'REACHED'
+    ? 'Source-backed route'
+    : finding.verdict === 'DECLARED_ONLY'
+      ? 'Declaration stops here'
+      : finding.verdict === 'NOT_AFFECTED'
+        ? 'Range check stops here'
+        : 'Evidence route needs review'
+  return <section className={`case-path-strip-shell ${historical ? 'case-path-strip-historical' : ''}`} aria-label="Selected evidence route">
+    <div className="case-path-strip-heading"><div><span className="section-kicker">{historical ? 'Historical route' : 'Selected evidence route'}</span><strong>{status}</strong></div><span>{citedProofLabel(finding)}</span></div>
+    <div className="case-path-strip" role="list">
+      {steps.map((step, index) => <div className="case-path-strip-item-wrap" key={`${step.part}-${index}`}>
+        <article className={`case-path-strip-item case-path-strip-item-${step.type}`} role="listitem">
+          <span>{step.type}</span>
+          <strong title={step.label}>{step.label}</strong>
+          {step.source ? <SourceLink href={step.source}>Open record</SourceLink> : <small>record not linked</small>}
+        </article>
+        {index < steps.length - 1 && <span className="case-path-strip-arrow" aria-hidden="true">→</span>}
+      </div>)}
+    </div>
+  </section>
+}
+
 function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
@@ -1706,6 +1754,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseFactsLine summary={summary} packageName={report?.package} challenge={primaryChallenge} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
+    <CasePathStrip finding={selectedFinding} report={report} historical={historical} />
     <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} />
     <CaseSourcePreview finding={selectedFinding} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
