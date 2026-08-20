@@ -1506,7 +1506,7 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   if (historical) {
     title = 'This is a dated reconstruction.'
     detail = 'The report shows what was evidenced at the selected date. Current remediation proof is available from the present-day case.'
-    action = onOpenHistory ? { label: 'Open history', onClick: onOpenHistory } : null
+    action = onOpenHistory ? { label: 'Return to current', onClick: onOpenHistory } : null
   } else if (unknown.length) {
     title = `${unknown.length} ${repositoryWord(unknown.length)} need more evidence.`
     detail = 'Recoil will not turn an incomplete source sample into a reachability or remediation claim.'
