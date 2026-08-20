@@ -1879,6 +1879,7 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-route-readout-meta span + span { padding-left: 14px; border-left: 1px solid var(--line-soft); }
 .case-route-readout-meta button { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0; color: var(--accent); background: transparent; font-size: 11px; }
 .case-route-readout-meta button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.case-route-readout + .shared-resolution { margin-top: 0; }
 
 @media (max-width: 980px) {
   .case-outcome-strip { grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(120px, .8fr)); }

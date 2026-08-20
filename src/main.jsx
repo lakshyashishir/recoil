@@ -679,9 +679,9 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
   </section>
 }
 
-function SharedResolution({ correlations = [] }) {
+function SharedResolution({ correlations = [], historical = false }) {
   const visible = correlations.filter((group) => group.repositories?.length > 1).slice(0, 2)
-  if (!visible.length) return null
+  if (historical || !visible.length) return null
   return <section className="shared-resolution" aria-label="Shared dependency resolution">
     <div className="shared-resolution-heading"><div><span className="section-kicker">Cross-repository signal</span><strong>One resolution, multiple repositories</strong></div><span>{visible.length} shared</span></div>
     {visible.map((group) => <article className="shared-resolution-group" key={`${group.packageName}@${group.version}`}>
@@ -729,7 +729,7 @@ function sourceCoverageLabel(finding) {
     : `${sampled} eligible files sampled`
 }
 
-function RouteList({ findings, selectedIndex, onSelect, challenges = [], correlations = [], historical = false, compact = false, onInspectProof }) {
+function RouteList({ findings, selectedIndex, onSelect, challenges = [], historical = false, compact = false, onInspectProof }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   const selectedFinding = findings[selectedIndex]
   const selectedChallenge = challenges.find((item) => item.repository === selectedFinding?.repository)
@@ -771,7 +771,6 @@ function RouteList({ findings, selectedIndex, onSelect, challenges = [], correla
         </button>
       })}
     </div>
-    {!historical && <SharedResolution correlations={correlations} />}
   </aside>
 }
 
@@ -2005,9 +2004,10 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseOutcomeStrip report={report} findings={findings} summary={summary} hydra={hydra} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} />
     <CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} />
+    <SharedResolution correlations={report?.crossRepositoryCorrelations || []} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
-      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
+      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} historical={historical} />}
