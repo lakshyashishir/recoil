@@ -1066,6 +1066,27 @@ function HistoryDelta({ findings = [], challenges = [], relatedCases = [] }) {
   </section>
 }
 
+function HydraComparisonLine({ findings = [], challenges = [], report, hydra, historical = false, onOpenHistory }) {
+  if (historical) return null
+  const memory = report?.rewind?.memory || hydra?.recall || {}
+  const relatedCases = memory.relatedCases?.length
+    ? memory.relatedCases
+    : (memory.priorScenarioIds || []).map((scenarioId) => ({ scenarioId }))
+  const rows = historyDeltaRows(findings, challenges, relatedCases)
+  if (!rows.length) return null
+  const changed = rows.filter((row) => row.changes.length)
+  const headline = changed.length
+    ? `${changed.length} repository${changed.length === 1 ? '' : 'ies'} changed since the last comparable scan.`
+    : `No material change across ${rows.length} prior repository snapshot${rows.length === 1 ? '' : 's'}.`
+  const detail = changed.length
+    ? changed.slice(0, 2).map(({ current, changes }) => `${repositoryName(current.repository)}: ${changes.join(', ')}`).join(' · ')
+    : 'The current verdicts still come from this run’s public evidence; HydraDB supplied the comparison context.'
+  return <section className="hydra-comparison-line" aria-label="HydraDB prior scan comparison">
+    <div className="hydra-comparison-copy"><span className="section-kicker">HydraDB memory</span><strong>{headline}</strong><p>{detail}</p></div>
+    <div className="hydra-comparison-meta"><span>{rows.length} comparable snapshot{rows.length === 1 ? '' : 's'}</span>{onOpenHistory && <button type="button" onClick={onOpenHistory}>Open history <ArrowUpRight size={13} /></button>}</div>
+  </section>
+}
+
 function CaseChronology({ finding, report, challenge, historical, onOpenHistory }) {
   if (!finding && !report?.advisory?.published) return null
   const lockfileSource = finding?.lockfileSource || (finding?.evidenceSources || []).find((source) => /(?:lock|package\.json|cargo\.toml|cargo\.lock)/i.test(source)) || finding?.evidenceSources?.[0]
@@ -1509,6 +1530,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseFactsLine summary={summary} historical={historical} />
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} />
+    <HydraComparisonLine findings={findings} challenges={historical ? [] : report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
