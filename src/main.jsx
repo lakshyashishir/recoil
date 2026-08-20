@@ -741,6 +741,7 @@ function SelectedRoute({ finding, challenge, historical = false, onInspectProof 
   const version = finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'not resolved'
   const change = finding.changeEvidence?.importerFilesChanged?.[0]
   const owners = [...new Set(finding.changeEvidence?.importerFilesChanged?.flatMap((item) => item.owners || []) || [])]
+  const validatedSymbol = finding.advisoryScope?.status === 'VALIDATED_SYMBOL' ? finding.advisoryScope.symbols?.[0] : null
   const action = routeActionLabel(finding, challenge, historical)
   const sourceLabel = importer
     ? `${importer.path}${importer.line ? `:${importer.line}` : ''}`
@@ -763,6 +764,7 @@ function SelectedRoute({ finding, challenge, historical = false, onInspectProof 
       <div><span>Evidence scope</span><strong>{sourceCoverageLabel(finding) || 'public record'}</strong></div>
     </div>
     {importer?.snippet && <div className="route-selected-snippet"><span>Observed line</span><code>{importer.snippet}</code></div>}
+    {validatedSymbol && <div className="route-selected-scope"><span>Validated advisory scope</span><strong>{validatedSymbol.name} · {validatedSymbol.path}:{validatedSymbol.line}</strong>{validatedSymbol.sourceUrl && <SourceLink href={validatedSymbol.sourceUrl}>Open symbol</SourceLink>}</div>}
     {change && <div className="route-selected-change"><span>Latest importer change</span><strong>{change.symbols?.length ? change.symbols.join(', ') : finding.changeEvidence.message || 'public change touched the importer'}</strong><small>{finding.changeEvidence.committedAt?.slice(0, 10) || 'date unavailable'}{owners.length ? ` · ${owners.join(', ')}` : ''}</small></div>}
     <div className="route-selected-actions">{source && <SourceLink href={source}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}{!historical && onInspectProof && <button className="route-selected-action" type="button" onClick={onInspectProof}>Open proof <ArrowUpRight size={13} /></button>}</div>
   </section>
