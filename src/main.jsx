@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useState } from 'react'
+import { Component, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Download, ExternalLink, FileCode2, FileText, LoaderCircle, Moon, PackageCheck, RotateCcw, ShieldCheck, Sun, Waypoints } from 'lucide-react'
 import './style.css'
@@ -119,11 +119,16 @@ function Verdict({ value, compact = false }) {
 }
 
 function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme }) {
+  const textareaRef = useRef(null)
   const advisory = value.match(/(?:GHSA|CVE)-[A-Z0-9-]+/i)?.[0]
   const packageSelector = value.match(/\b(?:npm|cargo):[^\s]+/i)?.[0]
   const repositories = queryRepositories(value)
   const target = advisory || packageSelector
   const ready = Boolean(target && repositories.length)
+  const chooseExample = (example) => {
+    setValue(example.value)
+    window.requestAnimationFrame(() => textareaRef.current?.focus())
+  }
   return <main className="landing-page">
     <header className="landing-header">
       <div className="brand"><span className="brand-mark" /> RECOIL</div>
@@ -138,16 +143,16 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
       <div className="landing-form-wrap">
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
           <label htmlFor="investigation-input">Advisory and repositories</label>
-          <textarea id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder={'GHSA-xvch-5gv4-984h\nhttps://github.com/org/repository'} rows={5} />
+          <textarea ref={textareaRef} id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (ready && !busy) onSubmit() } }} placeholder={'GHSA-xvch-5gv4-984h\nhttps://github.com/org/repository'} rows={5} />
           <div className="input-readiness" aria-live="polite"><span className={target ? 'is-ready' : ''}><i aria-hidden="true" />{target || 'Add an advisory or package selector'}</span><span className={repositories.length ? 'is-ready' : ''}><i aria-hidden="true" />{repositories.length ? `${repositories.length} public repositor${repositories.length === 1 ? 'y' : 'ies'}` : 'Add at least one public GitHub repository'}</span></div>
           <div className="form-footer">
-            <span>Public records only</span>
+            <span>Public records only · Ctrl/⌘↵ to run</span>
             <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button>
           </div>
         </form>
         <div className="example-picker" aria-label="Example investigations">
           <span>Examples</span>
-          {INVESTIGATION_EXAMPLES.map((example) => <button className="example-chip" key={example.label} type="button" onClick={() => setValue(example.value)}>{example.label}</button>)}
+          {INVESTIGATION_EXAMPLES.map((example) => <button className="example-chip" key={example.label} type="button" onClick={() => chooseExample(example)}>{example.label}</button>)}
         </div>
         {error && <div className="error-banner" role="alert"><CircleAlert size={15} /> {error}</div>}
       </div>
