@@ -1407,6 +1407,48 @@ function CaseScopeLine({ report, hydra, historical = false }) {
   return <div className="case-scope-line" aria-label="Evidence scope"><span>{signals.join(' · ')}</span><span className="case-scope-boundary">No install · no execution</span></div>
 }
 
+function CaseTemporalSignal({ report, hydra, historical = false, onOpenHistory }) {
+  const findings = historical ? report?.rewind?.findings || [] : report?.repositories || []
+  const earliest = findings
+    .filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt)
+    .sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
+  const published = report?.advisory?.published
+  const asOf = report?.rewind?.asOf
+  const memory = report?.rewind?.memory || hydra?.recall
+  const observedLabel = earliest?.pathObservedAt?.slice(0, 10)
+  const publishedLabel = published?.slice(0, 10)
+  const datedBoundary = historical
+    ? asOf?.slice(0, 10)
+      ? `Rebuilt as of ${asOf.slice(0, 10)}`
+      : 'Dated reconstruction active'
+    : observedLabel && publishedLabel
+      ? `${observedLabel} → ${publishedLabel}`
+      : publishedLabel
+        ? `Advisory published ${publishedLabel}`
+        : observedLabel
+          ? `Path observed ${observedLabel}`
+          : null
+  if (!datedBoundary) return null
+  const memoryLabel = memory?.status === 'recalled' || hydra?.status === 'persisted'
+    ? 'HydraDB dated evidence'
+    : 'Local dated evidence'
+  const title = historical
+    ? 'Viewing the case at a past date'
+    : observedLabel && publishedLabel
+      ? `${summaryExposureLabel(earliest, report)} before disclosure`
+      : 'A dated evidence boundary is available'
+  return <div className={`case-temporal-signal ${historical ? 'case-temporal-signal-historical' : ''}`} aria-label="Temporal evidence">
+    <Clock3 size={15} aria-hidden="true" />
+    <span><strong>{title}</strong><small>{datedBoundary} · {memoryLabel}</small></span>
+    {onOpenHistory && <button type="button" onClick={onOpenHistory}>{historical ? 'Return to current' : 'Open dated view'}<ArrowUpRight size={12} /></button>}
+  </div>
+}
+
+function summaryExposureLabel(finding, report) {
+  const days = report?.summary?.exposureDays ?? finding?.exposureDays
+  return Number.isFinite(days) ? `${days.toLocaleString()} days` : 'The path existed'
+}
+
 function CaseConclusion({ report, findings, summary, historical, hydra }) {
   const imports = findings.reduce((total, finding) => total + (finding.imports?.length || 0), 0)
   const challenge = report?.challenge || []
@@ -1635,7 +1677,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
-    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseFactsLine summary={summary} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
     <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
