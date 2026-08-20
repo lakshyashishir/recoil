@@ -190,10 +190,13 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
   const hydraInFlight = hydraPending || investigation?.status === 'finalizing'
   const hydraLabel = hydraReadFailed ? 'HydraDB read failed' : hydraRecalled ? `HydraDB context recalled${hydraInFlight ? ' · indexing' : hydraWriteUnconfirmed ? ' · write unconfirmed' : ''}` : hydraInFlight ? 'HydraDB indexing' : hydra?.status === 'persisted' ? 'HydraDB connected' : hydraWriteUnconfirmed ? 'HydraDB write unconfirmed' : hydra?.status === 'failed' ? 'HydraDB unavailable' : 'Local evidence record'
   const hydraLive = hydra?.status === 'persisted' && !hydraPending && !hydraReadFailed
+  const headerRecordLabel = report
+    ? report.mode === 'repository' ? 'Repository evidence' : 'Evidence record'
+    : hydraLabel
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
     <div className="header-case"><strong>{id}</strong><span>{report?.package ? `${report.package} · ${state.toLowerCase()}` : state}</span></div>
-    <div className="header-actions"><div className="header-status" aria-label={hydraLabel} title={hydraLabel}><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydraLive ? 'is-live' : ''}`} /><span className="header-status-full">{hydraLabel}</span><span className="header-status-short">HydraDB</span></div><ThemeToggle theme={theme} onToggle={onToggleTheme} />{onNewCase && <button className="header-new-case" type="button" onClick={onNewCase}>New case <RotateCcw size={13} /></button>}</div>
+    <div className="header-actions"><div className="header-status" aria-label={hydraLabel} title={hydraLabel}><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydraLive ? 'is-live' : ''}`} /><span className="header-status-full">{headerRecordLabel}</span><span className="header-status-short">Record</span></div><ThemeToggle theme={theme} onToggle={onToggleTheme} />{onNewCase && <button className="header-new-case" type="button" onClick={onNewCase}>New case <RotateCcw size={13} /></button>}</div>
   </header>
 }
 
@@ -1729,7 +1732,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
 }
 
 function CaseNavigator({ finding, findings = [], selectedIndex = 0, onSelectFinding, activeTab, onTabChange, tabMeta = {} }) {
-  const tabs = [{ id: 'graph', label: 'Evidence', title: 'Observed graph and cited source paths' }, { id: 'proof', label: 'Fix check', title: 'Version-level remediation proof' }, { id: 'history', label: 'Timeline', title: 'Dated repository evidence' }, { id: 'audit', label: 'Sources', title: 'Collected records and limits' }]
+  const tabs = [{ id: 'proof', label: 'Proof', title: 'Version-level remediation proof' }, { id: 'graph', label: 'Graph', title: 'Observed graph and cited source paths' }, { id: 'history', label: 'Timeline', title: 'Dated repository evidence' }, { id: 'audit', label: 'Sources', title: 'Collected records and limits' }]
   return <nav className="case-navigator" aria-label="Case views">
     <div className="case-navigator-selection">{finding && <>{findings.length > 1 && onSelectFinding ? <><label htmlFor="case-repository-select">Repository</label><select id="case-repository-select" value={selectedIndex} onChange={(event) => onSelectFinding(Number(event.target.value))}>{findings.map((item, index) => <option key={item.repository || index} value={index}>{repositoryName(item.repository)} · {String(item.verdict || 'UNKNOWN').replaceAll('_', ' ').toLowerCase()}</option>)}</select></> : <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong></>}<Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
@@ -1782,7 +1785,7 @@ function CaseOutcomeIndex({ findings = [], challenges = [], selectedIndex = 0, o
               ? 'resolved outside affected range'
               : 'source evidence needs review'
         const action = historical ? 'dated evidence' : routeActionLabel(finding, challenge, historical)
-        return <div className="case-outcome-item" role="listitem" key={finding.repository || index}><button className={`case-outcome-row ${selected ? 'case-outcome-row-selected' : ''}`} type="button" aria-pressed={selected} onClick={() => onSelectFinding?.(index)}>
+        return <div className="case-outcome-item" role="listitem" key={`${finding.repository || index}:${finding.advisoryId || 'advisory'}:${finding.packageName || 'package'}`}><button className={`case-outcome-row ${selected ? 'case-outcome-row-selected' : ''}`} type="button" aria-pressed={selected} onClick={() => onSelectFinding?.(index)}>
           <span className="case-outcome-index-number">{String(index + 1).padStart(2, '0')}</span>
           <span className="case-outcome-repository"><strong>{repositoryName(finding.repository)}</strong><small>{repositoryScan ? `${finding.advisoryId || 'advisory'} · ` : ''}{finding.packageName || 'package'}@{version}</small></span>
           <span className="case-outcome-evidence"><strong>{evidence}</strong><small>{finding.verdict === 'REACHED' ? `${finding.imports?.length || 0} sampled import${finding.imports?.length === 1 ? '' : 's'}` : routeEvidenceLabel(finding)}</small></span>
@@ -1800,9 +1803,9 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     return reachedIndex >= 0 ? reachedIndex : 0
   })
   const [selectedNodeId, setSelectedNodeId] = useState(null)
-  const [activeTab, setActiveTab] = useState('graph')
-  // Open the completed case on the shortest cited paths first. The observed
+  // Open the completed case on the decision and fix proof first. The observed
   // topology remains one click away when a reviewer wants the wider graph.
+  const [activeTab, setActiveTab] = useState('proof')
   const [graphView, setGraphView] = useState(false)
   const [graphReplayToken, setGraphReplayToken] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -1908,7 +1911,10 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : repositoryScan ? 'Repository scan' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{repositoryScan ? 'Dependency inventory' : report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <ReachabilityLedger findings={findings} summary={summary} mode={report?.mode} />
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package || null} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} />
-    <CaseOutcomeIndex findings={findings} challenges={historical ? [] : report?.challenge || []} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} historical={historical} mode={report?.mode} />
+    {findings.length > 1 && <details className="case-outcome-disclosure">
+      <summary><span>Compare all {repositoryScan ? 'advisory outcomes' : 'repository outcomes'}</span><small>{findings.length} checks · selected route stays below</small></summary>
+      <CaseOutcomeIndex findings={findings} challenges={historical ? [] : report?.challenge || []} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} historical={historical} mode={report?.mode} />
+    </details>}
     <CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} />
     <SharedResolution correlations={report?.crossRepositoryCorrelations || []} historical={historical} />
     <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} />

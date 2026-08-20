@@ -1416,6 +1416,17 @@ body { font-family: var(--sans); line-height: 1.45; }
 .full-graph-disclosure summary:hover { color: var(--accent); }
 .full-graph-disclosure-body { border-top: 1px solid var(--line-soft); }
 .full-graph-disclosure-body > .evidence-map { border: 0; border-radius: 0; }
+
+/* Secondary comparison stays available without forcing every report to begin
+   as a matrix. The selected route and proof remain the primary reading. */
+.case-outcome-disclosure { margin: 0 0 16px; border-bottom: 1px solid var(--line); }
+.case-outcome-disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 0 12px; color: var(--text); cursor: pointer; list-style: none; font-size: 12px; font-weight: 600; }
+.case-outcome-disclosure > summary::-webkit-details-marker { display: none; }
+.case-outcome-disclosure > summary::after { content: '+'; color: var(--muted); font: 16px/1 var(--mono); }
+.case-outcome-disclosure[open] > summary::after { content: '−'; }
+.case-outcome-disclosure > summary:hover { color: var(--accent); }
+.case-outcome-disclosure > summary small { margin-left: auto; color: var(--muted); font: 10px/1.3 var(--mono); font-weight: 400; }
+.case-outcome-disclosure .case-outcome-index { margin: 0; padding-top: 6px; border-bottom: 0; }
 .case-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
 /* The cited path is the primary evidence view. Give it the full reading
