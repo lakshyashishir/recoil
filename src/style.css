@@ -228,6 +228,10 @@ h1, h2, p { margin-top: 0; }
 .graph-inspector-relations em { overflow: hidden; color: var(--text); font: 10px/1.2 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .graph-inspector-relations small { color: var(--faint); font: 9px/1 var(--mono); white-space: nowrap; }
 .graph-inspector-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.graph-inspector-actions button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid var(--line); color: var(--muted); background: transparent; font: 10px/1 var(--sans); transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease; }
+.graph-inspector-actions button:hover { border-color: var(--accent); color: var(--text); background: var(--surface); }
+.graph-inspector-actions button:active { transform: translateY(1px); }
+.graph-inspector-actions button:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
 .graph-inspector-empty { justify-content: flex-start; color: var(--muted); font-size: 11px; }
 .legend-line { width: 20px; height: 1px; display: inline-block; background: var(--line); }
 .legend-selected { background: var(--accent); }

@@ -480,7 +480,7 @@ function nodeDescription(node, report) {
   return 'Observed evidence entity'
 }
 
-function GraphInspector({ node, report, graph, selectedFinding }) {
+function GraphInspector({ node, report, graph, selectedFinding, onInspectProof }) {
   if (!node) return <div className="graph-inspector graph-inspector-empty"><span>Select a node to inspect its evidence.</span></div>
   const verdict = nodeVerdict(node, report)
   const nodesById = new Map((graph?.nodes || []).map((item) => [item.id, item]))
@@ -523,7 +523,7 @@ function GraphInspector({ node, report, graph, selectedFinding }) {
       ? `${selectedFinding.imports?.length || 0} sampled import${selectedFinding.imports?.length === 1 ? '' : 's'} · ${sourceImpact?.sampledFileCount || 0} source files · ${sourceImpact?.observedEdgeCount || 0} local import edges`
       : routeEvidenceLabel(selectedFinding)
     : null
-  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div>{evidenceValue && <div className="graph-inspector-evidence"><span>{evidenceLabel}</span><strong>{evidenceValue}</strong>{importer?.snippet && <code>{importer.snippet}</code>}{evidenceSource && <SourceLink href={evidenceSource}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}</div>}{sourceSummary && <div className="graph-inspector-proof"><span>Selected route</span><strong>{sourceSummary}</strong></div>}<div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i><strong>{graphEdgeLabel(relation.direction === 'out' ? node : relation.node, relation.direction === 'out' ? relation.node : node)}</strong><em>{shorten(relation.node.label, 25)}</em></span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}</div></div>
+  return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div>{evidenceValue && <div className="graph-inspector-evidence"><span>{evidenceLabel}</span><strong>{evidenceValue}</strong>{importer?.snippet && <code>{importer.snippet}</code>}{evidenceSource && <SourceLink href={evidenceSource}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}</div>}{sourceSummary && <div className="graph-inspector-proof"><span>Selected route</span><strong>{sourceSummary}</strong></div>}<div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i><strong>{graphEdgeLabel(relation.direction === 'out' ? node : relation.node, relation.direction === 'out' ? relation.node : node)}</strong><em>{shorten(relation.node.label, 25)}</em></span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}{onInspectProof && <button type="button" onClick={onInspectProof}>Open fix check <ArrowUpRight size={12} /></button>}</div></div>
 }
 
 function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historical = false }) {
@@ -568,7 +568,7 @@ function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historica
   </div>
 }
 
-function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, selectedNodeId, events = [], live = false, graphProgress = null, proofFirst = false, historical = false, onToggleGraph, onReplay, replayToken = 0 }) {
+function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, selectedNodeId, events = [], live = false, graphProgress = null, proofFirst = false, historical = false, onToggleGraph, onReplay, replayToken = 0, onInspectProof }) {
   const graph = report?.graph || { nodes: [], edges: [] }
   if (!live && proofFirst) {
     return <section className="evidence-map proof-map-shell" aria-label="Cited evidence paths">
@@ -655,7 +655,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
       </svg>
       </div>
       <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-declared" /> declared only</span><span><i className="legend-dot legend-safe" /> safe</span><span className="map-direction">arrows follow the evidence</span></div>
-      {onSelectNode && (!live || selectedNode) && <GraphInspector node={selectedNode} report={report} graph={graph} selectedFinding={selectedFinding} />}
+      {onSelectNode && (!live || selectedNode) && <GraphInspector node={selectedNode} report={report} graph={graph} selectedFinding={selectedFinding} onInspectProof={onInspectProof} />}
     </div>
   </section>
 }
@@ -1807,6 +1807,7 @@ function CaseOutcomeStrip({ report, findings = [], summary = {}, hydra, historic
   const location = importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'sampled source evidence'
   const memory = report?.rewind?.memory || hydra?.recall || {}
   const graphVerification = hydra?.graphVerification
+  const relatedCaseCount = memory.relatedCases?.length || memory.priorScenarioIds?.length || 0
 
   let actionTitle = 'No source-backed path reaches the package.'
   let actionDetail = 'The checked records do not support an affected import path.'
@@ -1860,9 +1861,9 @@ function CaseOutcomeStrip({ report, findings = [], summary = {}, hydra, historic
           ? 'Indexing'
           : 'Local record'
   const memoryDetail = graphVerification?.status === 'verified'
-    ? `${graphVerification.tripletCount || 0} current graph relations verified`
+    ? `${graphVerification.tripletCount || 0} current graph relations verified${relatedCaseCount ? ` · ${relatedCaseCount} prior case${relatedCaseCount === 1 ? '' : 's'} available` : ''}`
     : memory.status === 'recalled'
-      ? 'HydraDB supplied dated context'
+      ? `HydraDB supplied dated context${relatedCaseCount ? ` · ${relatedCaseCount} prior case${relatedCaseCount === 1 ? '' : 's'} available` : ''}`
       : 'History was not confirmed'
 
   return <section className="case-outcome-strip" aria-label="Case outcome summary">
@@ -1968,6 +1969,11 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     setSelectedNodeId(null)
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
+  const selectRepositoryFromGraph = (index) => {
+    setSelectedIndex(index)
+    setSelectedNodeId(null)
+    window.requestAnimationFrame(() => document.getElementById('case-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   const changeTab = (tab) => {
     setActiveTab(tab)
     if (tab === 'history' && !historical && report?.rewind?.beforeAdvisory) void rewindTo(report.rewind.beforeAdvisory)
@@ -1979,7 +1985,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     {!graphView && <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={selectRepositoryFromSummary} />}
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
-      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
+      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
