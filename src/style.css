@@ -1460,3 +1460,28 @@ body { font-family: var(--sans); line-height: 1.45; }
   background: var(--accent);
   transition: width .35s cubic-bezier(.22, 1, .36, 1);
 }
+
+/* A completed case needs one quiet line of facts, not another row of metric
+   cards. Keep the graph and the decision visually primary. */
+.case-facts-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 10px;
+  margin: 14px 0 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.case-facts-line span { display: inline-flex; align-items: center; gap: 10px; }
+.case-facts-line strong { color: var(--text); font-weight: 550; }
+.case-facts-line i { color: var(--faint); font-style: normal; }
+.case-facts-line strong.is-positive { color: var(--green); }
+
+@media (max-width: 720px) {
+  .case-facts-line { align-items: flex-start; gap: 7px 10px; }
+  .case-facts-line span { gap: 10px; }
+}

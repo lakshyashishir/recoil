@@ -1158,22 +1158,19 @@ function summarizeFindings(findings = []) {
   }
 }
 
-function CaseContrastBar({ findings = [] }) {
-  const groups = [
-    { key: 'reached', label: 'Reaches source', verdict: 'REACHED', className: 'contrast-reached' },
-    { key: 'declaredOnly', label: 'Listed only', verdict: 'DECLARED_ONLY', className: 'contrast-declared' },
-    { key: 'notAffected', label: 'Outside range', verdict: 'NOT_AFFECTED', className: 'contrast-safe' },
-    { key: 'unknown', label: 'Needs review', verdict: 'UNKNOWN', className: 'contrast-unknown' },
-  ].map((group) => ({ ...group, count: findings.filter((finding) => finding.verdict === group.verdict || group.key === 'unknown' && ['UNKNOWN', 'NOT_YET_OBSERVED'].includes(finding.verdict)).length }))
-  const total = findings.length
-  if (!total) return null
-  return <section className="case-contrast" aria-label="Repository reachability split">
-    <div className="case-contrast-heading"><strong>Repository split</strong><span>{total} checked</span></div>
-    <div className="case-contrast-bar" role="img" aria-label={groups.filter((group) => group.count).map((group) => `${group.count} ${group.label.toLowerCase()}`).join(', ')}>
-      {groups.filter((group) => group.count).map((group) => <span className={`case-contrast-segment ${group.className}`} key={group.key} style={{ width: `${(group.count / total) * 100}%` }} />)}
-    </div>
-    <div className="case-contrast-legend">{groups.filter((group) => group.count).map((group) => <span key={group.key}><i className={`case-contrast-dot ${group.className}`} />{group.count} {group.label}</span>)}</div>
-  </section>
+function CaseFactsLine({ summary = {}, historical = false }) {
+  const facts = [
+    `${summary.reached || 0} source path${summary.reached === 1 ? '' : 's'}`,
+    `${summary.declaredOnly || 0} listed only`,
+    `${summary.notAffected || 0} outside range`,
+    !historical && summary.exposureDays != null ? `${summary.exposureDays.toLocaleString()} days before disclosure` : null,
+    historical
+      ? 'current fix proof hidden'
+      : summary.fixSurvives
+        ? `${summary.fixSurvives} fix proof${summary.fixSurvives === 1 ? '' : 's'} verified`
+        : 'fix proof needs review',
+  ].filter(Boolean)
+  return <div className="case-facts-line" aria-label="Case facts">{facts.map((fact, index) => <span key={fact}><strong className={index === facts.length - 1 && summary.fixSurvives && !historical ? 'is-positive' : ''}>{fact}</strong>{index < facts.length - 1 && <i aria-hidden="true">·</i>}</span>)}</div>
 }
 
 function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory }) {
@@ -1221,28 +1218,6 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
     <div className="case-decision-label"><span className="section-kicker">Decision</span><span>from collected evidence</span></div>
     <div className="case-decision-copy"><h2>{title}</h2><p>{detail}</p></div>
     <div className="case-decision-meta">{proofRoute && <div className="case-decision-route"><span>Primary evidence</span><strong>{proofRoute}</strong><small>{citedProofLabel(proofFinding)}{sourceCoverageLabel(proofFinding) ? ` · ${sourceCoverageLabel(proofFinding)}` : ''}</small>{proofSource && <SourceLink href={proofSource}>Open evidence</SourceLink>}</div>}<span>Evidence basis</span><strong>{evidenceBasis}</strong>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}{suggestedCommand && <CopyFixCommand command={suggestedCommand} />}</div>
-  </section>
-}
-
-function TemporalSummaryStrip({ report, summary = {}, earliestReached, historical = false, onOpenHistory, loading = false }) {
-  const before = report?.rewind?.beforeAdvisory
-  if (historical || !before) return null
-  const observed = earliestReached?.pathObservedAt?.slice(0, 10)
-  const published = report?.advisory?.published?.slice(0, 10)
-  const datedPath = Boolean(observed && published && summary.exposureDays != null)
-  const memory = report?.rewind?.memory
-  const memoryLabel = memory?.status === 'recalled'
-    ? `${memory.datedChunkCount || 0} dated facts recalled`
-    : memory?.status === 'queued'
-      ? 'HydraDB history indexing'
-      : memory?.status === 'skipped'
-        ? 'Local dated evidence'
-        : 'Dated memory unavailable'
-  return <section className="temporal-summary-strip" aria-label="Temporal evidence summary">
-    <div className="temporal-summary-copy"><span className="section-kicker">Temporal proof</span><strong>{datedPath ? `${summary.exposureDays.toLocaleString()} days before disclosure` : 'Dated comparison available'}</strong><p>{datedPath ? 'The sampled source path was already present before the advisory was public.' : 'Recoil collected a boundary for comparing the current case with the day before disclosure.'}</p></div>
-    <div className="temporal-summary-boundary" aria-label="Disclosure boundary"><div><span>Path first observed</span><strong>{observed || 'Not dated'}</strong></div><i aria-hidden="true">→</i><div><span>Advisory published</span><strong>{published || 'Unknown'}</strong></div></div>
-    <div className="temporal-summary-memory"><span className="memory-mark" /><span>{memoryLabel}</span></div>
-    {onOpenHistory && <button className="temporal-summary-action" type="button" onClick={onOpenHistory} disabled={loading}>{loading ? <LoaderCircle className="spin" size={13} /> : <Clock3 size={13} />}{loading ? 'Rebuilding…' : 'Open dated view'}<ArrowUpRight size={13} /></button>}
   </section>
 }
 
@@ -1437,7 +1412,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
 }
 
 function CaseNavigator({ finding, activeTab, onTabChange }) {
-  const tabs = [{ id: 'graph', label: 'Paths' }, { id: 'proof', label: 'Fix' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Evidence' }]
+  const tabs = [{ id: 'graph', label: 'Map' }, { id: 'proof', label: 'Fix' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Evidence' }]
   return <nav className="case-navigator" aria-label="Case views">
     <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
@@ -1529,10 +1504,8 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   }
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
-    <section className="case-summary" aria-label="Case summary"><div><strong>{summary.reached || 0}</strong><span>source path found</span></div><div><strong>{summary.declaredOnly || 0}</strong><span>listed, not imported</span></div><div><strong>{summary.notAffected || 0}</strong><span>already outside range</span></div><div><strong>{historical || summary.exposureDays == null ? '—' : `${summary.exposureDays.toLocaleString()}d`}</strong><span>before disclosure</span></div><div><strong>{historical ? '—' : summary.fixSurvives || 0}</strong><span>{historical ? 'fix proof is current' : summary.fixSurvives === 1 ? 'fix proof' : 'fix proofs'}</span></div></section>
-    <CaseContrastBar findings={findings} />
+    <CaseFactsLine summary={summary} historical={historical} />
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} />
-    <TemporalSummaryStrip report={report} summary={summary} earliestReached={earliestReached} historical={historical} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} loading={historyLoading} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
@@ -1557,7 +1530,11 @@ function RunningView({ snapshot, onOpenReport }) {
   const graphReport = { graph, repositories: investigation?.report?.repositories || [] }
   const selectedLiveNode = graph.nodes.find((node) => node.id === selectedNodeId)
   const selectedLiveFindingIndex = findingIndexForNode(selectedLiveNode, graphReport.repositories)
-  const selectedLiveFinding = selectedLiveFindingIndex >= 0 ? graphReport.repositories[selectedLiveFindingIndex] : null
+  const activeRepository = events.find((event) => event.status === 'working' && event.repository)?.repository
+    || graphReport.repositories.find((finding) => finding.verdict === 'REACHED')?.repository
+    || graphReport.repositories[0]?.repository
+  const activeLiveFinding = graphReport.repositories.find((finding) => repositoryKey(finding.repository) === repositoryKey(activeRepository)) || null
+  const selectedLiveFinding = selectedLiveFindingIndex >= 0 ? graphReport.repositories[selectedLiveFindingIndex] : activeLiveFinding
   const progress = snapshot?.graphProgress || investigation?.graphProgress
   const progressLabel = progress?.totalRepositories ? `${progress.completedRepositories || 0} of ${progress.totalRepositories} repositories mapped` : 'Preparing the case'
   const activityTitle = activity?.title || (finalizing ? 'Storing evidence history' : 'Collecting public evidence')
