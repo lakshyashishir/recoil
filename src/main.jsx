@@ -909,7 +909,7 @@ function CopyRemediationNote({ finding, challenge }) {
   return <button className="copy-remediation-note" type="button" onClick={copy} aria-live="polite"><span>{status === 'copied' ? <Check size={13} /> : <Copy size={13} />}{label}</span><small>evidence-derived</small></button>
 }
 
-function CopyFixCommand({ command }) {
+function CopyFixCommand({ command, compact = false }) {
   const [status, setStatus] = useState('idle')
   useEffect(() => {
     if (status !== 'copied') return undefined
@@ -938,7 +938,7 @@ function CopyFixCommand({ command }) {
       setStatus('failed')
     }
   }
-  return <div className="fix-proof-command"><div><span>Suggested local change</span><code>{command}</code></div><button type="button" onClick={copy} aria-live="polite">{status === 'copied' ? <Check size={13} /> : <Copy size={13} />}{status === 'copied' ? 'Copied' : status === 'failed' ? 'Copy unavailable' : 'Copy command'}</button></div>
+  return <div className={`fix-proof-command ${compact ? 'fix-proof-command-compact' : ''}`}><div><span>Suggested local change</span><code>{command}</code></div><button type="button" onClick={copy} aria-live="polite">{status === 'copied' ? <Check size={13} /> : <Copy size={13} />}{status === 'copied' ? 'Copied' : status === 'failed' ? 'Copy unavailable' : 'Copy command'}</button></div>
 }
 
 function FixProof({ finding, challenge }) {
@@ -1328,7 +1328,7 @@ function CaseFactsLine({ summary = {}, packageName, finding, challenge, historic
       command: fixCommand,
     },
   ]
-  return <section className="case-facts-line" aria-label="Case proof summary">{facts.map((fact) => <article className="case-fact" key={fact.label}><span className="case-fact-label">{fact.label}</span><strong className={fact.positive ? 'is-positive' : ''}>{fact.value}</strong><small>{fact.detail}</small>{fact.command && <code className="case-fact-command" title={fact.command}>{fact.command}</code>}{fact.action && <button type="button" onClick={fact.action.onClick}>{fact.action.label}<ArrowUpRight size={12} /></button>}</article>)}</section>
+  return <section className="case-facts-line" aria-label="Case proof summary">{facts.map((fact) => <article className="case-fact" key={fact.label}><span className="case-fact-label">{fact.label}</span><strong className={fact.positive ? 'is-positive' : ''}>{fact.value}</strong><small>{fact.detail}</small>{fact.command && <CopyFixCommand command={fact.command} compact />}{fact.action && <button type="button" onClick={fact.action.onClick}>{fact.action.label}<ArrowUpRight size={12} /></button>}</article>)}</section>
 }
 
 function CaseContrast({ findings = [], selectedIndex = 0, onSelect, historical = false }) {
