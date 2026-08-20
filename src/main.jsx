@@ -251,8 +251,16 @@ function LiveRepositoryProgress({ query, events = [], report = null, graphProgre
         const finding = report?.repositories?.find((item) => repositoryKey(item.repository) === repositoryKey(repository))
         const status = finding ? 'complete' : event?.status || 'waiting'
         const statusLabel = finding ? String(finding.verdict || 'classified').replaceAll('_', ' ').toLowerCase() : status === 'complete' ? 'read' : status === 'working' ? 'reading' : status === 'failed' ? 'failed' : 'queued'
+        const importer = finding?.imports?.[0]
+        const resolvedVersion = finding?.resolvedVersion || finding?.resolvedVersions?.[0]
         const detail = finding
-          ? routeEvidenceLabel(finding)
+          ? finding.verdict === 'REACHED' && importer
+            ? `${finding.packageName || 'package'}@${resolvedVersion || 'unresolved'} → ${importer.path}${importer.line ? `:${importer.line}` : ''}`
+            : finding.verdict === 'DECLARED_ONLY'
+              ? `${finding.packageName || 'package'}@${resolvedVersion || 'unresolved'} · no sampled import`
+              : finding.verdict === 'NOT_AFFECTED'
+                ? `${finding.packageName || 'package'}@${resolvedVersion || 'unresolved'} · outside affected range`
+                : routeEvidenceLabel(finding)
           : event?.detail || 'Waiting for the public lockfile and source sample.'
         return <div className={`live-repository live-repository-${status} ${finding ? `live-repository-verdict-${String(finding.verdict || 'UNKNOWN').toLowerCase()}` : ''}`} key={repository}>
           <span className="live-repository-index">0{index + 1}</span>
