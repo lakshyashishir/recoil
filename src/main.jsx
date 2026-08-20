@@ -1758,8 +1758,8 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const advisorySummary = report?.advisory?.summary
   const packageLabel = report?.package || 'package identity unavailable'
   const headline = historical
-    ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `A source-backed path existed in ${summary.reached} of ${total} repositories by ${historicalDate}.` : 'No source-backed path was evidenced at this date.'
-    : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} repositories import the affected version.` : total ? 'No sampled source path reaches the affected package.' : 'No repository was checked.'
+    ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `A source‑backed path existed in ${summary.reached} of ${total} repositories by ${historicalDate}.` : 'No source‑backed path was evidenced at this date.'
+    : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} repositories ${summary.reached === 1 ? 'has' : 'have'} a source‑backed path to ${packageLabel}.` : total ? 'No sampled source path reaches the affected package.' : 'No repository was checked.'
   const summaryLine = advisorySummary
     ? advisorySummary.toLowerCase().includes(packageLabel.toLowerCase()) ? advisorySummary : `${advisorySummary} · ${packageLabel}`
     : `The report compares ${packageLabel} across the collected repositories.`
