@@ -1320,7 +1320,7 @@ function IntegrityDetails({ report, hydra, evidenceStatus, historical = false, s
   const graphRelation = graphVerification?.graphContext?.triplets?.[0]
   const strictRecordingReady = !historical && getRecordingBlockers({ report, evidenceStatus, hydra, requireContrast: true, requireHydra: true }).length === 0
   const auditStatus = strictRecordingReady ? 'recording-ready' : quality.readyForRecording ? 'evidence gate passed' : 'review required'
-  return <details className="integrity-details" id="case-audit" open><summary>Audit record <span>{auditStatus}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.note || (scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.')}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div>{graphVerification && <div className={`audit-graph-verification audit-graph-verification-${graphVerification.status}`}><div><span className="section-kicker">Current HydraDB graph read</span><strong>{graphVerification.status === 'verified' ? `${graphVerification.tripletCount || 0} scoped relation${graphVerification.tripletCount === 1 ? '' : 's'} returned` : graphVerification.status.replaceAll('_', ' ')}</strong><p>{graphRelation ? `${graphRelation.source} ${graphRelation.predicate || 'connected to'} ${graphRelation.target}` : graphVerification.reason || 'The current case graph was not returned by the scoped read.'}</p></div><span>{graphVerification.memoryCount || 0} observed-graph memor{graphVerification.memoryCount === 1 ? 'y' : 'ies'}</span></div>}<p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of runtime execution.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
+  return <details className="integrity-details" id="case-audit"><summary>Audit record <span>{auditStatus}</span></summary><div className="integrity-grid"><div><strong>{sourceCount}</strong><span>public sources</span></div><div><strong>{sampled}</strong><span>source files sampled</span></div><div><strong>{graph.edges.length}</strong><span>observed relationships</span></div><div><strong>{hydra?.memoryCount || 0}</strong><span>HydraDB memories</span></div><div><strong>static only</strong><span>execution boundary</span></div></div><div className="audit-scope"><div><span className="section-kicker">Advisory scope</span><strong>{scopeLabel}</strong><p>{scope.note || (scope.model ? `OpenAI ${scope.model} proposed names; Recoil only attaches exact matches found in an importing file.` : scope.reason || 'The deterministic package-import proof remains authoritative.')}</p></div>{scope.affectedSymbols?.length > 0 && <div className="audit-symbols">{scope.affectedSymbols.slice(0, 6).map((symbol) => <span key={`${symbol.name}-${symbol.reason}`}>{symbol.name}</span>)}</div>}</div>{graphVerification && <div className={`audit-graph-verification audit-graph-verification-${graphVerification.status}`}><div><span className="section-kicker">Current HydraDB graph read</span><strong>{graphVerification.status === 'verified' ? `${graphVerification.tripletCount || 0} scoped relation${graphVerification.tripletCount === 1 ? '' : 's'} returned` : graphVerification.status.replaceAll('_', ' ')}</strong><p>{graphRelation ? `${graphRelation.source} ${graphRelation.predicate || 'connected to'} ${graphRelation.target}` : graphVerification.reason || 'The current case graph was not returned by the scoped read.'}</p></div><span>{graphVerification.memoryCount || 0} observed-graph memor{graphVerification.memoryCount === 1 ? 'y' : 'ies'}</span></div>}<p>{quality.reason || 'Reachability is based on cited lockfile and sampled source imports. It is not a claim of runtime execution.'}</p><p className="integrity-note">Evidence status: {evidenceStatus}. No package code or exploit payload was executed.</p></details>
 }
 
 function ReceiptLink({ scenarioId = DEFAULT_SCENARIO_ID }) {
@@ -1435,6 +1435,7 @@ function NoFindingsState({ report }) {
   const packagesChecked = Number(report?.summary?.packagesChecked || 0)
   const repositoriesChecked = Number(report?.summary?.totalRepositories || report?.target?.repositories?.length || 0)
   const sourceFiles = Number(report?.evidenceQuality?.sourceCoverage?.sampledFiles || 0)
+  const advisoryMatches = Number(report?.summary?.totalAdvisories || 0)
   const complete = report?.evidenceQuality?.readyForRecording
   const title = repositoryScan && report?.summary?.totalAdvisories === 0
     ? packagesChecked > 0 ? 'No affected path was found.' : 'No dependency inventory was available.'
@@ -1448,6 +1449,7 @@ function NoFindingsState({ report }) {
   return <section className={complete ? 'no-findings-state no-findings-state-complete' : 'no-findings-state'} aria-label="No classified findings">
     <div className="no-findings-copy"><span className="section-kicker">Clear result</span><h2>{title}</h2><p>{detail}</p></div>
     <div className="no-findings-checks" aria-label="Checks completed"><div><strong>{packagesChecked}</strong><span>packages checked</span></div><div><strong>{repositoriesChecked}</strong><span>repositories read</span></div><div><strong>{sourceFiles}</strong><span>source files sampled</span></div></div>
+    <div className="no-findings-evidence" aria-label="Negative result evidence"><div><span>Advisory matches</span><strong>{advisoryMatches}</strong><small>{advisoryMatches ? 'expanded into findings' : 'none in the recorded inventory'}</small></div><div><span>Graph state</span><strong>No affected edge</strong><small>Recoil does not draw an unsupported path.</small></div></div>
     <div className="no-findings-meta"><span>{complete ? 'complete negative result' : 'review required'}</span><small>{report?.sources?.length || 0} cited public source{report?.sources?.length === 1 ? '' : 's'}</small>{repositorySource && <SourceLink href={repositorySource}>Open repository</SourceLink>}</div>
   </section>
 }
@@ -1831,10 +1833,9 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     return reachedIndex >= 0 ? reachedIndex : 0
   })
   const [selectedNodeId, setSelectedNodeId] = useState(null)
-  // Open the completed case on the decision and fix proof first. The observed
-  // topology remains one click away when a reviewer wants the wider graph.
-  const [activeTab, setActiveTab] = useState('proof')
-  const [graphView, setGraphView] = useState(false)
+  // The completed case is one dashboard. Graph mode is visible by default;
+  // the cited-path view remains a local toggle inside the evidence surface.
+  const [evidenceMode, setEvidenceMode] = useState('graph')
   const [graphReplayToken, setGraphReplayToken] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyTarget, setHistoryTarget] = useState(null)
@@ -1891,21 +1892,18 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
         : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
   const primaryReachIndex = findings.findIndex((finding) => finding.verdict === 'REACHED')
-  const tabMeta = {
-    graph: findings.length ? `${findings.length} path${findings.length === 1 ? '' : 's'}` : null,
-    proof: historical ? 'current hidden' : summary.fixSurvives ? `${summary.fixSurvives} verified` : summary.reached ? 'review' : 'no change',
-    history: report?.rewind?.beforeAdvisory ? summary.exposureDays != null ? `${summary.exposureDays.toLocaleString()}d` : 'dated' : 'not dated',
-    audit: report?.sources?.length ? `${report.sources.length} sources` : null,
+  const revealDashboardSection = (id) => {
+    const section = document.getElementById(id)
+    if (section instanceof HTMLDetailsElement) section.open = true
+    window.requestAnimationFrame(() => section?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   const inspectProof = (index = primaryReachIndex >= 0 ? primaryReachIndex : selectedIndex) => {
     if (index >= 0) setSelectedIndex(index)
-    setActiveTab('proof')
-    window.requestAnimationFrame(() => document.getElementById('case-proof')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    revealDashboardSection('dashboard-proof')
   }
   const inspectGraph = () => {
-    setActiveTab('graph')
-    setGraphView(true)
-    window.requestAnimationFrame(() => document.getElementById('case-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    setEvidenceMode('graph')
+    revealDashboardSection('dashboard-evidence')
   }
   const rewindTo = async (asOf) => {
     if (!onRewind || !asOf || historyLoading) return
@@ -1919,46 +1917,41 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     }
   }
   const openHistory = async () => {
-    setActiveTab('history')
+    revealDashboardSection('dashboard-history')
     if (!historical && report?.rewind?.beforeAdvisory) await rewindTo(report.rewind.beforeAdvisory)
-    window.requestAnimationFrame(() => document.getElementById('case-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   const historyAction = historical
-    ? report?.rewind?.currentAsOf ? () => rewindTo(report.rewind.currentAsOf) : null
+    ? report?.rewind?.currentAsOf ? () => { revealDashboardSection('dashboard-history'); void rewindTo(report.rewind.currentAsOf) } : null
     : report?.rewind?.beforeAdvisory ? openHistory : null
   const selectRepositoryFromGraph = (index) => {
     setSelectedIndex(index)
     setSelectedNodeId(null)
-    window.requestAnimationFrame(() => document.getElementById('case-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    revealDashboardSection('dashboard-evidence')
   }
   const selectRepositoryFromNavigator = (index) => {
     setSelectedIndex(index)
     setSelectedNodeId(null)
   }
-  const changeTab = (tab) => {
-    setActiveTab(tab)
-    if (tab === 'history' && !historical && report?.rewind?.beforeAdvisory) void rewindTo(report.rewind.beforeAdvisory)
-    window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-  }
-  return <main className="case-page">
+  return <main className={`case-page case-dashboard ${historical ? 'case-dashboard-historical' : ''}`}>
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : repositoryScan ? 'Repository scan' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{repositoryScan ? 'Dependency inventory' : report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     {findings.length > 0 && <ReachabilityLedger findings={findings} summary={summary} mode={report?.mode} />}
     {findings.length > 0 && <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package || null} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} onOpenGraph={!historical && report?.graph?.nodes?.length ? inspectGraph : null} />}
-    {findings.length > 1 && <details className="case-outcome-disclosure">
-      <summary><span>Compare all {repositoryScan ? 'advisory outcomes' : 'repository outcomes'}</span><small>{findings.length} checks · selected route stays below</small></summary>
-      <CaseOutcomeIndex findings={findings} challenges={historical ? [] : report?.challenge || []} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} historical={historical} mode={report?.mode} />
-    </details>}
-    {findings.length > 0 ? <CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /> : <NoFindingsState report={report} />}
-    <SharedResolution correlations={report?.crossRepositoryCorrelations || []} historical={historical} />
-    {activeTab === 'history' && <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} />}
-    {findings.length > 0 && <CaseNavigator finding={selectedFinding} findings={findings} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />}
-    {findings.length > 0 && <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
-      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
-      {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} fixSet={report?.smallestFixSet} mode={report?.mode} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
-      {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
-      {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} historical={historical} scenarioId={scenarioId} />}
-    </div>}
-    {findings.length > 0 && activeTab === 'audit' && <CaseConclusion report={report} findings={findings} historical={historical} hydra={hydra} />}
+    {findings.length > 0 ? <>
+      <section className="dashboard-evidence" id="dashboard-evidence" aria-label="Evidence dashboard">
+        <div className="dashboard-section-heading"><div><span className="section-kicker">Evidence</span><h2>Where the answer comes from</h2><p>Select a finding to keep one proof path in focus. Every visible relationship is tied to a public source.</p></div><span>{evidenceMode === 'graph' ? 'Graph view' : 'Cited paths'}</span></div>
+        <div className="dashboard-evidence-grid">
+          <div className="dashboard-graph-panel"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={evidenceMode === 'paths'} historical={historical} onToggleGraph={() => setEvidenceMode((value) => value === 'graph' ? 'paths' : 'graph')} onReplay={evidenceMode === 'graph' && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} /></div>
+          <div className="dashboard-proof-panel" id="dashboard-proof"><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => revealDashboardSection('dashboard-response')} /></div>
+        </div>
+      </section>
+      {findings.length > 1 && <section className="dashboard-findings" id="dashboard-findings" aria-label="Investigation findings"><CaseOutcomeIndex findings={findings} challenges={historical ? [] : report?.challenge || []} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} historical={historical} mode={report?.mode} /></section>}
+      <SharedResolution correlations={report?.crossRepositoryCorrelations || []} historical={historical} />
+      <details className="dashboard-detail" id="dashboard-chain"><summary><span>Full evidence chain</span><small>Every cited hop from advisory to source</small></summary><CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => revealDashboardSection('dashboard-response')} /></details>
+      <details className="dashboard-detail" id="dashboard-response"><summary><span>Response and fix checks</span><small>{historical ? 'Current remediation is hidden in this view' : 'Version proof and handoff details'}</small></summary><div className="dashboard-detail-content"><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => revealDashboardSection('dashboard-chain')} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} fixSet={report?.smallestFixSet} mode={report?.mode} /><RouteProof finding={selectedFinding} challenge={challenge} /></div></details>
+      <details className="dashboard-detail" id="dashboard-history"><summary><span>Timeline and HydraDB memory</span><small>{report?.rewind?.beforeAdvisory ? 'Compare before disclosure and now' : 'No dated comparison available'}</small></summary><div className="dashboard-detail-content"><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></div></details>
+      <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} historical={historical} scenarioId={scenarioId} />
+      <details className="dashboard-detail dashboard-boundary" id="dashboard-boundary"><summary><span>Limits and evidence boundary</span><small>What Recoil did and did not claim</small></summary><CaseConclusion report={report} findings={findings} historical={historical} hydra={hydra} /></details>
+    </> : <NoFindingsState report={report} />}
   </main>
 }
 
