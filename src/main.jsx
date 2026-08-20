@@ -234,13 +234,17 @@ function LiveStageRail({ events = [], investigationStatus }) {
   return <section className="live-stage-rail" aria-label="Investigation stages"><div className="live-stage-rail-heading"><span>Investigation path</span><span>{investigationStatus === 'complete' ? 'complete' : `step ${Math.min(currentIndex + 1, stages.length)} of ${stages.length}`}</span></div><ol>{stages.map((stage, index) => { const status = statuses[index]; const detail = status === 'review' ? 'accepted · indexing unconfirmed' : status === 'failed' ? 'provider follow-up failed' : stage.detail; const iconStatus = status === 'waiting' ? 'idle' : status === 'review' ? 'failed' : status; return <li className={`live-stage live-stage-${status}`} key={stage.id}><span className="live-stage-marker"><StatusIcon status={iconStatus} /></span><span className="live-stage-copy"><strong>{stage.label}</strong><small>{detail}</small></span></li> })}</ol></section>
 }
 
-function LiveRepositoryProgress({ query, events = [], report = null }) {
+function LiveRepositoryProgress({ query, events = [], report = null, graphProgress = null }) {
   const repositories = queryRepositories(query)
   if (!repositories.length) return null
+  const total = Number(graphProgress?.totalRepositories || repositories.length)
+  const completed = Math.min(total, Math.max(0, Number(graphProgress?.completedRepositories || 0)))
+  const percentage = total ? Math.round((completed / total) * 100) : 0
   const latestByRepository = new Map()
   events.filter((event) => event.repository).forEach((event) => latestByRepository.set(repositoryKey(event.repository), event))
   return <section className="live-repositories" aria-label="Repository collection status">
-    <div className="live-repositories-heading"><span>Repositories</span><span>{repositories.length} targets</span></div>
+    <div className="live-repositories-heading"><span>Repositories</span><span>{completed} of {total} complete</span></div>
+    <div className="live-repository-progress" role="progressbar" aria-label="Repositories mapped" aria-valuemin="0" aria-valuemax={total} aria-valuenow={completed}><span style={{ width: `${percentage}%` }} /></div>
     <div className="live-repository-list">
       {repositories.map((repository, index) => {
         const event = latestByRepository.get(repositoryKey(repository))
@@ -271,7 +275,7 @@ function EventStream({ events = [], investigationStatus, query, graphProgress = 
   return <section className="event-journal" aria-label="Investigation progress" aria-busy={active}>
     <div className="journal-heading"><div><span className="section-kicker">What is happening</span><h2 aria-live="polite" aria-atomic="true">{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state" role="status" aria-live="polite">{active ? 'working' : 'up to date'}</span></div>
     <div className="journal-readout" aria-live="polite"><div><span>Current read</span><strong>{readout.label}</strong><p>{readout.detail}</p></div><span className="journal-readout-metric">{readout.metric}</span></div>
-    <LiveRepositoryProgress query={query} events={events} report={report} />
+    <LiveRepositoryProgress query={query} events={events} report={report} graphProgress={graphProgress} />
     <div className="journal-activity-heading"><span>Recent activity</span>{events.length > 5 && <button type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show recent' : `Show all ${events.length}`}</button>}</div>
     <div className="event-list">
       {!eventCurrent && current && <article className="event-row event-working event-current-fallback"><div className="event-status"><StatusIcon status="working" /></div><div className="event-copy"><div className="event-title"><strong>{current.title}</strong></div><p>{current.detail}</p></div><span className="event-now">now</span></article>}
