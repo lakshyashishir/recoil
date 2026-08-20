@@ -68,12 +68,11 @@ The proof sequence is evidence-first:
 - **Proposed change:** chooses an OSV-supported fixed version and checks whether each declared range admits it.
 - **Re-check:** checks whether the proposed change leaves an affected route or requires a manifest change.
 
-The completed browser case opens as one dashboard, not a tab maze: the answer and triage counts are at the
-top, a focused evidence graph and selected proof route sit together in the first viewport, and the route,
-fix check, HydraDB timeline, receipt, and evidence limits open below as progressive disclosures. The graph is
-an inspection surface rather than the verdict itself. In graph view, **Replay route** only replays the currently
-selected nodes and edges already collected for the case; it does not run a second scan, simulate a traversal,
-or add evidence.
+Completed browser cases open in a persistent security console. Incidents gives the verdict, computed
+remediation lanes, source evidence, and fix handoff; Repositories retains scanned codebases across API
+restarts; Graph gets the full workspace; Changes exposes HydraDB-backed history; Ask resolves bounded
+questions against computed findings; and Connect exposes the CLI, Markdown brief, and verifiable receipt.
+The graph is an inspection surface rather than the verdict itself.
 
 This is a bounded defensive analysis. Recoil never installs dependencies, executes public repository code, sends exploit payloads, or probes a live target.
 
@@ -204,21 +203,23 @@ To enable the optional advisory-scope pass, provide `OPENAI_API_KEY` and set `RE
 
 ## Browser and terminal clients
 
-### The judge dashboard
+### The judge console
 
 The fastest way to understand Recoil is to paste a public repository into the landing page. The case then
-becomes a single evidence dashboard:
+becomes a persistent evidence workspace:
 
 1. **Answer:** one sentence says how many advisory checks reach sampled source code.
-2. **Triage:** rows show each repository or advisory check with its verdict and next action.
-3. **Proof:** the graph and selected route show the exact advisory → package → lockfile → repository → source
-   relationship behind the answer.
-4. **Response:** the fix check, source line, introducing commit, and HydraDB timeline remain one click away.
-5. **Handoff:** copy the evidence note or download the brief and integrity receipt; run the same case through
-   the CLI when a judge wants a terminal-native workflow.
+2. **Triage:** a computed remediation board separates fix-ready, present-only, safe, and uncertain findings.
+3. **Proof:** Graph shows the exact advisory → package → lockfile → repository → source relationship. A clean
+   repository scan still retains its bounded lockfile/import inventory instead of drawing an empty placeholder.
+4. **History:** Changes compares dated evidence with prior HydraDB cases without allowing memory to overwrite
+   the current source-backed verdict.
+5. **Handoff:** Ask returns one sentence plus cited rows; Connect exposes the equivalent CLI command, Markdown
+   brief, and integrity-addressed JSON receipt.
 
-There is intentionally no separate graph page and no four-tab report. The dashboard keeps the conclusion in
-view while allowing a reviewer to open depth only when a result deserves inspection. See
+The console keeps each surface focused and persists completed cases under `.recoil-data/` so a restart does
+not erase the incident library. Runtime state is ignored by git, and the test harness disables workspace
+persistence so mocked evidence cannot enter the real case index. See
 [docs/JUDGE-DEMO.md](docs/JUDGE-DEMO.md) for the 90-second walkthrough and the exact narration.
 
 With the API running, the browser accepts either a repository-first scan:

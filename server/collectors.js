@@ -1114,6 +1114,53 @@ export function resolvePackageSelection({ requestedPackage = null, advisoryPacka
   }
 }
 
+/**
+ * A repository-only scan can legitimately find no affected advisories. The
+ * dependency and source evidence collected for that negative result is still
+ * useful and should not collapse to an empty advisory placeholder. This graph
+ * contains only observed lockfile packages and sampled external imports.
+ */
+export function buildRepositoryInventoryGraph(repositoryResults = [], { packageLimit = 18, importLimit = 14 } = {}) {
+  const nodes = new Map()
+  const edges = new Map()
+  const addNode = (node) => { if (node?.id && !nodes.has(node.id)) nodes.set(node.id, node) }
+  const addEdge = (from, to) => { if (from && to) edges.set(`${from}>${to}`, [from, to]) }
+  for (const repository of repositoryResults.filter((item) => item?.status === 'completed')) {
+    const repositoryId = `repo:${repository.repository}`
+    const lockfile = repository.manifest?.lockfile || repository.sources?.find((source) => /(?:package-lock|yarn\.lock|pnpm-lock|Cargo\.lock)$/i.test(source.path || ''))?.path || 'dependency inventory'
+    const lockId = `lock:${repository.repository}:${lockfile}`
+    const lockSource = repository.sources?.find((source) => source.path === lockfile)?.url || repository.sourceUrl || repository.repositoryUrl
+    addNode({ id: repositoryId, label: repository.repository, type: 'repository', sourceUrl: repository.repositoryUrl || repository.sourceUrl, meta: { ecosystem: repository.ecosystem || null } })
+    addNode({ id: lockId, label: lockfile, type: 'lockfile', sourceUrl: lockSource })
+    addEdge(lockId, repositoryId)
+
+    const lockPackages = repository.manifest?.lockPackages || []
+    const packageVersions = new Map(lockPackages.map((item) => [item.name, item.version]).filter(([name]) => name))
+    const declaredDependencies = repository.manifest?.dependencies || {}
+    const externalImports = (repository.manifest?.codeGraph?.externalImports || [])
+      .filter((item) => item?.packageName && (packageVersions.has(item.packageName) || declaredDependencies[item.packageName]))
+    const importedNames = [...new Set(externalImports.map((item) => item.packageName))]
+    const directNames = Object.keys(declaredDependencies)
+    const packageNames = [...new Set([...importedNames, ...directNames])].slice(0, packageLimit)
+    for (const packageName of packageNames) {
+      const version = packageVersions.get(packageName) || declaredDependencies[packageName] || 'recorded'
+      const packageId = `package:${repository.repository}:${packageName}@${version}`
+      addNode({ id: packageId, label: `${packageName}@${version}`, type: 'package', sourceUrl: lockSource, meta: { inventory: true, imported: importedNames.includes(packageName) } })
+      addEdge(packageId, lockId)
+    }
+    for (const importer of externalImports.slice(0, importLimit)) {
+      const version = packageVersions.get(importer.packageName) || declaredDependencies[importer.packageName] || 'recorded'
+      const packageId = `package:${repository.repository}:${importer.packageName}@${version}`
+      const codeId = `code:${repository.repository}:${importer.path}`
+      addNode({ id: packageId, label: `${importer.packageName}@${version}`, type: 'package', sourceUrl: lockSource, meta: { inventory: true, imported: true } })
+      addNode({ id: codeId, label: importer.path, type: 'code', sourceUrl: importer.sourceUrl, meta: { line: importer.line || null, snippet: importer.snippet || null, owners: importer.owners || [], importedPackage: importer.packageName } })
+      addEdge(packageId, codeId)
+      addEdge(repositoryId, codeId)
+    }
+  }
+  return { nodes: [...nodes.values()], edges: [...edges.values()], packageName: null, inventory: true }
+}
+
 export async function runMultiRepositoryIngestion({ query = '', scenarioId = '0017', onProgress = () => {} } = {}) {
   const input = parseInvestigationInput(query)
   const repositoryScanInput = !input.advisoryId && !input.packageName
@@ -1257,7 +1304,9 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
     : repositoryResults.map((repository) => repository.status === 'completed'
       ? classifyRepository({ repository, packageName, advisory, advisoryId: input.advisoryId || advisory?.id })
       : classifyFailedRepository(repository))
-  const graph = buildObservedGraph({ advisoryId: input.advisoryId || advisory?.id || 'advisory', advisorySourceUrl: advisory?.sourceUrl, packageName, repositoryFindings: findings })
+  const graph = repositoryOnly && findings.length === 0
+    ? buildRepositoryInventoryGraph(repositoryResults)
+    : buildObservedGraph({ advisoryId: input.advisoryId || advisory?.id || 'advisory', advisorySourceUrl: advisory?.sourceUrl, packageName, repositoryFindings: findings })
   const sources = [...new Set([
     advisoryRecord.sourceUrl,
     registry.sourceUrl,

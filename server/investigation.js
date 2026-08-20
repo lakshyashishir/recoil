@@ -110,6 +110,7 @@ async function reconcileQueuedHydra(record, state, report, queued) {
         detail: `${acknowledged.length}/${queued.memoryCount || 0} memories acknowledged. The source-backed report remains available; HydraDB persistence is not claimed.`,
       })
       state.step = 'complete'
+      record.persist?.()
       return
     }
     if (record.investigation !== state) return
@@ -131,6 +132,7 @@ async function reconcileQueuedHydra(record, state, report, queued) {
       detail: hydraEventDetail(persisted, recall, graphVerification),
     })
     state.step = 'complete'
+    record.persist?.()
   } catch (error) {
     if (record.investigation !== state) return
     const deferred = {
@@ -149,6 +151,7 @@ async function reconcileQueuedHydra(record, state, report, queued) {
       detail: 'The source-backed report remains available, but Recoil cannot claim that this batch was persisted.',
     })
     state.step = 'complete'
+    record.persist?.()
   }
 }
 
@@ -257,12 +260,14 @@ export async function executeInvestigation(record) {
         : `${report.evidenceQuality.reason} The report is available for diagnosis, not final recording.`,
     })
     void reconcileQueuedHydra(record, state, report, persisted)
+    record.persist?.()
     return state
   } catch (error) {
     state.status = 'failed'
     state.error = error.message
     state.completedAt = new Date().toISOString()
     pushEvent(state, { type: 'step', key: 'investigation', status: 'failed', title: 'Investigation incomplete', detail: error.message })
+    record.persist?.()
     return state
   }
 }

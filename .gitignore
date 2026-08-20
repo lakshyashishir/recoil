@@ -4,5 +4,6 @@ dist/
 .DS_Store
 .recoil-cache/
 .recoil-recordings/
+.recoil-data/
 .env*
 !.env.example

@@ -1,7 +1,8 @@
 import http from 'node:http'
 import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { hydraStatus } from './hydra.js'
 import { startInvestigation, rewindInvestigation } from './investigation.js'
 import { advisoryAgentStatus } from './advisory-agent.js'
@@ -12,7 +13,9 @@ import { summarizeGraphContext } from '../src/core/graph-context.js'
 
 const port = Number(process.env.RECOIL_PORT || 8787)
 const host = process.env.RECOIL_HOST || '127.0.0.1'
-const scenarios = new Map()
+const workspacePersistenceEnabled = !process.env.NODE_TEST_CONTEXT && process.env.RECOIL_DISABLE_WORKSPACE !== '1'
+const workspaceFile = resolve(process.env.RECOIL_WORKSPACE_FILE || '.recoil-data/workspace.json')
+const scenarios = new Map(loadWorkspaceRecords().map((record) => [record.id, record]))
 
 function json(res, status, payload) {
   res.writeHead(status, {
@@ -105,6 +108,152 @@ function publicInvestigation(investigation) {
   return { ...investigation, hydra: publicHydraState(investigation.hydra || {}) }
 }
 
+function serializableRecord(record) {
+  return {
+    id: record.id,
+    query: record.query || '',
+    mode: record.mode || 'evidence',
+    createdAt: record.createdAt || record.investigation?.startedAt || new Date().toISOString(),
+    updatedAt: record.investigation?.completedAt || record.updatedAt || new Date().toISOString(),
+    ingestion: record.ingestion || { status: 'not_started', collectors: [] },
+    hydra: publicHydraState(record.investigation?.hydra || record.hydra || {}),
+    graph: record.graph || record.investigation?.graph || record.investigation?.report?.graph || { nodes: [], edges: [] },
+    investigation: publicInvestigation(record.investigation),
+  }
+}
+
+function loadWorkspaceRecords() {
+  if (!workspacePersistenceEnabled) return []
+  if (!existsSync(workspaceFile)) return []
+  try {
+    const payload = JSON.parse(readFileSync(workspaceFile, 'utf8'))
+    return Array.isArray(payload?.records) ? payload.records : []
+  } catch (error) {
+    console.warn(`Recoil workspace could not be read: ${error.message}`)
+    return []
+  }
+}
+
+function persistWorkspace() {
+  if (!workspacePersistenceEnabled) return
+  try {
+    mkdirSync(dirname(workspaceFile), { recursive: true })
+    const temporary = `${workspaceFile}.tmp`
+    const records = [...scenarios.values()]
+      .filter((record) => record.investigation || record.query)
+      .map(serializableRecord)
+    writeFileSync(temporary, JSON.stringify({ schema: 'recoil.workspace/v1', updatedAt: new Date().toISOString(), records }, null, 2))
+    renameSync(temporary, workspaceFile)
+  } catch (error) {
+    console.warn(`Recoil workspace could not be saved: ${error.message}`)
+  }
+}
+
+function verdictBucket(verdict) {
+  if (verdict === 'REACHED') return 'needs_action'
+  if (verdict === 'DECLARED_ONLY') return 'present_only'
+  if (verdict === 'NOT_AFFECTED') return 'safe'
+  return 'needs_evidence'
+}
+
+function caseSummary(record) {
+  const investigation = record.investigation || {}
+  const report = investigation.report || null
+  const findings = report?.repositories || []
+  const challenge = report?.challenge || []
+  const repositories = findings.map((finding) => {
+    const fix = challenge.find((item) => item.repository === finding.repository && (!item.advisoryId || !finding.advisoryId || item.advisoryId === finding.advisoryId))
+    return {
+      repository: finding.repository,
+      repositoryUrl: finding.repositoryUrl,
+      advisoryId: finding.advisoryId || report?.advisory?.id || null,
+      packageName: finding.packageName || report?.package || null,
+      resolvedVersion: finding.resolvedVersion || null,
+      verdict: finding.verdict || 'UNKNOWN',
+      bucket: verdictBucket(finding.verdict),
+      imports: (finding.imports || []).slice(0, 3),
+      owners: [...new Set((finding.imports || []).flatMap((item) => item.owners || []))],
+      pathObservedAt: finding.pathObservedAt || null,
+      exposureDays: finding.exposureDays ?? null,
+      fix: fix ? { status: fix.status, proposedVersion: fix.proposedVersion || null, detail: fix.detail || null } : null,
+    }
+  })
+  const graphDelta = report?.rewind?.graphDelta || report?.rewind?.delta?.graph || null
+  const scannedRepositories = (investigation.evidence?.repositories || record.ingestion?.repositories || []).map((repository) => ({
+    repository: repository.repository,
+    repositoryUrl: repository.repositoryUrl || repository.sourceUrl,
+    ecosystem: repository.ecosystem || repository.manifest?.ecosystem || null,
+    lockfile: repository.manifest?.lockFile || repository.lockFile || null,
+    sourceFiles: repository.manifest?.collection?.sourceFiles?.sampled || repository.manifest?.sourceFiles?.length || 0,
+    status: repository.status || 'completed',
+  }))
+  return {
+    id: record.id,
+    query: record.query || '',
+    status: investigation.status || 'idle',
+    mode: report?.mode || 'evidence',
+    startedAt: investigation.startedAt || record.createdAt || null,
+    completedAt: investigation.completedAt || record.updatedAt || null,
+    advisoryId: report?.advisory?.id || repositories[0]?.advisoryId || null,
+    packageName: report?.package || repositories[0]?.packageName || null,
+    summary: report?.summary || { reached: 0, declaredOnly: 0, notAffected: 0, unknown: 0, totalRepositories: repositories.length },
+    evidenceReady: Boolean(report?.evidenceQuality?.readyForRecording),
+    hydra: publicHydraState(investigation.hydra || record.hydra || {}),
+    graph: { nodes: report?.graph?.nodes?.length || record.graph?.nodes?.length || 0, edges: report?.graph?.edges?.length || record.graph?.edges?.length || 0 },
+    changes: graphDelta ? {
+      addedNodes: graphDelta.addedNodes?.length || graphDelta.added || 0,
+      removedNodes: graphDelta.removedNodes?.length || graphDelta.removed || 0,
+      addedEdges: graphDelta.addedEdges?.length || 0,
+      removedEdges: graphDelta.removedEdges?.length || 0,
+    } : null,
+    repositories,
+    scannedRepositories,
+  }
+}
+
+function workspaceSnapshot() {
+  const cases = [...scenarios.values()]
+    .filter((record) => record.investigation?.report || record.investigation?.status === 'running' || record.query)
+    .map(caseSummary)
+    .sort((left, right) => String(right.completedAt || right.startedAt || '').localeCompare(String(left.completedAt || left.startedAt || '')))
+  const repositoryMap = new Map()
+  for (const item of cases) {
+    const scans = item.scannedRepositories?.length ? item.scannedRepositories : item.repositories
+    for (const scanned of scans) {
+      const key = scanned.repository || scanned.repositoryUrl
+      if (!key) continue
+      const matchingFindings = item.repositories.filter((finding) => finding.repository === scanned.repository)
+      const current = repositoryMap.get(key) || { repository: scanned.repository, repositoryUrl: scanned.repositoryUrl, ecosystem: scanned.ecosystem || null, cases: 0, advisories: new Set(), needsAction: 0, presentOnly: 0, safe: 0, needsEvidence: 0, latestCaseId: item.id, lastScannedAt: item.completedAt || item.startedAt }
+      current.cases += 1
+      current.sourceFiles = Math.max(current.sourceFiles || 0, scanned.sourceFiles || 0)
+      for (const finding of matchingFindings) {
+        if (finding.advisoryId) current.advisories.add(finding.advisoryId)
+        if (finding.bucket === 'needs_action') current.needsAction += 1
+        if (finding.bucket === 'present_only') current.presentOnly += 1
+        if (finding.bucket === 'safe') current.safe += 1
+        if (finding.bucket === 'needs_evidence') current.needsEvidence += 1
+      }
+      repositoryMap.set(key, current)
+    }
+  }
+  const repositories = [...repositoryMap.values()].map((repository) => ({ ...repository, advisories: repository.advisories.size })).sort((left, right) => String(right.lastScannedAt || '').localeCompare(String(left.lastScannedAt || '')))
+  return {
+    schema: 'recoil.workspace-summary/v1',
+    cases,
+    repositories,
+    metrics: {
+      cases: cases.length,
+      repositories: repositories.length,
+      needsAction: cases.reduce((total, item) => total + Number(item.summary?.reached || 0), 0),
+      presentOnly: cases.reduce((total, item) => total + Number(item.summary?.declaredOnly || 0), 0),
+      safe: cases.reduce((total, item) => total + Number(item.summary?.notAffected || 0), 0),
+      needsEvidence: cases.reduce((total, item) => total + Number(item.summary?.unknown || 0), 0),
+      graphNodes: cases.reduce((total, item) => total + item.graph.nodes, 0),
+      graphEdges: cases.reduce((total, item) => total + item.graph.edges, 0),
+    },
+  }
+}
+
 function investigationSnapshot(record) {
   const investigation = publicInvestigation(record.investigation)
   const evidence = investigation?.evidence || record.ingestion || { status: 'not_started', collectors: [] }
@@ -149,9 +298,13 @@ function getOrCreate(id = '0017', initial = {}) {
       ingestion: { status: 'not_started', collectors: [] },
       hydra: { status: 'not_started', memoryCount: 0 },
       investigation: null,
+      createdAt: new Date().toISOString(),
+      persist: persistWorkspace,
     })
   }
-  return scenarios.get(id)
+  const record = scenarios.get(id)
+  record.persist = persistWorkspace
+  return record
 }
 
 function resetRecord(record) {
@@ -211,9 +364,14 @@ async function route(req, res) {
     return json(res, 200, snapshot(getOrCreate()))
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/workspace') {
+    return json(res, 200, workspaceSnapshot())
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/scenarios') {
     return body(req).then((payload) => {
       const id = payload.id || randomUUID().slice(0, 8)
+      persistWorkspace()
       return json(res, 201, { scenarioId: id, ...snapshot(getOrCreate(id, payload)) })
     }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
   }
@@ -248,6 +406,7 @@ async function route(req, res) {
       record.ingestion = { status: 'not_started', collectors: [] }
       record.hydra = { status: 'not_started', memoryCount: 0 }
       startInvestigation(record, payload.query)
+      persistWorkspace()
       return json(res, 202, snapshot(record))
     }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
   }
@@ -306,6 +465,7 @@ async function route(req, res) {
 
   if (req.method === 'POST' && action === 'reset') {
     resetRecord(record)
+    persistWorkspace()
     return json(res, 200, snapshot(record))
   }
 

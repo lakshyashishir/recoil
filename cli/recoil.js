@@ -227,7 +227,7 @@ async function main() {
   if (packageResolution.status === 'ambiguous' || packageResolution.status === 'unresolved') {
     line(`input   ${packageResolution.reason || 'Package identity could not be resolved safely.'}`)
   }
-  if (result.report.mode === 'repository') line(`scan    ${summary.packagesChecked || 0} packages · ${summary.totalAdvisories || 0} advisories · ${summary.totalFindings || 0} repository checks`)
+  if (result.report.mode === 'repository') line(`scan    ${summary.packagesChecked || 0} packages · ${summary.totalAdvisories || 0} advisories · ${summary.totalRepositories || 0} ${summary.totalRepositories === 1 ? 'repository' : 'repositories'} scanned`)
   line(`result  ${summary.reached || 0} reached · ${summary.declaredOnly || 0} declared only · ${summary.notAffected || 0} not affected · ${summary.unknown || 0} unknown`)
   line(`evidence ${quality.status || 'unknown'} · ${quality.readyForRecording ? 'evidence gate passed' : 'review required'} · ${quality.reason || 'quality not available'}`)
   if (quality.ambiguousVersions?.length) line(`ambiguity ${quality.ambiguousVersions.map((item) => `${item.repository}: ${item.versions.join(', ')}`).join(' · ')}`)

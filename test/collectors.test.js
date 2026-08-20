@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { advisoryLookupId, inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parseNpmLockPackages, parsePnpmLock, parsePnpmWorkspace, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
+import { advisoryLookupId, buildRepositoryInventoryGraph, inferTarget, packageNameFromNodeModulesPath, parseCargoLock, parseCargoManifest, parseInvestigationInput, parseNpmLockPackages, parsePnpmLock, parsePnpmWorkspace, parseYarnLock, resolvePackageSelection } from '../server/collectors.js'
 
 test('keeps GHSA advisory IDs canonical for the case-sensitive OSV lookup', () => {
   assert.equal(advisoryLookupId('ghsa-vh95-rmgr-6w4m'), 'GHSA-VH95-RMGR-6W4M')
@@ -17,6 +17,27 @@ test('target inference keeps a GitHub repository separate from an optional packa
     url: 'https://github.com/hydra-db/hydradb',
   })
   assert.equal(target.packageName, 'hydradb')
+})
+
+test('clean repository scans retain a bounded observed dependency and source graph', () => {
+  const graph = buildRepositoryInventoryGraph([{
+    status: 'completed',
+    repository: 'example/app',
+    repositoryUrl: 'https://github.com/example/app',
+    ecosystem: 'npm',
+    sourceUrl: 'https://github.com/example/app/blob/HEAD/package.json',
+    sources: [{ path: 'package-lock.json', url: 'https://github.com/example/app/blob/HEAD/package-lock.json' }],
+    manifest: {
+      lockfile: 'package-lock.json',
+      dependencies: { minimist: '^1.2.8' },
+      lockPackages: [{ name: 'minimist', version: '1.2.8' }],
+      codeGraph: { externalImports: [{ path: 'src/cli.js', sourceUrl: 'https://github.com/example/app/blob/HEAD/src/cli.js#L3', packageName: 'minimist', line: 3, owners: ['@platform'] }] },
+    },
+  }])
+  assert.equal(graph.inventory, true)
+  assert.ok(graph.nodes.some((node) => node.id === 'package:example/app:minimist@1.2.8'))
+  assert.ok(graph.nodes.some((node) => node.id === 'code:example/app:src/cli.js' && node.meta.owners[0] === '@platform'))
+  assert.ok(graph.edges.some(([from, to]) => from.includes('minimist@1.2.8') && to === 'code:example/app:src/cli.js'))
 })
 
 test('investigation input accepts one advisory and multiple repositories', () => {

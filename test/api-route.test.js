@@ -152,6 +152,13 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
     assert.equal(current.investigation.events.find((event) => event.key === 'complete').title, 'Case complete')
     assert.equal(current.investigation.hydra.status, 'skipped')
 
+    const workspace = await request('GET', '/api/workspace')
+    const indexed = workspace.body.cases.find((item) => item.id === id)
+    assert.equal(workspace.statusCode, 200)
+    assert.equal(indexed.status, 'complete')
+    assert.equal(indexed.summary.reached, 1)
+    assert.equal(indexed.repositories[0].fix.status, 'FIX_SURVIVES')
+
     const receipt = await request('GET', `/api/scenarios/${id}/receipt`)
     assert.equal(receipt.statusCode, 200)
     assert.equal(receipt.body.schema, 'recoil.evidence-receipt/v1')
