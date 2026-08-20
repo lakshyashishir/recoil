@@ -1224,8 +1224,18 @@ function summarizeFindings(findings = []) {
   }
 }
 
-function CaseFactsLine({ summary = {}, historical = false, onOpenProof, onOpenHistory }) {
+function CaseFactsLine({ summary = {}, packageName, challenge, historical = false, onOpenProof, onOpenHistory }) {
   const unknown = summary.unknown || 0
+  const proposedVersion = challenge?.proposedVersion
+  const remediationValue = historical
+    ? 'Current proof hidden'
+    : summary.fixSurvives && proposedVersion
+      ? `${packageName || 'Package'} → ${proposedVersion}`
+      : summary.fixSurvives
+        ? `${summary.fixSurvives} fix proof${summary.fixSurvives === 1 ? '' : 's'} verified`
+        : summary.alreadySafe
+          ? `${summary.alreadySafe} already safe`
+          : 'Fix proof needs review'
   const facts = [
     {
       label: 'Reachability',
@@ -1247,15 +1257,11 @@ function CaseFactsLine({ summary = {}, historical = false, onOpenProof, onOpenHi
     },
     {
       label: 'Remediation',
-      value: historical
-        ? 'Current proof hidden'
-        : summary.fixSurvives
-          ? `${summary.fixSurvives} fix proof${summary.fixSurvives === 1 ? '' : 's'} verified`
-          : summary.alreadySafe
-            ? `${summary.alreadySafe} already safe`
-            : 'Fix proof needs review',
+      value: remediationValue,
       detail: historical
         ? 'A dated view does not make a present-day fix claim.'
+        : summary.fixSurvives && proposedVersion
+          ? `${summary.fixSurvives} version proof${summary.fixSurvives === 1 ? '' : 's'} verified against the advisory range.`
         : summary.alreadySafe
           ? `${summary.alreadySafe} resolution${summary.alreadySafe === 1 ? '' : 's'} already sit outside the affected range.`
           : 'The proposed version is checked against the observed path.',
@@ -1681,7 +1687,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   }
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
-    <CaseFactsLine summary={summary} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
+    <CaseFactsLine summary={summary} packageName={report?.package} challenge={primaryChallenge} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
     <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
