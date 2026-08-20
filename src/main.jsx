@@ -1878,6 +1878,28 @@ function CaseOutcomeStrip({ report, findings = [], summary = {}, hydra, historic
   </section>
 }
 
+function CaseRouteReadout({ finding, historical = false, onInspectProof }) {
+  if (!finding) return null
+  const parts = findingParts(finding)
+  const proof = finding.proof || []
+  const citedHops = proof.filter((step) => ['observed', 'validated'].includes(step.status) && step.source).length
+  const hopCount = proof.length || parts.length
+  const sourceBoundary = sourceCoverageLabel(finding)
+    || (finding.verdict === 'REACHED'
+      ? 'sampled source evidence supports the path'
+      : finding.verdict === 'DECLARED_ONLY'
+        ? 'the package is present without a sampled import'
+        : finding.verdict === 'NOT_AFFECTED'
+          ? 'the resolved version is outside the affected range'
+          : 'the source sample is incomplete')
+  const sourceImpact = finding.sourceImpact
+  return <section className="case-route-readout" aria-label="Selected evidence route">
+    <div className="case-route-readout-heading"><div><span className="section-kicker">Selected evidence route</span><h2>{repositoryName(finding.repository)}</h2></div><Verdict value={finding.verdict} compact /></div>
+    {parts.length ? <div className="case-route-flow" aria-label={`Collected route for ${repositoryName(finding.repository)}`}>{parts.map((part, index) => <div className="case-route-hop-wrap" key={`${part}-${index}`}><div className={`case-route-hop case-route-hop-${traceKind(part, index, finding)}`}><span>{traceKind(part, index, finding)}</span><strong>{shorten(routeDisplayPart(part, finding), 38)}</strong></div>{index < parts.length - 1 && <i className="case-route-arrow" aria-hidden="true">→</i>}</div>)}</div> : <div className="case-route-empty">No observed route was collected for this repository.</div>}
+    <div className="case-route-readout-meta"><span>{citedHops}/{hopCount || 0} hops have cited public evidence</span><span>{sourceBoundary}</span>{sourceImpact?.files?.length > 0 && <span>{sourceImpact.sampledFileCount} sampled files · {sourceImpact.observedEdgeCount} local import edges</span>}{!historical && onInspectProof && <button type="button" onClick={onInspectProof}>Inspect proof <ArrowUpRight size={12} /></button>}</div>
+  </section>
+}
+
 function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const [selectedIndex, setSelectedIndex] = useState(() => {
     const reachedIndex = report?.repositories?.findIndex((finding) => finding.verdict === 'REACHED') ?? -1
@@ -1982,6 +2004,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseOutcomeStrip report={report} findings={findings} summary={summary} hydra={hydra} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} />
+    <CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
