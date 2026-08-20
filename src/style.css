@@ -531,6 +531,133 @@ h1, h2, p { margin-top: 0; }
   .floating-error { right: 12px; bottom: 12px; left: 12px; }
 }
 
+/* Workspace surfaces -------------------------------------------------------
+   These views expose durable watches and computed incidents. They stay flat
+   and operational: one index, one working surface, no nested card grid. */
+.incident-dashboard, .fleet-graph-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  min-height: calc(100dvh - 225px);
+  margin-top: 24px;
+  border: 1px solid var(--console-line);
+  background: var(--console-panel);
+}
+.incident-index, .fleet-focus-list { border-right: 1px solid var(--console-line); background: var(--console-sidebar-bg); }
+.incident-index > div, .fleet-focus-list > div { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 14px; border-bottom: 1px solid var(--console-line); color: var(--console-faint); font-size: 9px; }
+.incident-index > div strong, .fleet-focus-list > div strong { color: var(--console-muted); font: 600 10px/1 var(--mono); }
+.incident-index > button { width: 100%; display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 13px 13px; border-bottom: 1px solid var(--console-line-soft); color: var(--console-muted); background: transparent; text-align: left; }
+.incident-index > button:hover, .incident-index > button.active { color: var(--console-text); background: var(--console-hover); }
+.incident-index > button.active { box-shadow: inset 2px 0 var(--console-accent); }
+.incident-index > button > span:nth-child(2) { display: grid; gap: 4px; min-width: 0; }
+.incident-index strong, .incident-index small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.incident-index strong { font: 600 10px/1.2 var(--mono); }
+.incident-index small { color: var(--console-faint); font-size: 9px; }
+.incident-index em { min-width: 18px; color: var(--console-faint); font: 600 9px/1 var(--mono); font-style: normal; text-align: right; }
+.incident-status { width: 6px; height: 6px; border-radius: 50%; background: var(--console-faint); }
+.incident-status-open { background: var(--console-danger); }
+.incident-status-review, .incident-status-observed { background: var(--console-warning); }
+.incident-status-clear { background: var(--console-safe); }
+.incident-detail { min-width: 0; padding: 24px 26px 40px; }
+.incident-detail > header { display: flex; align-items: start; justify-content: space-between; gap: 24px; padding-bottom: 22px; border-bottom: 1px solid var(--console-line); }
+.incident-detail > header > div { min-width: 0; }
+.incident-detail h2 { max-width: 760px; margin: 9px 0 7px; color: var(--console-text); font-size: clamp(20px, 2vw, 28px); font-weight: 600; letter-spacing: -.035em; line-height: 1.15; }
+.incident-detail header p { margin: 0; color: var(--console-muted); font: 10px/1.4 var(--mono); }
+.incident-state { display: inline-flex; align-items: center; gap: 6px; color: var(--console-muted); font-size: 9px; font-weight: 600; }
+.incident-state::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.incident-state-open { color: var(--console-danger); }
+.incident-state-clear { color: var(--console-safe); }
+.incident-state-review, .incident-state-observed { color: var(--console-warning); }
+.incident-detail-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--console-line); }
+.incident-detail-metrics .console-metric { padding-top: 16px; padding-bottom: 17px; }
+.incident-map-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-top: 26px; padding-bottom: 11px; }
+.incident-map-heading span { color: var(--console-faint); font-size: 9px; }
+.incident-map-heading h3 { margin: 5px 0 0; color: var(--console-text); font-size: 14px; font-weight: 600; }
+.incident-map-heading small { color: var(--console-faint); font-size: 9px; }
+.incident-routes { border-top: 1px solid var(--console-line); }
+.incident-routes > button { width: 100%; display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 16px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--console-line-soft); color: var(--console-muted); background: transparent; text-align: left; }
+.incident-routes > button:hover { color: var(--console-text); background: var(--console-hover); }
+.incident-route-repo { padding-left: 8px; overflow: hidden; font: 600 10px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.incident-route-line { display: flex; align-items: center; min-width: 0; overflow-x: auto; padding: 3px 4px 3px 0; scrollbar-width: thin; }
+.incident-route-part { display: flex; align-items: center; flex: 0 0 auto; min-width: 0; }
+.incident-route-part i { display: grid; place-items: center; width: 18px; height: 18px; margin-right: 6px; border: 1px solid var(--console-line); border-radius: 50%; color: var(--console-faint); font: 8px/1 var(--mono); font-style: normal; }
+.incident-route-part strong { max-width: 108px; overflow: hidden; font: 500 9px/1.25 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.incident-route-part em { margin: 0 6px; color: var(--console-danger); font-style: normal; }
+.incident-route-empty { display: flex; align-items: center; gap: 9px; padding: 18px 0; border-top: 1px solid var(--console-line); border-bottom: 1px solid var(--console-line); color: var(--console-safe); font-size: 10px; }
+.incident-repository-list { margin-top: 27px; border-top: 1px solid var(--console-line); }
+.incident-repository-head, .incident-repository-list > button { display: grid; grid-template-columns: 1.1fr .85fr 1.2fr 110px; gap: 15px; align-items: center; }
+.incident-repository-head { min-height: 31px; color: var(--console-faint); font-size: 8px; }
+.incident-repository-list > button { width: 100%; min-height: 54px; padding: 8px 0; border-top: 1px solid var(--console-line-soft); color: var(--console-muted); background: transparent; text-align: left; }
+.incident-repository-list > button:hover { color: var(--console-text); background: var(--console-hover); }
+.incident-repository-list > button strong, .incident-repository-list > button > span:not(.verdict) { overflow: hidden; font: 10px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+
+.watch-repository-form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 9px; align-items: center; margin-top: 24px; padding: 8px 9px 8px 13px; border: 1px solid var(--console-line); color: var(--console-faint); background: var(--console-panel); }
+.watch-repository-form input { min-width: 0; border: 0; outline: 0; color: var(--console-text); background: transparent; font: 11px/1.3 var(--mono); }
+.watch-repository-form button { min-height: 30px; padding: 0 12px; border-radius: 3px; color: var(--button-text); background: var(--accent); font-size: 10px; font-weight: 600; }
+.watch-repository-form button:disabled { opacity: .5; }
+.repository-list-head { grid-template-columns: minmax(230px, 1.5fr) .4fr .5fr .65fr .75fr 70px; }
+.repository-row { display: grid; grid-template-columns: minmax(0, 1fr) 70px; border-top: 1px solid var(--console-line-soft); }
+.repository-row > button:first-child { display: grid; grid-template-columns: minmax(230px, 1.5fr) .4fr .5fr .65fr .75fr; gap: 20px; align-items: center; min-height: 56px; color: var(--console-muted); background: transparent; font: 10px/1 var(--mono); text-align: left; }
+.repository-row > button:first-child:hover { color: var(--console-text); background: var(--console-hover); }
+.repository-row > button:first-child > span:first-child { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.repository-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repository-scan-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border-left: 1px solid var(--console-line-soft); color: var(--console-accent); background: transparent; font-size: 9px; }
+.repository-scan-action:hover { color: var(--console-text); background: var(--console-hover); }
+.repository-scan-action:disabled { color: var(--console-faint); cursor: wait; }
+.repository-scanning { color: var(--console-accent); }
+
+.fleet-graph-layout { grid-template-columns: 220px minmax(0, 1fr); }
+.fleet-focus-list button { width: 100%; display: grid; gap: 4px; padding: 11px 13px; border-bottom: 1px solid var(--console-line-soft); color: var(--console-muted); background: transparent; text-align: left; }
+.fleet-focus-list button:hover, .fleet-focus-list button.active { color: var(--console-text); background: var(--console-hover); }
+.fleet-focus-list button.active { box-shadow: inset 2px 0 var(--console-accent); }
+.fleet-focus-list button strong { overflow: hidden; font: 600 10px/1.2 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.fleet-focus-list button small { color: var(--console-faint); font-size: 8px; }
+.fleet-graph-layout > section { min-width: 0; overflow: hidden; }
+.fleet-graph-toolbar { min-height: 42px; display: flex; align-items: center; gap: 18px; padding: 0 15px; border-bottom: 1px solid var(--console-line); color: var(--console-muted); font-size: 9px; }
+.fleet-graph-toolbar span { display: inline-flex; align-items: center; gap: 6px; }
+.fleet-graph-toolbar small { margin-left: auto; color: var(--console-faint); }
+.graph-key { width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--console-muted); }
+.graph-key-reached { border-color: var(--console-danger); background: var(--console-danger); }
+.fleet-graph-canvas { position: relative; width: 100%; height: calc(100dvh - 270px); min-height: 500px; overflow: auto; background-image: linear-gradient(var(--console-line-soft) 1px, transparent 1px), linear-gradient(90deg, var(--console-line-soft) 1px, transparent 1px); background-size: 28px 28px; }
+.fleet-graph-canvas svg { display: block; width: max(100%, 980px); min-height: 100%; }
+.fleet-edge { fill: none; stroke: var(--console-line); stroke-width: 1.2; }
+#fleet-arrow path { fill: var(--console-faint); }
+.fleet-node { cursor: pointer; outline: none; }
+.fleet-node rect { fill: var(--console-panel); stroke: var(--console-line); stroke-width: 1; }
+.fleet-node circle { fill: var(--console-faint); }
+.fleet-node text { fill: var(--console-faint); font: 8px var(--mono); pointer-events: none; }
+.fleet-node .fleet-node-label { fill: var(--console-text); font-size: 9px; font-weight: 600; }
+.fleet-node:hover rect, .fleet-node.selected rect { stroke: var(--console-accent); fill: var(--console-raised); }
+.fleet-node-reached rect { stroke: var(--console-danger); }
+.fleet-node-reached circle { fill: var(--console-danger); }
+.fleet-node-advisory rect { stroke-width: 1.5; }
+.fleet-node-inspector { position: sticky; right: 14px; bottom: 14px; float: right; width: min(270px, calc(100% - 28px)); display: grid; gap: 5px; margin: -90px 14px 14px 0; padding: 12px 13px; border: 1px solid var(--console-line); background: var(--console-raised); box-shadow: 0 10px 28px rgb(0 0 0 / .18); }
+.fleet-node-inspector > span { color: var(--console-faint); font-size: 8px; }
+.fleet-node-inspector strong { overflow-wrap: anywhere; color: var(--console-text); font: 600 10px/1.35 var(--mono); }
+.fleet-node-inspector small { color: var(--console-muted); font-size: 9px; }
+.ask-answer article > button { min-width: 0; display: grid; gap: 4px; color: inherit; background: transparent; text-align: left; }
+.ask-answer article > button:disabled { cursor: default; }
+
+@media (max-width: 980px) {
+  .incident-dashboard, .fleet-graph-layout { grid-template-columns: 190px minmax(0, 1fr); }
+  .incident-routes > button { grid-template-columns: 145px minmax(0, 1fr); }
+  .incident-detail { padding: 20px; }
+}
+
+@media (max-width: 720px) {
+  .incident-dashboard, .fleet-graph-layout { grid-template-columns: 1fr; }
+  .incident-index, .fleet-focus-list { max-height: 220px; overflow-y: auto; border-right: 0; border-bottom: 1px solid var(--console-line); }
+  .incident-detail-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .incident-routes > button { grid-template-columns: 1fr; gap: 8px; }
+  .incident-repository-head { display: none; }
+  .incident-repository-list > button { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+  .incident-repository-list > button > span:nth-child(3) { display: none; }
+  .repository-list-head { display: none; }
+  .repository-row { grid-template-columns: minmax(0, 1fr) 62px; }
+  .repository-row > button:first-child { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 9px 10px; }
+  .repository-row > button:first-child > span:nth-child(2), .repository-row > button:first-child > span:nth-child(3), .repository-row > button:first-child > span:nth-child(5) { display: none; }
+  .fleet-graph-canvas { height: 520px; }
+}
+
 /* Persistent security console ------------------------------------------------
    The investigation engine is intentionally unchanged. This shell packages
    its outputs as a small set of stable operational views instead of one long
@@ -3379,4 +3506,8 @@ body { background: var(--bg); color: var(--text); letter-spacing: var(--tracking
     width: calc(100% - 26px);
     margin-left: 0;
   }
+}
+
+.repository-list > .repository-list-head {
+  grid-template-columns: minmax(230px, 1.5fr) .4fr .5fr .65fr .75fr 70px;
 }
