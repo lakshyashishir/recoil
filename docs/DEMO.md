@@ -57,7 +57,7 @@ git and does not contain raw HydraDB chunks or credentials.
 
 ### Verified reference recording
 
-The current reference case has been run against live OSV, npm, GitHub, and HydraDB services:
+The current reference case was re-run against live OSV, npm, GitHub, and HydraDB services on 20 August 2026:
 
 ```text
 GHSA-xvch-5gv4-984h
@@ -65,10 +65,10 @@ GHSA-xvch-5gv4-984h
   tweenjs/tween.js                → DECLARED_ONLY
   axios/axios@v1.x                → NOT_AFFECTED
 
-HydraDB: persisted · 8 memories · 17 dated facts · 12 graph triplets
+HydraDB: persisted · 9 memories · 22 dated facts · 12 graph triplets · 30 prior records recalled
 Sources: 84 public URLs
 Boundary: no install · no repository execution · no exploit payload
-Receipt: .recoil-recordings/real-1787176142283.json
+Receipt: keep the latest `.recoil-recordings/<scenario-id>.json` produced by the strict smoke run
 ```
 
 This is a real source-backed contrast, not a fixture: the first repository has a sampled import,

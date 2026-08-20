@@ -1,6 +1,6 @@
 # Verified live recording case
 
-This case passed the strict live gate on 19 August 2026. Re-run it before recording so the verdicts and
+This case passed the strict live gate again on 20 August 2026. Re-run it before recording so the verdicts and
 HydraDB receipt are freshly calculated from public OSV, GitHub, registry, source, and HydraDB responses.
 The receipt is a handoff artifact, not hardcoded product output.
 
