@@ -546,7 +546,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
   const selectedEdges = new Set(selectedEdgeEntries.map(([key]) => key))
   const selectedEdgeOrder = new Map(selectedEdgeEntries)
   const selectedNodeOrder = new Map(layout.nodes.filter((node) => selected.has(node.id)).map((node, index) => [node.id, index]))
-  const layerLabels = [{ label: 'Advisory', type: 'advisory' }, { label: 'Dependency', type: 'package' }, { label: 'Lockfile', type: 'lockfile' }, { label: 'Repository', type: 'repository' }, { label: 'Source', type: 'code' }]
+  const layerLabels = [{ label: 'Advisory', type: 'advisory' }, { label: 'Dependency', type: 'package' }, { label: 'Lockfile', type: 'lockfile' }, { label: 'Repository', type: 'repository' }, { label: 'Source', type: 'code' }, { label: 'Validated symbol', type: 'symbol' }]
   const sourceImpact = selectedFinding?.sourceImpact
   const finalFindings = !live ? (report?.repositories || []) : []
   const outcomeSummary = finalFindings.length
