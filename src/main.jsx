@@ -23,7 +23,7 @@ const INVESTIGATION_EXAMPLES = [
   },
 ]
 
-const THEME_STORAGE_KEY = 'recoil-theme'
+const THEME_STORAGE_KEY = 'recoil-theme-v2'
 
 function initialScenarioId() {
   if (typeof window === 'undefined') return DEFAULT_SCENARIO_ID
@@ -39,9 +39,9 @@ function initialTheme() {
   if (typeof window === 'undefined') return 'light'
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'dark' || stored === 'light') return stored
-  // Light is the product default. A deliberate user choice is persisted, so
-  // the OS preference cannot make a first visit unexpectedly look different.
-  return 'light'
+  // Recoil is used in a terminal-adjacent security workflow. Start in the
+  // graphite reading mode and let the user opt into the paper mode explicitly.
+  return 'dark'
 }
 
 function useTheme() {
@@ -151,20 +151,19 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
   return <main className="landing-page">
     <header className="landing-header">
       <div className="brand"><span className="brand-mark" /> RECOIL</div>
-      <div className="landing-header-tools"><span className="brand-note">Evidence path analysis</span><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div>
+      <div className="landing-header-tools"><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div>
     </header>
     <section className="landing-grid">
       <div className="landing-intro">
-        <h1>Which repositories actually reach <span>affected code?</span></h1>
-        <p>Give Recoil a repository, or an advisory with repositories. It follows the lockfile to source, dates the path, and shows what actually needs attention.</p>
+        <h1>Does this dependency actually reach your code?</h1>
+        <p>Paste a repository or advisory. Recoil follows the public evidence to the source file that matters.</p>
       </div>
       <div className="landing-form-wrap">
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
           <label htmlFor="investigation-input">Repository or advisory</label>
           <textarea ref={textareaRef} id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (ready && !busy) onSubmit() } }} placeholder={'https://github.com/org/repository\nOR\nGHSA-xvch-5gv4-984h https://github.com/org/repository'} rows={5} />
-          <div className="input-readiness" aria-live="polite"><span className={repositoryScan || target ? 'is-ready' : ''}><i aria-hidden="true" />{repositoryScan ? 'Scan the repository inventory' : target || 'Add a GHSA, CVE, or package selector'}</span><span className={repositories.length ? 'is-ready' : ''}><i aria-hidden="true" />{repositories.length ? `${repositories.length} public repositor${repositories.length === 1 ? 'y' : 'ies'}` : 'Add a public GitHub repository'}</span></div>
           <div className="form-footer">
-            <span>Public records only · Ctrl/⌘↵ to run</span>
+            <span>Public records · Ctrl/⌘↵ to run</span>
             <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button>
           </div>
         </form>
@@ -175,7 +174,6 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
         {error && <div className="error-banner" role="alert"><CircleAlert size={15} /> {error}</div>}
       </div>
     </section>
-    <footer className="landing-footer"><span>OSV / npm / GitHub / HydraDB</span><span>Observed facts are cited. Inference is labeled.</span></footer>
   </main>
 }
 
@@ -192,7 +190,7 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
   const hydraLive = hydra?.status === 'persisted' && !hydraPending && !hydraReadFailed
   const headerRecordLabel = report
     ? report.mode === 'repository' ? 'Repository evidence' : 'Evidence record'
-    : hydraLabel
+    : state
   return <header className="product-header">
     <div className="brand"><span className="brand-mark" /> RECOIL</div>
     <div className="header-case"><strong>{id}</strong><span>{report?.package ? `${report.package} · ${state.toLowerCase()}` : state}</span></div>
@@ -203,7 +201,7 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
 function currentInvestigationActivity(events = [], investigationStatus) {
   const working = events.find((event) => event.status === 'working')
   if (working) return working
-  if (investigationStatus === 'finalizing') return { title: 'Storing evidence history', detail: 'Writing the dated graph to HydraDB and recalling related context.' }
+  if (investigationStatus === 'finalizing') return { title: 'Saving the case record', detail: 'The evidence is complete. Recoil is preserving the dated result.' }
   if (investigationStatus === 'running') return { title: 'Collecting public evidence', detail: 'Reading advisory, registry, lockfile, and source records.' }
   return null
 }
@@ -226,7 +224,7 @@ function liveProgressSummary(events = [], investigationStatus, graphProgress = n
       : 'Waiting for the first record'
 
   if (investigationStatus === 'finalizing') {
-    return { label: 'Local proof complete', detail: 'The repository classifications are ready. Recoil is confirming the dated HydraDB record.', metric: mapped }
+    return { label: 'Evidence complete', detail: 'The repository classifications are ready. Recoil is saving the dated case record.', metric: mapped }
   }
   if (investigationStatus === 'complete' && report?.summary) {
     const summary = report.summary
@@ -257,7 +255,7 @@ function LiveStageRail({ events = [], investigationStatus }) {
     { id: 'records', label: 'Read records', detail: 'advisory · registry · repositories', keys: ['public-records', 'registry', 'repository:'] },
     { id: 'paths', label: 'Prove paths', detail: 'lockfile → source imports', keys: ['advisory-scope', 'proving-paths', 'classification'] },
     { id: 'fix', label: 'Check the fix', detail: 'fixed version · semver challenge', keys: ['fix-plan'] },
-    { id: 'memory', label: 'Store history', detail: 'dated graph · HydraDB recall', keys: ['hydra', 'complete'] },
+    { id: 'memory', label: 'Save timeline', detail: 'dated evidence record', keys: ['hydra', 'complete'] },
   ]
   const statuses = stages.map((stage) => liveStageStatus(stage, events, investigationStatus))
   const completed = statuses.filter((status) => status === 'complete').length
@@ -318,9 +316,9 @@ function EventStream({ events = [], investigationStatus, query, graphProgress = 
   const readout = liveProgressSummary(events, investigationStatus, graphProgress, report)
   const recentKeys = new Set(events.slice(-5).map((event) => event.key))
   const visibleEvents = expanded ? events : events.filter((event) => recentKeys.has(event.key) || event.key === eventCurrent?.key)
-  return <section className="event-journal" aria-label="Investigation progress" aria-busy={active}>
-    <div className="journal-heading"><div><span className="section-kicker">What is happening</span><h2 aria-live="polite" aria-atomic="true">{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state" role="status" aria-live="polite">{active ? 'working' : 'up to date'}</span></div>
-    <div className="journal-readout" aria-live="polite"><div><span>Current read</span><strong>{readout.label}</strong><p>{readout.detail}</p></div><span className="journal-readout-metric">{readout.metric}</span></div>
+  return <section className="event-journal" aria-label="Recoil investigation log" aria-busy={active}>
+    <div className="journal-heading"><div><span className="section-kicker">Recoil</span><h2 aria-live="polite" aria-atomic="true">{current?.title || 'Evidence is ready'}</h2></div><span className="journal-state" role="status" aria-live="polite">{active ? 'working' : 'complete'}</span></div>
+    <div className="journal-readout" aria-live="polite"><div><span>Now</span><strong>{readout.label}</strong><p>{readout.detail}</p></div><span className="journal-readout-metric">{readout.metric}</span></div>
     <LiveRepositoryProgress query={query} events={events} report={report} graphProgress={graphProgress} />
     <div className="journal-activity-heading"><span>Recent activity</span>{events.length > 5 && <button type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show recent' : `Show all ${events.length}`}</button>}</div>
     <div className="event-list">
@@ -344,13 +342,11 @@ function LiveEvidenceCheckpoint({ report, hydra, onOpenReport }) {
   const path = reached && importer
     ? `${reached.packageName}@${reached.resolvedVersion || 'unresolved'} → ${importer.path}${importer.line ? `:${importer.line}` : ''}`
     : null
-  const hydraCopy = hydra?.status === 'queued'
-    ? 'HydraDB accepted the batch; Recoil is waiting for indexing confirmation.'
-    : hydra?.status === 'failed'
-      ? 'HydraDB did not confirm persistence, so this remains a local evidence record.'
-      : 'Recoil is writing the dated memory and will show its final status here.'
+  const recordCopy = hydra?.status === 'failed'
+    ? 'The evidence is available locally, but the case record needs review.'
+    : 'The findings are ready. Open the result to inspect the evidence.'
   return <section className="live-evidence-checkpoint" aria-live="polite">
-    <div className="live-evidence-checkpoint-copy"><span className="section-kicker">Result ready</span><strong>{ready ? 'The repository paths are classified.' : 'A partial report is available for review.'}</strong><p>{ready ? hydraCopy : report.evidenceQuality?.reason || 'The report is not ready for a final recording.'}</p>{ready && onOpenReport && <button className="live-open-report" type="button" onClick={onOpenReport}>View result <ArrowUpRight size={13} /></button>}</div>
+    <div className="live-evidence-checkpoint-copy"><span className="section-kicker">Result ready</span><strong>{ready ? 'The repository paths are classified.' : 'A partial report is available for review.'}</strong><p>{ready ? recordCopy : report.evidenceQuality?.reason || 'The report is not ready for a final recording.'}</p>{ready && onOpenReport && <button className="live-open-report" type="button" onClick={onOpenReport}>View result <ArrowUpRight size={13} /></button>}</div>
     <div className="live-evidence-checkpoint-result"><div className="live-evidence-checkpoint-stats"><span><strong>{summary.reached || 0}</strong><small>source path{summary.reached === 1 ? '' : 's'}</small></span><span><strong>{summary.declaredOnly || 0}</strong><small>listed only</small></span><span><strong>{summary.notAffected || 0}</strong><small>outside range</small></span></div>{path ? <div className="live-evidence-checkpoint-path"><span>Observed route</span><code>{path}</code>{importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div> : <span className="live-evidence-checkpoint-path-empty">No source-backed route was collected.</span>}</div>
   </section>
 }
@@ -397,9 +393,21 @@ function routeNodeIds(graph, finding) {
 }
 
 function graphLayout(graph = {}, finding = null) {
-  const nodes = graph.nodes || []
-  const edges = graph.edges || []
+  const allNodes = graph.nodes || []
+  const allEdges = graph.edges || []
   const selected = routeNodeIds(graph, finding)
+  // A raw repository graph can contain dozens of sampled source nodes. The
+  // report is a reading surface, so keep the selected route and the small
+  // structural spine in view. The complete evidence remains available in the
+  // receipt and source links, while the graph stays legible at first glance.
+  const structuralTypes = new Set(['advisory', 'package', 'lockfile', 'repository'])
+  const visibleNodeIds = new Set(allNodes
+    .filter((node) => selected.has(node.id)
+      || structuralTypes.has(node.type) && (!finding || node.type !== 'package' || node.meta?.role === 'affected-dependency'))
+    .map((node) => node.id))
+  const nodes = allNodes.filter((node) => visibleNodeIds.has(node.id)).slice(0, 30)
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const edges = allEdges.filter(([from, to]) => nodeIds.has(from) && nodeIds.has(to))
   const roots = nodes.filter((node) => node.type === 'advisory')
   const distance = new Map(roots.map((node) => [node.id, 0]))
   const queue = [...roots.map((node) => node.id)]
@@ -414,7 +422,7 @@ function graphLayout(graph = {}, finding = null) {
   const typeOrder = ['advisory', 'package', 'repository', 'lockfile', 'code', 'symbol']
   const layerFor = (node) => distance.get(node.id) ?? Math.max(0, typeOrder.indexOf(node.type))
   const layers = new Map()
-  for (const node of nodes.slice(0, 48)) {
+  for (const node of nodes) {
     const layer = layerFor(node)
     const group = layers.get(layer) || []
     group.push(node)
@@ -433,7 +441,7 @@ function graphLayout(graph = {}, finding = null) {
     const gap = height / (group.length + 1)
     group.forEach((node, index) => positions.set(node.id, { x, y: gap * (index + 1) }))
   }
-  return { nodes: nodes.slice(0, 48), edges, positions, selected, width, height }
+  return { nodes, edges, positions, selected, totalNodeCount: allNodes.length, totalEdgeCount: allEdges.length, width, height }
 }
 
 function graphEdgeLabel(from, to) {
@@ -632,7 +640,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
     </section>
   }
   return <section className={`evidence-map ${primaryGraph ? 'primary-graph-map' : ''}`} aria-label="Observed evidence map">
-    <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : primaryGraph ? 'The path, in context' : 'Follow the path to code'}</h2><p className="map-heading-detail">{live ? 'Each edge is added from a public record as it is collected.' : primaryGraph ? 'The selected route is highlighted. Click a node to inspect its cited relationship.' : 'Read left to right: advisory → dependency → lockfile → repository → sampled source. The selected route is highlighted; click a node to inspect its cited relationship.'}</p>{outcomeSummary && !primaryGraph && <p className="map-heading-outcome"><strong>{outcomeSummary}</strong><span>computed from the repository evidence</span></p>}{primaryGraph ? <p className="map-heading-context">{outcomeSummary || selectedContext}</p> : <p className="map-heading-context">{selectedContext}</p>}</div><div className="map-heading-actions"><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span>{onReplay && <button className="map-view-toggle" type="button" onClick={onReplay} aria-label="Replay the selected observed route"><RotateCcw size={13} /> Replay route</button>}{!live && !historical && onToggleGraph && <button className="map-view-toggle" type="button" onClick={onToggleGraph}><FileText size={13} /> Show cited paths</button>}</div></div>
+    <div className="map-heading"><div><span className="section-kicker">Evidence graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : primaryGraph ? 'Selected path, in context' : 'Follow the path to code'}</h2><p className="map-heading-detail">{live ? 'Each edge is added from a public record as it is collected.' : primaryGraph ? 'The map keeps one repository readable. Select another outcome below to change focus.' : 'Read left to right: advisory, dependency, lockfile, repository, source. Click a node to inspect its cited relationship.'}</p>{outcomeSummary && !primaryGraph && <p className="map-heading-outcome"><strong>{outcomeSummary}</strong><span>computed from the repository evidence</span></p>}{primaryGraph ? <p className="map-heading-context">{outcomeSummary || selectedContext}</p> : <p className="map-heading-context">{selectedContext}</p>}</div><div className="map-heading-actions"><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length}{layout.totalNodeCount > layout.nodes.length ? ` of ${layout.totalNodeCount}` : ''} nodes · {layout.edges.length} edges</span>{onReplay && <button className="map-view-toggle" type="button" onClick={onReplay} aria-label="Replay the selected observed route"><RotateCcw size={13} /> Replay route</button>}{!live && !historical && onToggleGraph && <button className="map-view-toggle" type="button" onClick={onToggleGraph}><FileText size={13} /> Show cited paths</button>}</div></div>
     <div className="map-canvas">
       <div className="map-svg-viewport" tabIndex="0" aria-label="Scrollable evidence graph">
       <svg key={replayToken} width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
@@ -1294,7 +1302,7 @@ function CaseChronology({ finding, report, challenge, historical, onOpenHistory 
   </section>
 }
 
-function IntegrityDetails({ report, hydra, evidenceStatus, historical = false }) {
+function IntegrityDetails({ report, hydra, evidenceStatus, historical = false, scenarioId = DEFAULT_SCENARIO_ID }) {
   const quality = report?.evidenceQuality || {}
   const coverage = quality.sourceCoverage || {}
   const sourceCount = report?.sources?.length || 0
@@ -1425,18 +1433,22 @@ function ReachabilityLedger({ findings = [], summary = {}, mode = 'advisory' }) 
 function NoFindingsState({ report }) {
   const repositoryScan = report?.mode === 'repository'
   const packagesChecked = Number(report?.summary?.packagesChecked || 0)
+  const repositoriesChecked = Number(report?.summary?.totalRepositories || report?.target?.repositories?.length || 0)
+  const sourceFiles = Number(report?.evidenceQuality?.sourceCoverage?.sampledFiles || 0)
   const complete = report?.evidenceQuality?.readyForRecording
   const title = repositoryScan && report?.summary?.totalAdvisories === 0
-    ? packagesChecked > 0 ? 'No affected advisory matched the recorded inventory.' : 'No dependency inventory was available.'
+    ? packagesChecked > 0 ? 'No affected path was found.' : 'No dependency inventory was available.'
     : 'No repository path was classified.'
   const detail = repositoryScan && report?.summary?.totalAdvisories === 0
     ? packagesChecked > 0
-      ? `${packagesChecked} recorded package${packagesChecked === 1 ? '' : 's'} were checked against OSV. There is no source path to open because no affected advisory was found.`
+      ? `${packagesChecked} recorded package${packagesChecked === 1 ? '' : 's'} were checked against public advisories. There is no affected edge to draw, so Recoil has not invented a path.`
       : 'The repository did not expose a lockfile or package manifest that Recoil could use for an advisory check.'
     : 'Recoil did not produce a repository finding from the collected evidence.'
+  const repositorySource = report?.repositories?.find((item) => item.repositoryUrl)?.repositoryUrl
   return <section className={complete ? 'no-findings-state no-findings-state-complete' : 'no-findings-state'} aria-label="No classified findings">
-    <div><span className="section-kicker">Result</span><h2>{title}</h2><p>{detail}</p></div>
-    <div className="no-findings-meta"><span>{complete ? 'complete negative result' : 'review required'}</span><small>{report?.sources?.length || 0} cited public source{report?.sources?.length === 1 ? '' : 's'}</small></div>
+    <div className="no-findings-copy"><span className="section-kicker">Clear result</span><h2>{title}</h2><p>{detail}</p></div>
+    <div className="no-findings-checks" aria-label="Checks completed"><div><strong>{packagesChecked}</strong><span>packages checked</span></div><div><strong>{repositoriesChecked}</strong><span>repositories read</span></div><div><strong>{sourceFiles}</strong><span>source files sampled</span></div></div>
+    <div className="no-findings-meta"><span>{complete ? 'complete negative result' : 'review required'}</span><small>{report?.sources?.length || 0} cited public source{report?.sources?.length === 1 ? '' : 's'}</small>{repositorySource && <SourceLink href={repositorySource}>Open repository</SourceLink>}</div>
   </section>
 }
 
@@ -1499,7 +1511,7 @@ function CaseDecisionCallout({ findings = [], challenges = [], packageName, hist
   }
 
   return <section className={`case-decision-callout ${compact ? 'case-decision-callout-compact' : ''} ${historical ? 'case-decision-callout-historical' : ''}`} aria-label="Case decision">
-    <div className="case-decision-label"><span className="section-kicker">Decision</span><span>from collected evidence</span></div>
+    <div className="case-decision-label"><span className="section-kicker">Recoil's answer</span></div>
     <div className="case-decision-copy"><h2>{title}</h2><p>{detail}</p></div>
     <div className="case-decision-meta">{proofRoute && <div className="case-decision-route"><span>Primary evidence</span><strong>{proofRoute}</strong><small>{citedProofLabel(proofFinding)}{sourceCoverageLabel(proofFinding) ? ` · ${sourceCoverageLabel(proofFinding)}` : ''}</small>{proofSource && <SourceLink href={proofSource}>Open evidence</SourceLink>}</div>}<div className="case-decision-basis"><span>Evidence basis</span><strong>{evidenceBasis}</strong></div>{primaryCommand && <CopyFixCommand command={primaryCommand} />}{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={13} /></button>}{onOpenGraph && <button className="case-decision-graph-link" type="button" onClick={onOpenGraph}>View evidence graph <ArrowUpRight size={13} /></button>}</div>
   </section>
@@ -1844,14 +1856,14 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const reportState = !recordingReady
     ? { label: 'Review required', icon: 'working', className: '' }
     : hydra?.recall?.status === 'failed'
-      ? { label: 'HydraDB read failed', icon: 'failed', className: 'case-state-error' }
+      ? { label: 'Record read failed', icon: 'failed', className: 'case-state-error' }
       : strictRecordingReady
         ? { label: 'Recording-ready', icon: 'complete', className: 'case-state-ready' }
         : hydraReady
           ? { label: 'Evidence ready', icon: 'complete', className: 'case-state-ready' }
         : hydraSkipped
           ? { label: 'Local evidence ready', icon: 'complete', className: 'case-state-local' }
-          : { label: 'HydraDB pending', icon: 'working', className: 'case-state-pending' }
+          : { label: 'Saving case', icon: 'working', className: 'case-state-pending' }
   const total = summary.totalRepositories || findings.length
   const historicalDate = report?.rewind?.asOf?.slice(0, 10)
   const advisorySummary = report?.advisory?.summary
@@ -1930,7 +1942,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   }
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : repositoryScan ? 'Repository scan' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{repositoryScan ? 'Dependency inventory' : report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
-    <ReachabilityLedger findings={findings} summary={summary} mode={report?.mode} />
+    {findings.length > 0 && <ReachabilityLedger findings={findings} summary={summary} mode={report?.mode} />}
     {findings.length > 0 && <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package || null} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} onOpenGraph={!historical && report?.graph?.nodes?.length ? inspectGraph : null} />}
     {findings.length > 1 && <details className="case-outcome-disclosure">
       <summary><span>Compare all {repositoryScan ? 'advisory outcomes' : 'repository outcomes'}</span><small>{findings.length} checks · selected route stays below</small></summary>
@@ -1938,15 +1950,15 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     </details>}
     {findings.length > 0 ? <CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /> : <NoFindingsState report={report} />}
     <SharedResolution correlations={report?.crossRepositoryCorrelations || []} historical={historical} />
-    <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} />
+    {activeTab === 'history' && <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} />}
     {findings.length > 0 && <CaseNavigator finding={selectedFinding} findings={findings} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />}
     {findings.length > 0 && <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} fixSet={report?.smallestFixSet} mode={report?.mode} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
-      {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} historical={historical} />}
+      {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} historical={historical} scenarioId={scenarioId} />}
     </div>}
-    {findings.length > 0 && <CaseConclusion report={report} findings={findings} historical={historical} hydra={hydra} />}
+    {findings.length > 0 && activeTab === 'audit' && <CaseConclusion report={report} findings={findings} historical={historical} hydra={hydra} />}
   </main>
 }
 
