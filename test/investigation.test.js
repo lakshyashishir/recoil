@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { attachHydraRewind, buildInvestigationReport } from '../src/core/investigation.js'
+import { attachHydraRewind, buildInvestigationReport, buildSmallestFixSet } from '../src/core/investigation.js'
 
 const baseEvidence = {
     status: 'completed',
@@ -130,6 +130,24 @@ test('HydraDB rewind context is summarized without replacing local verdicts', ()
     reason: null,
   })
   assert.equal('chunks' in attached.rewind.memory, false)
+})
+
+test('smallest fix set prioritizes one upgrade that closes multiple observed findings', () => {
+  const findings = [
+    { repository: 'example/a', packageName: 'minimist', verdict: 'REACHED' },
+    { repository: 'example/b', packageName: 'minimist', verdict: 'REACHED' },
+    { repository: 'example/c', packageName: 'other', verdict: 'REACHED' },
+  ]
+  const challenges = [
+    { repository: 'example/a', status: 'FIX_SURVIVES', proposedVersion: '1.2.6' },
+    { repository: 'example/b', status: 'FIX_SURVIVES', proposedVersion: '1.2.6' },
+    { repository: 'example/c', status: 'FIX_SURVIVES', proposedVersion: '4.0.1' },
+  ]
+  const fixSet = buildSmallestFixSet(findings, challenges)
+  assert.equal(fixSet.items[0].packageName, 'minimist')
+  assert.equal(fixSet.items[0].closesFindings, 2)
+  assert.deepEqual(fixSet.items[0].repositories, ['example/a', 'example/b'])
+  assert.equal(fixSet.items.length, 2)
 })
 
 test('HydraDB top-level graph triplets survive rewind normalization', () => {

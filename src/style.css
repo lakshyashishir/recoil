@@ -530,6 +530,48 @@ h1, h2, p { margin-top: 0; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
+/* The first screen of a completed case is a triage ledger. It makes the
+   incumbent question ("is the package present?") and Recoil's question
+   ("does source code reach it?") visible in the same compact object. */
+.reachability-ledger {
+  margin: 18px 0 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.reachability-ledger-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 13px 0 12px;
+}
+.reachability-ledger-heading > div { min-width: 0; }
+.reachability-ledger-heading .section-kicker { margin: 0 0 6px; color: var(--accent); }
+.reachability-ledger-heading h2 { margin: 0; color: var(--text); font-size: 18px; font-weight: 600; letter-spacing: -.025em; line-height: 1.2; }
+.reachability-ledger-heading > span { flex: 0 0 auto; color: var(--muted); font: 10px/1.3 var(--mono); white-space: nowrap; }
+.reachability-ledger-cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line-soft); }
+.reachability-ledger-cell { display: grid; gap: 4px; min-width: 0; padding: 11px 16px 13px 0; }
+.reachability-ledger-cell + .reachability-ledger-cell { padding-left: 16px; border-left: 1px solid var(--line-soft); }
+.reachability-ledger-cell strong { color: var(--text); font: 600 21px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.reachability-ledger-cell span { color: var(--muted); font-size: 10px; line-height: 1.2; }
+.reachability-ledger-cell-reached strong { color: var(--red); }
+.reachability-ledger-cell-declared strong { color: var(--accent); }
+.reachability-ledger-cell-safe strong { color: var(--green); }
+.reachability-ledger-cell-unknown strong { color: var(--muted); }
+.route-selected-origin { display: grid; gap: 4px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.route-selected-origin > span, .route-selected-origin > small { color: var(--muted); font-size: 10px; line-height: 1.35; }
+.route-selected-origin > strong { color: var(--text); font: 600 11px/1.3 var(--mono); }
+.route-selected-origin > em { color: var(--faint); font-size: 10px; font-style: normal; line-height: 1.35; }
+.route-selected-origin > .source-link { width: max-content; font-size: 10px; }
+.import-proof-owner { color: var(--muted); font: 10px/1.3 var(--mono); }
+
+@media (max-width: 720px) {
+  .reachability-ledger-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .reachability-ledger-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reachability-ledger-cell:nth-child(3) { padding-left: 0; border-left: 0; border-top: 1px solid var(--line-soft); }
+  .reachability-ledger-cell:nth-child(4) { border-top: 1px solid var(--line-soft); }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .product-header { background: var(--bg); backdrop-filter: none; }
 }

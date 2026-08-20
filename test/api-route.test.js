@@ -80,10 +80,10 @@ test('API rejects an investigation without a repository before collection', asyn
   assert.match(result.body.error, /at least one public GitHub repository URL/)
 })
 
-test('API rejects a repository-only investigation before collection', async () => {
+test('API accepts a repository-only investigation for dependency discovery', async () => {
   const result = await request('POST', '/api/scenarios/input-target-guard/investigate', { query: 'https://github.com/example/repository' })
-  assert.equal(result.statusCode, 422)
-  assert.match(result.body.error, /GHSA\/CVE advisory or package selector/)
+  assert.equal(result.statusCode, 202)
+  assert.equal(result.body.id, 'input-target-guard')
 })
 
 test('API creates an isolated case session with a stable case ID', async () => {

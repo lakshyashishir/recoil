@@ -27,12 +27,13 @@ test('CLI rejects a missing shared case identifier before contacting the API', (
   assert.match(result.stderr, /--case requires a case identifier/)
 })
 
-test('CLI rejects a repository-only investigation before contacting the API', () => {
+test('CLI accepts repository-only input and reaches the transport layer', () => {
   const result = spawnSync(process.execPath, ['cli/recoil.js', 'https://github.com/example/repository'], {
     cwd: root,
     encoding: 'utf8',
     env: { ...process.env },
   })
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /Investigation requires a GHSA\/CVE advisory or package selector/)
+  assert.doesNotMatch(result.stderr, /Investigation requires a GHSA\/CVE advisory or package selector/)
+  assert.match(result.stderr, /Cannot reach Recoil API/)
 })

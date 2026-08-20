@@ -36,6 +36,7 @@ const maxWaitMs = 180000
 function usage() {
   console.log('Usage: npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository"')
   console.log('       npm run cli -- "CVE-2021-4229 https://github.com/org/repo-a https://github.com/org/repo-b" [--fast] [--proof] [--recording] [--json]')
+  console.log('       npm run cli -- "https://github.com/org/repository"  # scan the recorded dependency inventory')
   console.log('       npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository" --direct')
   console.log('       npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/org/repository" --case 0017')
   console.log('       npm run cli -- --verify-receipt .recoil-recordings/<scenario-id>.json')
@@ -156,8 +157,8 @@ async function main() {
   }
 
   const target = parseInvestigationInput(query)
-  if (!target.advisoryId && !target.packageName) {
-    throw new Error('Investigation requires a GHSA/CVE advisory or package selector plus at least one public GitHub repository URL')
+  if (!target.advisoryId && !target.packageName && !target.repositories.length) {
+    throw new Error('Investigation requires a public GitHub repository URL, or an advisory/package selector plus one')
   }
 
   if (recordingMode) {
@@ -226,6 +227,7 @@ async function main() {
   if (packageResolution.status === 'ambiguous' || packageResolution.status === 'unresolved') {
     line(`input   ${packageResolution.reason || 'Package identity could not be resolved safely.'}`)
   }
+  if (result.report.mode === 'repository') line(`scan    ${summary.packagesChecked || 0} packages · ${summary.totalAdvisories || 0} advisories · ${summary.totalFindings || 0} repository checks`)
   line(`result  ${summary.reached || 0} reached · ${summary.declaredOnly || 0} declared only · ${summary.notAffected || 0} not affected · ${summary.unknown || 0} unknown`)
   line(`evidence ${quality.status || 'unknown'} · ${quality.readyForRecording ? 'evidence gate passed' : 'review required'} · ${quality.reason || 'quality not available'}`)
   if (quality.ambiguousVersions?.length) line(`ambiguity ${quality.ambiguousVersions.map((item) => `${item.repository}: ${item.versions.join(', ')}`).join(' · ')}`)
@@ -237,11 +239,16 @@ async function main() {
   }
   for (const correlation of result.report.crossRepositoryCorrelations || []) line(`shared  ${correlation.packageName}@${correlation.version} · ${correlation.repositories.map((item) => `${item.repository} (${item.verdict})`).join(' · ')}`)
   for (const finding of result.report.repositories || []) {
-    line(`repo    ${finding.verdict.padEnd(14)} ${finding.repository || 'unknown'} · ${finding.packageName || 'package'}@${finding.resolvedVersion || 'unresolved'}`)
+    line(`repo    ${finding.verdict.padEnd(14)} ${finding.repository || 'unknown'} · ${result.report.mode === 'repository' ? `${finding.advisoryId || 'advisory'} · ` : ''}${finding.packageName || 'package'}@${finding.resolvedVersion || 'unresolved'}`)
     const proof = finding.proof || []
     const cited = proof.filter((step) => ['observed', 'validated'].includes(step.status) && step.source).length
     if (proof.length) line(`proof   ${cited}/${proof.length} hops have cited public evidence`)
     if (finding.dependencyPath?.length > 1) line(`chain   ${finding.dependencyPath.map((item) => `${item.name}@${item.version}`).join(' -> ')}`)
+    if (finding.pathObservation) {
+      const observation = finding.pathObservation
+      line(`origin  ${observation.observedAt?.slice(0, 10) || 'undated'} · ${observation.commit || 'commit unavailable'} · ${observation.message || 'message unavailable'}`)
+    }
+    if (finding.codeOwners?.length) line(`owner   ${finding.codeOwners.join(', ')} · sampled importer ownership`)
     if (finding.sourceImpact?.files?.length) line(`impact  ${finding.sourceImpact.sampledFileCount} sampled source files · ${finding.sourceImpact.observedEdgeCount} local import edges · bounded depth ${finding.sourceImpact.maxDepth}`)
     const challenge = (result.report.challenge || []).find((item) => item.repository === finding.repository)
     if (challenge) line(`next    ${nextAction(finding, challenge)} · no repository change executed`)
@@ -253,6 +260,8 @@ async function main() {
     const finding = (result.report.repositories || []).find((candidate) => candidate.repository === item.repository)
     line(`check   ${finding?.verdict || 'UNKNOWN'} → ${item.proposedVersion ? `upgrade ${item.proposedVersion}` : 'no admissible fix'} → ${item.status}`)
   }
+  const smallestFix = result.report.smallestFixSet?.items?.[0]
+  if (smallestFix) line(`fixset  ${smallestFix.packageName}@${smallestFix.targetVersion} · closes ${smallestFix.closesFindings} observed finding${smallestFix.closesFindings === 1 ? '' : 's'} across ${smallestFix.repositories.length} repos · ${result.report.smallestFixSet.note}`)
   line(`rewind  ${result.report.rewind?.currentAsOf?.slice(0, 10) || 'undated'} current · ${result.report.rewind?.beforeAdvisory?.slice(0, 10) || 'unavailable'} before advisory`)
   const graphContext = summarizeGraphContext(result.hydra?.recall?.graphContext) || summarizeGraphContext(result.report.rewind?.memory?.graphContext)
   const tripletCount = graphContext?.tripletCount ?? graphContext?.triplets?.length ?? 0

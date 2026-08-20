@@ -175,6 +175,7 @@ export function buildSourceImpact(codeGraph = {}, imports = [], { maxFiles = 12,
       specifier: item.specifier || null,
       sourceUrl: item.sourceUrl || files.get(normalizePath(item.path))?.sourceUrl || null,
       snippet: item.snippet || null,
+      owners: item.owners || [],
     }])).values()].slice(0, Math.min(4, fileLimit))
   if (!entryFiles.length) return null
 
@@ -211,12 +212,15 @@ export function buildSourceImpact(codeGraph = {}, imports = [], { maxFiles = 12,
       const file = files.get(path) || {}
       return {
         path,
-        sourceUrl: file.sourceUrl || null,
-        language: file.language || languageFor(path),
-        depth: meta.depth,
-        role: meta.entry ? 'importer' : 'local-import',
-      }
-    })
+      sourceUrl: file.sourceUrl || null,
+      language: file.language || languageFor(path),
+      depth: meta.depth,
+      role: meta.entry ? 'importer' : 'local-import',
+        owners: meta.entry
+          ? (entryFiles.find((entry) => entry.path === path)?.owners || [])
+          : (file.owners || []),
+    }
+  })
   const sourcePaths = new Set(sourceFiles.map((file) => file.path))
   const symbols = (codeGraph.symbols || [])
     .filter((symbol) => sourcePaths.has(symbol.path))
@@ -255,7 +259,7 @@ export function parseCodeowners(text = '') {
   }).filter((rule) => rule.pattern && rule.owners.length).map((rule) => ({ ...rule, matcher: codeownersRegex(rule.pattern) }))
 }
 
-function ownersForPath(path, rules) {
+export function ownersForPath(path, rules) {
   let owners = []
   for (const rule of rules) {
     if (rule.matcher.test(path)) owners = rule.owners
@@ -266,6 +270,10 @@ function ownersForPath(path, rules) {
 export function enrichChangeEvidence(codeGraph, codeowners = []) {
   if (!codeGraph) return codeGraph
   const rules = Array.isArray(codeowners) ? codeowners : parseCodeowners(codeowners)
+  const externalImports = (codeGraph.externalImports || []).map((item) => ({
+    ...item,
+    owners: item.owners?.length ? item.owners : ownersForPath(item.path, rules),
+  }))
   const changedFiles = (codeGraph.recentChange?.files || []).map((file) => ({
     ...file,
     owners: file.owners?.length ? file.owners : ownersForPath(file.path, rules),
@@ -275,6 +283,7 @@ export function enrichChangeEvidence(codeGraph, codeowners = []) {
     : null
   return {
     ...codeGraph,
+    externalImports,
     recentChange,
     ownershipRules: rules.length,
   }

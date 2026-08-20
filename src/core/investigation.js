@@ -101,10 +101,17 @@ function buildProofChain(finding, advisory) {
 
   steps.push(proofStep({
     kind: 'temporal',
-    label: finding.pathObservedAt ? `First observed ${finding.pathObservedAt.slice(0, 10)}` : 'Observation date unavailable',
+    label: finding.pathObservedAt ? `Lockfile first observed ${finding.pathObservedAt.slice(0, 10)}` : 'Observation date unavailable',
     source: finding.pathObservationSource || null,
     status: finding.pathObservedAt && finding.pathObservationSource ? 'observed' : 'undated',
-    detail: finding.exposureDays !== null && finding.exposureDays !== undefined ? `${finding.exposureDays} days before advisory publication` : 'No dated exposure window claimed',
+    detail: [
+      finding.exposureDays !== null && finding.exposureDays !== undefined ? `${finding.exposureDays} days before advisory publication` : 'No dated exposure window claimed',
+      finding.pathObservation?.commit
+        ? `introduced by ${finding.pathObservation.commit.length > 16 ? finding.pathObservation.commit.slice(0, 12) : finding.pathObservation.commit}`
+        : null,
+      finding.pathObservation?.message || null,
+      finding.pathObservation?.caveat || null,
+    ].filter(Boolean).join(' · '),
   }))
   return steps
 }
@@ -191,6 +198,55 @@ export function buildCrossRepositoryCorrelations(findings = []) {
     .sort((left, right) => right.repositoryCount - left.repositoryCount || left.packageName.localeCompare(right.packageName) || left.version.localeCompare(right.version))
 }
 
+/**
+ * Prioritize upgrade candidates by the number of observed findings they can
+ * close. This is a smallest fix set over collected evidence, not a claim of a
+ * mathematically minimal graph cut or a runtime exploit path.
+ */
+export function buildSmallestFixSet(findings = [], challenges = []) {
+  const candidates = new Map()
+  findings.forEach((finding, index) => {
+    const challenge = challenges[index]
+    if (!challenge?.proposedVersion || !['FIX_SURVIVES', 'MANIFEST_CHANGE_REQUIRED'].includes(challenge.status)) return
+    const key = `${finding.packageName || 'package'}@${challenge.proposedVersion}`
+    const group = candidates.get(key) || {
+      packageName: finding.packageName || null,
+      targetVersion: challenge.proposedVersion,
+      findings: new Set(),
+      repositories: new Set(),
+      statuses: new Set(),
+    }
+    group.findings.add(index)
+    if (finding.repository) group.repositories.add(finding.repository)
+    group.statuses.add(challenge.status)
+    candidates.set(key, group)
+  })
+  const uncovered = new Set([...candidates.values()].flatMap((group) => [...group.findings]))
+  const selected = []
+  while (uncovered.size) {
+    const next = [...candidates.values()]
+      .map((group) => ({ group, closes: [...group.findings].filter((index) => uncovered.has(index)).length }))
+      .filter((item) => item.closes > 0)
+      .sort((left, right) => right.closes - left.closes || String(left.group.packageName).localeCompare(String(right.group.packageName)) || String(left.group.targetVersion).localeCompare(String(right.group.targetVersion)))[0]
+    if (!next) break
+    for (const index of next.group.findings) uncovered.delete(index)
+    selected.push({
+      packageName: next.group.packageName,
+      targetVersion: next.group.targetVersion,
+      repositories: [...next.group.repositories],
+      closesFindings: next.group.findings.size,
+      statuses: [...next.group.statuses],
+    })
+  }
+  return {
+    method: 'greedy-observed-path-coverage',
+    items: selected,
+    coveredFindings: selected.reduce((sum, item) => sum + item.closesFindings, 0),
+    candidateCount: candidates.size,
+    note: 'Prioritized over observed findings; not a mathematical minimum cut and not a runtime exploit claim.',
+  }
+}
+
 function hydraRewindSummary(recall, asOf) {
   const priorScenarioIds = recall?.priorScenarioIds || recall?.relatedScenarioIds || []
   const graphContext = summarizeGraphContext(recall?.graphContext)
@@ -222,14 +278,15 @@ export function attachHydraRewind(report, recall) {
 export function buildInvestigationReport(ingestion, { asOf = new Date().toISOString() } = {}) {
   const findings = ingestion?.findings || []
   const advisory = ingestion?.advisory || ingestion?.collectors?.find((collector) => collector.collector === 'advisory-resolver')?.targetAdvisory || null
+  const repositoryScan = ingestion?.mode === 'repository'
   const advisoryPublishedAt = dateOrNull(ingestion?.temporal?.advisoryPublishedAt || advisory?.published)
   const currentAsOf = dateOrNull(ingestion?.temporal?.collectedAt || ingestion?.completedAt) || new Date().toISOString()
   const requestedAsOf = dateOrNull(asOf) || currentAsOf
   const currentFindings = findings.map((finding) => ({
     ...finding,
     pathObservedAt: dateOrNull(finding.pathObservedAt),
-    exposureDays: daysBetween(dateOrNull(finding.pathObservedAt), advisoryPublishedAt),
-  })).map((finding) => ({ ...finding, proof: buildProofChain(finding, advisory) }))
+    exposureDays: daysBetween(dateOrNull(finding.pathObservedAt), dateOrNull(finding.advisory?.published || advisoryPublishedAt)),
+  })).map((finding) => ({ ...finding, proof: buildProofChain(finding, finding.advisory || advisory) }))
   const rewindFindings = currentFindings.map((finding) => findingAsOf(finding, requestedAsOf))
   const rewindGraph = buildObservedGraph({
     advisoryId: advisory?.id || ingestion?.target?.advisoryId || 'advisory',
@@ -237,19 +294,48 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
     packageName: ingestion?.package || null,
     repositoryFindings: rewindFindings.filter((finding) => finding.verdict !== 'NOT_YET_OBSERVED'),
   })
-  const challenge = currentFindings.map((finding) => challengeFinding(finding, advisory))
+  const challenge = currentFindings.map((finding) => {
+    const item = challengeFinding(finding, finding.advisory || advisory)
+    return item.repository ? { ...item, advisoryId: finding.advisoryId || null, packageName: finding.packageName || null } : item
+  })
   const reached = currentFindings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = currentFindings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
   const unaffected = currentFindings.filter((finding) => finding.verdict === 'NOT_AFFECTED')
   const fixSurvives = challenge.filter((item) => item.status === 'FIX_SURVIVES')
   const residual = challenge.filter((item) => !['FIX_SURVIVES', 'ALREADY_SAFE', 'NO_FIXED_VERSION', 'NO_REACHABLE_PATH'].includes(item.status))
   const crossRepositoryCorrelations = buildCrossRepositoryCorrelations(currentFindings)
+  const smallestFixSet = buildSmallestFixSet(currentFindings, challenge)
   const evidenceQuality = buildEvidenceQuality({
     status: ingestion?.status || 'partial',
     collectors: ingestion?.collectors || [],
     repositories: currentFindings,
   })
+  const advisoryRecords = [...new Map(currentFindings
+    .map((finding) => finding.advisory || advisory)
+    .filter((item) => item?.id)
+    .map((item) => [item.id, item]))
+    .values()]
+  const summary = {
+    totalRepositories: repositoryScan ? new Set(currentFindings.map((finding) => finding.repository).filter(Boolean)).size : currentFindings.length,
+    reached: reached.length,
+    declaredOnly: declaredOnly.length,
+    notAffected: unaffected.length,
+    unknown: currentFindings.filter((finding) => !['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'].includes(finding.verdict)).length,
+    fixSurvives: fixSurvives.length,
+    alreadySafe: challenge.filter((item) => item.status === 'ALREADY_SAFE').length,
+    residualPaths: residual.length,
+    sharedResolutions: crossRepositoryCorrelations.length,
+    exposureDays: reached.map((finding) => finding.exposureDays).filter((value) => value !== null).sort((a, b) => b - a)[0] || null,
+  }
+  if (repositoryScan) {
+    summary.totalFindings = currentFindings.length
+    summary.totalAdvisories = advisoryRecords.length
+    summary.packagesChecked = ingestion.discovery?.packagesChecked || 0
+  }
   return {
+    product: 'reachability-triage',
+    promise: 'Recoil proves which affected dependencies reach source code, with a cited lockfile path and dated evidence.',
+    mode: repositoryScan ? 'repository' : 'advisory',
     status: ingestion?.status || 'partial',
     query: ingestion?.query || '',
     package: ingestion?.package || null,
@@ -268,11 +354,19 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       fixedVersions: [...new Set(currentFindings.flatMap((finding) => finding.fixedVersions || []))].sort(compareVersions),
       sourceUrl: advisory.sourceUrl || ingestion?.collectors?.find((collector) => collector.collector === 'advisory-resolver')?.sourceUrl || null,
     } : null,
+    advisories: advisoryRecords.map((record) => ({
+      id: record.id,
+      summary: record.summary || null,
+      published: dateOrNull(record.published),
+      modified: dateOrNull(record.modified),
+      sourceUrl: record.sourceUrl || null,
+    })),
     advisoryScope: ingestion?.advisoryScope || { status: 'not_requested', affectedSymbols: [] },
     evidenceQuality,
     repositories: currentFindings,
     crossRepositoryCorrelations,
     challenge,
+    smallestFixSet,
     rewind: {
       asOf: requestedAsOf,
       currentAsOf,
@@ -281,18 +375,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       graph: rewindGraph,
       beforeAdvisory: advisoryPublishedAt ? new Date(new Date(advisoryPublishedAt).getTime() - 86400000).toISOString() : null,
     },
-    summary: {
-      totalRepositories: currentFindings.length,
-      reached: reached.length,
-      declaredOnly: declaredOnly.length,
-      notAffected: unaffected.length,
-      unknown: currentFindings.filter((finding) => !['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'].includes(finding.verdict)).length,
-      fixSurvives: fixSurvives.length,
-      alreadySafe: challenge.filter((item) => item.status === 'ALREADY_SAFE').length,
-      residualPaths: residual.length,
-      sharedResolutions: crossRepositoryCorrelations.length,
-      exposureDays: reached.map((finding) => finding.exposureDays).filter((value) => value !== null).sort((a, b) => b - a)[0] || null,
-    },
+    summary,
     graph: ingestion?.graph || { nodes: [], edges: [] },
     sources: ingestion?.sources || [],
     limits: [
@@ -300,6 +383,7 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
       'Reachability is proven only from the collected public source sample; it is not proof of runtime execution.',
       'No package code or exploit payload was executed.',
       ingestion?.advisoryScope?.status === 'failed' ? `Advisory symbol scope was unavailable: ${ingestion.advisoryScope.error || 'model request failed'}.` : null,
+      repositoryScan && ingestion.discovery?.truncated ? `Repository-only discovery was bounded to ${ingestion.discovery.packageLimit || 'the configured'} packages and ${ingestion.discovery.advisoryCount || 0} advisories.` : null,
     ],
     generatedAt: new Date().toISOString(),
   }

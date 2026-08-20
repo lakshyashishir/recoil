@@ -142,7 +142,8 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
   const packageSelector = value.match(/\b(?:npm|cargo):[^\s]+/i)?.[0]
   const repositories = queryRepositories(value)
   const target = advisory || packageSelector
-  const ready = Boolean(target && repositories.length)
+  const repositoryScan = Boolean(!target && repositories.length)
+  const ready = Boolean(repositories.length && (target || repositoryScan))
   const chooseExample = (example) => {
     setValue(example.value)
     window.requestAnimationFrame(() => textareaRef.current?.focus())
@@ -155,13 +156,13 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
     <section className="landing-grid">
       <div className="landing-intro">
         <h1>Which repositories actually reach <span>affected code?</span></h1>
-        <p>Give Recoil an advisory and real repositories. It follows the lockfile to source, dates the path, and checks the smallest defensible fix.</p>
+        <p>Give Recoil a repository, or an advisory with repositories. It follows the lockfile to source, dates the path, and shows what actually needs attention.</p>
       </div>
       <div className="landing-form-wrap">
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-          <label htmlFor="investigation-input">Advisory and repositories</label>
-          <textarea ref={textareaRef} id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (ready && !busy) onSubmit() } }} placeholder={'GHSA-xvch-5gv4-984h\nhttps://github.com/org/repository'} rows={5} />
-          <div className="input-readiness" aria-live="polite"><span className={target ? 'is-ready' : ''}><i aria-hidden="true" />{target || 'Add an advisory or package selector'}</span><span className={repositories.length ? 'is-ready' : ''}><i aria-hidden="true" />{repositories.length ? `${repositories.length} public repositor${repositories.length === 1 ? 'y' : 'ies'}` : 'Add at least one public GitHub repository'}</span></div>
+          <label htmlFor="investigation-input">Repository or advisory</label>
+          <textarea ref={textareaRef} id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (ready && !busy) onSubmit() } }} placeholder={'https://github.com/org/repository\n—or—\nGHSA-xvch-5gv4-984h https://github.com/org/repository'} rows={5} />
+          <div className="input-readiness" aria-live="polite"><span className={repositoryScan || target ? 'is-ready' : ''}><i aria-hidden="true" />{repositoryScan ? 'Scan the repository inventory' : target || 'Add a GHSA, CVE, or package selector'}</span><span className={repositories.length ? 'is-ready' : ''}><i aria-hidden="true" />{repositories.length ? `${repositories.length} public repositor${repositories.length === 1 ? 'y' : 'ies'}` : 'Add a public GitHub repository'}</span></div>
           <div className="form-footer">
             <span>Public records only · Ctrl/⌘↵ to run</span>
             <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button>
@@ -781,7 +782,7 @@ function routeDisplayPart(part, finding) {
 }
 
 function ImportSite({ importer, packageName }) {
-  return <div className="import-proof-site"><div className="import-proof-site-copy"><strong>{importer.path}{importer.line ? `:${importer.line}` : ''}</strong><code>{importer.snippet || `imports ${importer.specifier || packageName}`}</code></div>{importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div>
+  return <div className="import-proof-site"><div className="import-proof-site-copy"><strong>{importer.path}{importer.line ? `:${importer.line}` : ''}</strong><code>{importer.snippet || `imports ${importer.specifier || packageName}`}</code>{importer.owners?.length ? <small className="import-proof-owner">owned by {importer.owners.join(', ')}</small> : null}</div>{importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}</div>
 }
 
 function ImportProof({ finding }) {
@@ -821,6 +822,7 @@ function SelectedRoute({ finding, challenge, historical = false, onInspectProof 
     </div>
     {importer?.snippet && <div className="route-selected-snippet"><span>Observed line</span><code>{importer.snippet}</code></div>}
     {validatedSymbol && <div className="route-selected-scope"><span>Validated advisory scope</span><strong>{validatedSymbol.name} · {validatedSymbol.path}:{validatedSymbol.line}</strong>{validatedSymbol.sourceUrl && <SourceLink href={validatedSymbol.sourceUrl}>Open symbol</SourceLink>}</div>}
+    {finding.pathObservation && <div className="route-selected-origin"><span>Path first observed</span><strong>{finding.pathObservation.observedAt?.slice(0, 10) || 'undated'} · {finding.pathObservation.commit || 'commit unavailable'}</strong><small>{finding.pathObservation.message || 'commit message unavailable'}{finding.pathObservation.author ? ` · ${finding.pathObservation.author}` : ''}</small>{finding.pathObservation.sourceUrl && <SourceLink href={finding.pathObservation.sourceUrl}>Open introducing commit</SourceLink>}<em>{finding.pathObservation.caveat}</em></div>}
     {change && <div className="route-selected-change"><span>Latest importer change</span><strong>{change.symbols?.length ? change.symbols.join(', ') : finding.changeEvidence.message || 'public change touched the importer'}</strong><small>{finding.changeEvidence.committedAt?.slice(0, 10) || 'date unavailable'}{owners.length ? ` · ${owners.join(', ')}` : ''}</small></div>}
     <div className="route-selected-actions">{source && <SourceLink href={source}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}{!historical && onInspectProof && <button className="route-selected-action" type="button" onClick={onInspectProof}>Open proof <ArrowUpRight size={13} /></button>}</div>
   </section>
@@ -957,17 +959,17 @@ function remediationActionLabel(challenge, historical = false) {
   return 'Review evidence'
 }
 
-function RemediationQueue({ findings = [], challenges = [], historical = false }) {
+function RemediationQueue({ findings = [], challenges = [], historical = false, fixSet = null, mode = 'advisory' }) {
   if (!findings.length) return null
-  const challengeByRepository = new Map(challenges.map((challenge) => [challenge.repository, challenge]))
   const verified = challenges.filter((challenge) => challenge.status === 'FIX_SURVIVES').length
   const alreadySafe = challenges.filter((challenge) => challenge.status === 'ALREADY_SAFE').length
   const actionRequired = Math.max(0, findings.length - verified - alreadySafe)
+  const primaryFix = fixSet?.items?.[0]
   return <section className="remediation-queue" aria-label="Repository remediation queue">
-    <div className="remediation-queue-heading"><div><span className="section-kicker">Remediation queue</span><h2>{historical ? 'Current remediation is hidden in this dated view.' : verified ? `${verified} fix${verified === 1 ? '' : 'es'} verified across the case.` : 'No repository fix is verified yet.'}</h2><p>{historical ? 'Return to current evidence to inspect present-day version checks.' : 'Each next action comes from the advisory’s fixed version and the repository’s observed range. Recoil does not edit or execute any repository.'}</p></div><span>{findings.length} repositories</span></div>
+    <div className="remediation-queue-heading"><div><span className="section-kicker">Remediation queue</span><h2>{historical ? 'Current remediation is hidden in this dated view.' : primaryFix ? `Upgrade ${primaryFix.packageName || 'the package'} to ${primaryFix.targetVersion} first.` : verified ? `${verified} fix${verified === 1 ? '' : 'es'} verified across the case.` : 'No repository fix is verified yet.'}</h2><p>{historical ? 'Return to current evidence to inspect present-day version checks.' : primaryFix ? `That one change covers ${primaryFix.closesFindings} observed finding${primaryFix.closesFindings === 1 ? '' : 's'} across ${primaryFix.repositories.length} ${primaryFix.repositories.length === 1 ? 'repository' : 'repositories'}. ${fixSet.note}` : 'Each next action comes from the advisory’s fixed version and the repository’s observed range. Recoil does not edit or execute any repository.'}</p></div><span>{findings.length} {mode === 'repository' ? 'checks' : 'repositories'}</span></div>
     <div className="remediation-queue-summary"><span><strong>{verified}</strong><small>fix verified</small></span><span><strong>{alreadySafe}</strong><small>already safe</small></span><span><strong>{actionRequired}</strong><small>needs action</small></span></div>
     <div className="remediation-queue-list">{findings.map((finding, index) => {
-      const challenge = challengeByRepository.get(finding.repository)
+      const challenge = challengeForFinding(challenges, finding)
       const command = !historical && challenge?.status !== 'ALREADY_SAFE' ? packageFixCommand(finding, challenge) : null
       const currentVersion = finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'
       const lockfileSource = finding.lockfileSource || finding.evidenceSources?.[0]
@@ -1393,13 +1395,39 @@ function summarizeFindings(findings = []) {
   }
 }
 
+function challengeForFinding(challenges = [], finding) {
+  return challenges.find((item) => item.repository === finding?.repository
+    && (!finding?.advisoryId || !item.advisoryId || item.advisoryId === finding.advisoryId)
+    && (!finding?.packageName || !item.packageName || item.packageName === finding.packageName)) || null
+}
+
+function ReachabilityLedger({ findings = [], summary = {}, mode = 'advisory' }) {
+  const repositoryScan = mode === 'repository'
+  const total = repositoryScan ? (summary.totalFindings || findings.length) : (summary.totalRepositories || findings.length)
+  const headline = repositoryScan
+    ? summary.totalAdvisories
+      ? `${summary.reached || 0} of ${total} advisory checks reach source code.`
+      : `No affected advisory was found across ${summary.packagesChecked || 0} recorded packages.`
+    : `${summary.reached || 0} of ${total} repositories reach source code.`
+  const cells = [
+    { value: summary.reached || 0, label: 'reaches code', tone: 'reached' },
+    { value: summary.declaredOnly || 0, label: 'declared only', tone: 'declared' },
+    { value: summary.notAffected || 0, label: 'outside range', tone: 'safe' },
+    { value: summary.unknown || 0, label: 'needs evidence', tone: 'unknown' },
+  ]
+  return <section className="reachability-ledger" aria-label="Reachability summary">
+    <div className="reachability-ledger-heading"><div><span className="section-kicker">Reachability triage</span><h2>{headline}</h2></div><span>{repositoryScan ? `${summary.totalAdvisories || 0} advisories · ${summary.packagesChecked || 0} packages` : `${total} repositories checked`}</span></div>
+    <div className="reachability-ledger-cells">{cells.map((cell) => <div className={`reachability-ledger-cell reachability-ledger-cell-${cell.tone}`} key={cell.label}><strong>{cell.value}</strong><span>{cell.label}</span></div>)}</div>
+  </section>
+}
+
 function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory, compact = false }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
   const notAffected = findings.filter((finding) => finding.verdict === 'NOT_AFFECTED')
   const unknown = findings.filter((finding) => ['UNKNOWN', 'NOT_YET_OBSERVED'].includes(finding.verdict))
   const primaryFinding = reached[0]
-  const primaryChallenge = challenges.find((item) => item.repository === primaryFinding?.repository)
+  const primaryChallenge = challengeForFinding(challenges, primaryFinding)
   const primaryCommand = !historical
     && primaryChallenge?.proposedVersion
     && !['ALREADY_SAFE', 'NO_FIXED_VERSION'].includes(primaryChallenge.status)
@@ -1732,18 +1760,18 @@ function CaseRouteReadout({ finding, historical = false, onInspectProof }) {
   </section>
 }
 
-function CaseOutcomeIndex({ findings = [], challenges = [], selectedIndex = 0, onSelectFinding, historical = false }) {
+function CaseOutcomeIndex({ findings = [], challenges = [], selectedIndex = 0, onSelectFinding, historical = false, mode = 'advisory' }) {
   if (findings.length < 2) return null
-  const challengeByRepository = new Map(challenges.map((challenge) => [challenge.repository, challenge]))
+  const repositoryScan = mode === 'repository'
   const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
   const description = reached
-    ? 'The same advisory can produce different answers. Select a repository to inspect its evidence route.'
-    : 'Each repository is classified from its own lockfile and sampled source evidence.'
+    ? repositoryScan ? 'Select an advisory path to inspect the package, lockfile, and importer evidence.' : 'The same advisory can produce different answers. Select a repository to inspect its evidence route.'
+    : repositoryScan ? 'Each row is a real advisory/package check from the repository inventory.' : 'Each repository is classified from its own lockfile and sampled source evidence.'
   return <section className="case-outcome-index" aria-label="Repository outcome index">
-    <div className="case-outcome-index-heading"><div><span className="section-kicker">Repository outcomes</span><h2>{reached ? `${reached} source-backed path${reached === 1 ? '' : 's'} found.` : 'No source-backed path found.'}</h2><p>{description}</p></div><span>{findings.length} checked</span></div>
+    <div className="case-outcome-index-heading"><div><span className="section-kicker">{repositoryScan ? 'Advisory outcomes' : 'Repository outcomes'}</span><h2>{reached ? `${reached} source-backed path${reached === 1 ? '' : 's'} found.` : 'No source-backed path found.'}</h2><p>{description}</p></div><span>{findings.length} checked</span></div>
     <div className="case-outcome-list" role="list">
       {findings.map((finding, index) => {
-        const challenge = challengeByRepository.get(finding.repository)
+        const challenge = challengeForFinding(challenges, finding)
         const selected = index === selectedIndex
         const version = finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'unresolved'
         const evidence = finding.verdict === 'REACHED'
@@ -1756,7 +1784,7 @@ function CaseOutcomeIndex({ findings = [], challenges = [], selectedIndex = 0, o
         const action = historical ? 'dated evidence' : routeActionLabel(finding, challenge, historical)
         return <div className="case-outcome-item" role="listitem" key={finding.repository || index}><button className={`case-outcome-row ${selected ? 'case-outcome-row-selected' : ''}`} type="button" aria-pressed={selected} onClick={() => onSelectFinding?.(index)}>
           <span className="case-outcome-index-number">{String(index + 1).padStart(2, '0')}</span>
-          <span className="case-outcome-repository"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package'}@{version}</small></span>
+          <span className="case-outcome-repository"><strong>{repositoryName(finding.repository)}</strong><small>{repositoryScan ? `${finding.advisoryId || 'advisory'} · ` : ''}{finding.packageName || 'package'}@{version}</small></span>
           <span className="case-outcome-evidence"><strong>{evidence}</strong><small>{finding.verdict === 'REACHED' ? `${finding.imports?.length || 0} sampled import${finding.imports?.length === 1 ? '' : 's'}` : routeEvidenceLabel(finding)}</small></span>
           <span className="case-outcome-action"><strong>{action}</strong><small>{challenge?.proposedVersion && !historical ? `advisory-backed ${challenge.proposedVersion}` : finding.reason || 'computed from collected records'}</small></span>
           <Verdict value={finding.verdict} compact />
@@ -1788,7 +1816,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const historical = Number.isFinite(rewindAt) && Number.isFinite(currentAt) && rewindAt < currentAt - 1000
   const findings = historical ? report?.rewind?.findings || report?.repositories || [] : report?.repositories || []
   const selectedFinding = findings[selectedIndex] || findings[0]
-  const challenge = historical ? null : report?.challenge?.find((item) => item.repository === selectedFinding?.repository)
+  const challenge = historical ? null : challengeForFinding(report?.challenge || [], selectedFinding)
   const summary = historical ? summarizeFindings(findings) : report?.summary || {}
   const recordingReady = report?.evidenceQuality?.readyForRecording
   const hydraReady = hydra?.status === 'persisted' && hydra?.recall?.status === 'recalled' && !hydra?.indexingError
@@ -1808,18 +1836,23 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const total = summary.totalRepositories || findings.length
   const historicalDate = report?.rewind?.asOf?.slice(0, 10)
   const advisorySummary = report?.advisory?.summary
-  const packageLabel = report?.package || 'package identity unavailable'
+  const repositoryScan = report?.mode === 'repository'
+  const packageLabel = report?.package || 'affected package'
   const headline = historical
     ? summary.unknown ? `${summary.unknown} of ${total} repositories were not yet evidenced by ${historicalDate}.` : summary.reached ? `A source‑backed path existed in ${summary.reached} of ${total} repositories by ${historicalDate}.` : 'No source‑backed path was evidenced at this date.'
-    : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} repositories ${summary.reached === 1 ? 'has' : 'have'} a source‑backed path to ${packageLabel}.` : total ? 'No sampled source path reaches the affected package.' : 'No repository was checked.'
+    : repositoryScan
+      ? summary.totalAdvisories ? `${summary.reached || 0} of ${summary.totalFindings || findings.length} advisory checks reach source code.` : `No affected advisory was found across ${summary.packagesChecked || 0} recorded packages.`
+      : summary.unknown ? `${summary.unknown} of ${total} repositories need evidence.` : summary.reached ? `${summary.reached} of ${total} repositories ${summary.reached === 1 ? 'has' : 'have'} a source‑backed path to ${packageLabel}.` : total ? 'No sampled source path reaches the affected package.' : 'No repository was checked.'
   const summaryLine = advisorySummary
     ? advisorySummary.toLowerCase().includes(packageLabel.toLowerCase()) ? advisorySummary : `${advisorySummary} · ${packageLabel}`
-    : `The report compares ${packageLabel} across the collected repositories.`
+    : repositoryScan ? `${summary.totalAdvisories || 0} advisories matched against ${summary.packagesChecked || 0} recorded packages.` : `The report compares ${packageLabel} across the collected repositories.`
   const listedOnlyText = `${summary.declaredOnly || 0} ${summary.declaredOnly === 1 ? 'repository is' : 'repositories are'} listed without a sampled import`
   const outsideRangeText = `${summary.notAffected || 0} ${summary.notAffected === 1 ? 'is' : 'are'} already outside the affected range`
   const contrastText = [summary.declaredOnly ? listedOnlyText : null, summary.notAffected ? outsideRangeText : null].filter(Boolean).join(' and ')
   const resultExplanation = historical
     ? `This is the evidence graph rebuilt as of ${historicalDate}. Current remediation proof is hidden until you return to the present.`
+    : repositoryScan
+      ? 'Recoil checked recorded dependency versions against public advisories, then separated source reachability from lockfile presence.'
     : summary.unknown
       ? 'The available records do not support a complete verdict yet.'
       : summary.reached && (summary.declaredOnly || summary.notAffected)
@@ -1872,16 +1905,17 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <main className="case-page">
-    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
+    <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : repositoryScan ? 'Repository scan' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{repositoryScan ? 'Dependency inventory' : report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
+    <ReachabilityLedger findings={findings} summary={summary} mode={report?.mode} />
     <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package || null} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} />
-    <CaseOutcomeIndex findings={findings} challenges={historical ? [] : report?.challenge || []} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} historical={historical} />
+    <CaseOutcomeIndex findings={findings} challenges={historical ? [] : report?.challenge || []} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} historical={historical} mode={report?.mode} />
     <CaseRouteReadout finding={selectedFinding} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} />
     <SharedResolution correlations={report?.crossRepositoryCorrelations || []} historical={historical} />
     <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} />
     <CaseNavigator finding={selectedFinding} findings={findings} selectedIndex={selectedIndex} onSelectFinding={selectRepositoryFromNavigator} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
-      {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
+      {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} fixSet={report?.smallestFixSet} mode={report?.mode} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} historical={historical} />}
     </div>

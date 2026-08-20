@@ -159,5 +159,10 @@ test('CODEOWNERS attribution follows the last matching public rule', () => {
   }, rules)
 
   assert.deepEqual(enriched.recentChange.files[0].owners, ['@payments-owner'])
+  const importGraph = buildCodeGraph([
+    { path: 'src/payments.ts', text: "import minimist from 'minimist'\nexport function chargePayment(token) { return minimist(token) }" },
+  ])
+  const importEnriched = enrichChangeEvidence(importGraph, rules)
+  assert.deepEqual(importEnriched.externalImports[0].owners, ['@payments-owner'])
   assert.equal(enriched.ownershipRules, 3)
 })

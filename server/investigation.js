@@ -169,14 +169,17 @@ export async function executeInvestigation(record) {
         pushEvent(state, event)
       },
     })
+    const repositoryScan = collectedEvidence.mode === 'repository'
     pushEvent(state, {
       type: 'step',
       key: 'advisory-scope',
       status: 'working',
-      title: 'Checking advisory scope',
-      detail: 'Matching advisory language against indexed symbols without allowing the model to create graph edges.',
+      title: repositoryScan ? 'Keeping repository scan module-level' : 'Checking advisory scope',
+      detail: repositoryScan ? 'Multiple advisories are being compared; Recoil keeps each result tied to its package and source path.' : 'Matching advisory language against indexed symbols without allowing the model to create graph edges.',
     })
-    const scope = await resolveAdvisoryScope(collectedEvidence)
+    const scope = repositoryScan
+      ? { status: 'skipped', reason: 'Repository scan intentionally keeps advisory scope at the package/import level across multiple advisories.', affectedSymbols: [] }
+      : await resolveAdvisoryScope(collectedEvidence)
     const scopedEvidence = applyAdvisoryScope(collectedEvidence, scope)
     state.evidence = scopedEvidence
     record.ingestion = scopedEvidence
@@ -189,7 +192,7 @@ export async function executeInvestigation(record) {
       // deterministic investigation look failed; its limitation remains in
       // the report so the degradation is still explicit and auditable.
       status: 'complete',
-      title: scopeCompleted ? 'Advisory scope checked' : 'Module-level scope retained',
+      title: scopeCompleted ? 'Advisory scope checked' : repositoryScan ? 'Repository scan scope retained' : 'Module-level scope retained',
       detail: scopeCompleted
         ? `${scope.affectedSymbols?.length || 0} candidate symbol${scope.affectedSymbols?.length === 1 ? '' : 's'} returned; only exact indexed matches are attached.`
         : scope.reason || scope.error || 'The deterministic package-import proof remains authoritative.',

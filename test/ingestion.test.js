@@ -238,7 +238,7 @@ test('multi-repository ingestion computes real evidence contrast without synthet
   }
 })
 
-test('repository-only ingestion does not choose a package or spend resolver calls when identities differ', async () => {
+test('repository-only ingestion scans the recorded inventory without choosing one package', async () => {
   const previousFetch = globalThis.fetch
   const previousCache = process.env.RECOIL_CACHE_DIR
   const previousRetries = process.env.RECOIL_NETWORK_RETRIES
@@ -251,7 +251,8 @@ test('repository-only ingestion does not choose a package or spend resolver call
   const events = []
   globalThis.fetch = async (input) => {
     const url = new URL(input)
-    if (url.hostname === 'api.osv.dev' || url.hostname === 'registry.npmjs.org') throw new Error('unexpected resolver call')
+    if (url.hostname === 'api.osv.dev') return response({ results: [] })
+    if (url.hostname === 'registry.npmjs.org') throw new Error('registry lookup should not run during repository discovery')
     if (url.hostname === 'raw.githubusercontent.com') return response({}, 404)
     if (url.hostname !== 'api.github.com') return response({}, 404)
     const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
@@ -276,16 +277,61 @@ test('repository-only ingestion does not choose a package or spend resolver call
       onProgress: (event) => events.push(event),
     })
     assert.equal(ingestion.package, null)
-    assert.equal(ingestion.packageResolution.status, 'ambiguous')
-    assert.deepEqual(ingestion.packageResolution.candidates, ['first-app', 'second-app'])
-    assert.equal(ingestion.findings.every((finding) => finding.packageName === null && finding.verdict === 'UNKNOWN'), true)
-    assert.ok(events.some((event) => event.key === 'registry' && event.detail.includes('provide an advisory or package selector')))
+    assert.equal(ingestion.mode, 'repository')
+    assert.equal(ingestion.packageResolution.status, 'repository_scan')
+    assert.equal(ingestion.findings.length, 0)
+    assert.ok(events.some((event) => event.key === 'advisory-discovery' && event.status === 'complete'))
   } finally {
     globalThis.fetch = previousFetch
     if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
     else process.env.RECOIL_CACHE_DIR = previousCache
     if (previousRetries === undefined) delete process.env.RECOIL_NETWORK_RETRIES
     else process.env.RECOIL_NETWORK_RETRIES = previousRetries
+  }
+})
+
+test('repository-only discovery turns an affected lockfile version into a cited reachability finding', async () => {
+  const previousFetch = globalThis.fetch
+  const previousCache = process.env.RECOIL_CACHE_DIR
+  process.env.RECOIL_CACHE_DIR = '/dev/null'
+  const source = "import minimist from 'minimist'\nexport function main() { return minimist(process.argv) }"
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(input)
+    if (url.hostname === 'api.osv.dev') {
+      if (options.method === 'POST') return response({ results: [{ vulns: [advisory] }] })
+      return response({}, 404)
+    }
+    if (url.hostname === 'registry.npmjs.org') throw new Error('repository discovery must not call the registry resolver')
+    if (url.hostname === 'raw.githubusercontent.com') {
+      if (url.pathname.endsWith('/package.json')) return response(JSON.stringify({ name: 'discovery-app', dependencies: { minimist: '^1.2.0' } }))
+      if (url.pathname.endsWith('/package-lock.json')) return response(packageLock('1.2.5'))
+      if (url.pathname.endsWith('/src/main.js')) return response(source)
+      return response({}, 404)
+    }
+    if (url.hostname !== 'api.github.com') return response({}, 404)
+    const operation = url.pathname.split('/repos/example/discovery-app/')[1] || ''
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'src/main.js' }] })
+    if (operation.startsWith('commits')) {
+      if (url.searchParams.has('path')) return response([{ sha: 'lock-intro-123', html_url: 'https://github.com/example/discovery-app/commit/lock-intro-123', commit: { author: { name: 'A. Maintainer', date: '2024-01-01T00:00:00Z' }, message: 'add dependency lockfile' } }])
+      return response([])
+    }
+    return response({}, 404)
+  }
+  try {
+    const ingestion = await runMultiRepositoryIngestion({ query: 'https://github.com/example/discovery-app', scenarioId: 'repository-discovery-test' })
+    const report = buildInvestigationReport(ingestion)
+    assert.equal(ingestion.mode, 'repository')
+    assert.equal(ingestion.package, null)
+    assert.equal(ingestion.discovery.advisoryCount, 1)
+    assert.equal(report.repositories[0].verdict, 'REACHED')
+    assert.equal(report.repositories[0].packageName, 'minimist')
+    assert.equal(report.repositories[0].pathObservation.commit, 'lock-intro-123')
+    assert.equal(report.repositories[0].pathObservation.author, 'A. Maintainer')
+    assert.match(report.repositories[0].proof.find((step) => step.kind === 'temporal').detail, /lock-intro-123/)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousCache === undefined) delete process.env.RECOIL_CACHE_DIR
+    else process.env.RECOIL_CACHE_DIR = previousCache
   }
 })
 

@@ -635,4 +635,49 @@ Also explicitly decide:
 - which existing capabilities must remain accessible but disappear from the
   default view.
 
+## Accepted implementation order — 2026-08-20
+
+The superior review is accepted as the product direction. Recoil is now
+packaged as repository-first reachability triage, while the explicit
+advisory-plus-repositories flow remains available for a controlled comparison
+case.
+
+### The promise
+
+> Recoil reads your repository, finds the advisories that apply, and proves
+> which ones actually reach your source code — with the lockfile line, the
+> importer, and the date the path appeared.
+
+### Five-day build order
+
+1. **Repository-only discovery:** accept one public repository, inventory its
+   recorded dependency graph, query OSV in bounded batches, and classify only
+   advisories whose affected versions are present. Keep the advisory-plus-
+   repository path as the deterministic benchmark case.
+2. **Proof provenance:** expose the first collected lockfile commit, subject,
+   author, importer line, optional validated symbol, and CODEOWNERS owner. Use
+   the precise caveat that lockfile history dates path appearance, not the
+   creation of vulnerable code.
+3. **Triage packaging:** make the first report view a declared-versus-reached
+   ledger, grouped outcome rows, one expanded proof path, explicit UNKNOWN
+   states, and a smallest-fix-set recommendation. Keep the full graph and
+   audit surfaces behind inspection links.
+4. **HydraDB delta:** make repeat scans the one judge-facing HydraDB proof:
+   “two reachable paths closed; one new path appeared.” Do not lead with a
+   connection badge or raw memory counts. Populate `valid_until` when a path
+   is proven closed; otherwise call the history dated evidence rather than
+   bitemporal truth.
+5. **Unrehearsed demo and parity:** run ten public repositories never used as
+   fixtures, including a monorepo and a repository without a lockfile. Make
+   browser, CLI, TUI, brief, and receipt use identical verdict vocabulary and
+   preserve the same honest refusal states.
+
+### Explicit non-goals
+
+The red/blue attack loop is not the core product. It remains an optional
+research surface only if it can execute inside a safe sandbox with a real
+artifact and a real control; a deterministic animation is not a security
+claim. Agent chat, fake attack traces, severity gauges, SARIF, and a default
+full-graph dashboard stay out of the judge path.
+
 Be opinionated. We do not need more ideas; we need one consumable product.

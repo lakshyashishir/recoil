@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { buildChangeImpact, buildCodeGraph, enrichChangeEvidence, isAnalyzableSourcePath, parseCodeowners } from '../src/core/codegraph.js'
-import { buildObservedGraph, classifyRepository, fixedVersionsFromAdvisory } from '../src/core/evidence.js'
+import { buildObservedGraph, classifyRepository, fixedVersionsFromAdvisory, versionAffectedByAdvisory } from '../src/core/evidence.js'
 
 async function readJson(url, options) {
   const cached = readCache(url, options)
@@ -251,7 +251,15 @@ async function readGitHubCommitHistory(repository, path) {
   const oldest = oldestPage.commits.at(-1) || newest
   return {
     firstCommitAt: oldest.commit?.author?.date || oldest.commit?.committer?.date || null,
+    firstCommitSha: oldest.sha || null,
+    firstCommitAuthor: oldest.commit?.author?.name || oldest.commit?.committer?.name || oldest.author?.login || null,
+    firstCommitMessage: oldest.commit?.message?.split('\n')[0] || null,
+    firstCommitSourceUrl: oldest.html_url || null,
     latestCommitAt: newest.commit?.author?.date || newest.commit?.committer?.date || null,
+    latestCommitSha: newest.sha || null,
+    latestCommitAuthor: newest.commit?.author?.name || newest.commit?.committer?.name || newest.author?.login || null,
+    latestCommitMessage: newest.commit?.message?.split('\n')[0] || null,
+    latestCommitSourceUrl: newest.html_url || null,
     sourceUrl: oldest.html_url || newest.html_url || null,
   }
 }
@@ -775,7 +783,15 @@ export async function collectRepository(repository, requestedPackage) {
       },
       temporal: {
         pathObservedAt: temporal?.firstCommitAt || null,
+        pathObservationCommit: temporal?.firstCommitSha || null,
+        pathObservationAuthor: temporal?.firstCommitAuthor || null,
+        pathObservationMessage: temporal?.firstCommitMessage || null,
+        pathObservationSourceUrl: temporal?.firstCommitSourceUrl || null,
         latestPathCommitAt: temporal?.latestCommitAt || null,
+        latestPathCommit: temporal?.latestCommitSha || null,
+        latestPathAuthor: temporal?.latestCommitAuthor || null,
+        latestPathMessage: temporal?.latestCommitMessage || null,
+        latestPathSourceUrl: temporal?.latestCommitSourceUrl || null,
         sourceUrl: temporal?.sourceUrl || lockFile?.sourceUrl || null,
         error: temporal?.error || null,
       },
@@ -901,6 +917,93 @@ async function collectAdvisories(packageName, advisoryId, ecosystem = 'npm') {
       affected: vulnerability.affected || [],
     })),
     observedAt: new Date().toISOString(),
+  }
+}
+
+function repositoryPackageInventory(repositoryResults = []) {
+  const packages = new Map()
+  for (const repository of repositoryResults) {
+    if (repository?.status !== 'completed') continue
+    const manifest = repository.manifest || {}
+    const ecosystem = repository.ecosystem || 'npm'
+    const direct = new Set(Object.keys({ ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) }))
+    for (const entry of manifest.lockPackages || []) {
+      if (!entry?.name) continue
+      const key = `${ecosystem}:${entry.name}`
+      const item = packages.get(key) || { ecosystem, name: entry.name, direct: false, versions: new Set(), repositories: new Set() }
+      if (entry.version) item.versions.add(entry.version)
+      if (direct.has(entry.name)) item.direct = true
+      if (repository.repository) item.repositories.add(repository.repository)
+      packages.set(key, item)
+    }
+    for (const [name] of Object.entries({ ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) })) {
+      const key = `${ecosystem}:${name}`
+      const item = packages.get(key) || { ecosystem, name, direct: true, versions: new Set(), repositories: new Set() }
+      item.direct = true
+      if (repository.repository) item.repositories.add(repository.repository)
+      packages.set(key, item)
+    }
+  }
+  return [...packages.values()]
+    .sort((left, right) => Number(right.direct) - Number(left.direct) || right.versions.size - left.versions.size || left.name.localeCompare(right.name))
+}
+
+async function collectRepositoryAdvisories(repositoryResults) {
+  const configuredPackageLimit = Number.parseInt(process.env.RECOIL_DISCOVERY_PACKAGE_LIMIT || '40', 10)
+  const packageLimit = Number.isFinite(configuredPackageLimit) ? Math.min(Math.max(configuredPackageLimit, 1), 100) : 40
+  const configuredAdvisoryLimit = Number.parseInt(process.env.RECOIL_DISCOVERY_ADVISORY_LIMIT || '12', 10)
+  const advisoryLimit = Number.isFinite(configuredAdvisoryLimit) ? Math.min(Math.max(configuredAdvisoryLimit, 1), 50) : 12
+  const inventory = repositoryPackageInventory(repositoryResults).slice(0, packageLimit)
+  if (!inventory.length) {
+    return { status: 'completed', packagesChecked: 0, advisoryCount: 0, truncated: false, packages: [], advisories: [], sourceUrl: 'https://api.osv.dev/v1/querybatch' }
+  }
+  const queries = inventory.map((item) => ({ package: { ecosystem: item.ecosystem === 'cargo' ? 'crates.io' : 'npm', name: item.name } }))
+  const url = 'https://api.osv.dev/v1/querybatch'
+  let response
+  try {
+    response = await fetchWithNetworkRetry(url, {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify({ queries }),
+    })
+  } catch (error) {
+    throw networkError(url, error)
+  }
+  if (!response.ok) throw httpError(response, url)
+  const payload = await response.json()
+  const candidates = []
+  for (const [index, result] of (payload.results || []).entries()) {
+    const packageRecord = inventory[index]
+    if (!packageRecord) continue
+    for (const vulnerability of result?.vulns || []) {
+      const packageName = packageRecord.name
+      const affectedVersions = [...packageRecord.versions].filter((version) => versionAffectedByAdvisory(vulnerability, packageName, version) === true)
+      if (!affectedVersions.length) continue
+      const id = vulnerability.id || vulnerability.aliases?.[0]
+      if (!id) continue
+      candidates.push({
+        packageName,
+        ecosystem: packageRecord.ecosystem,
+        affectedVersions,
+        advisory: {
+          ...vulnerability,
+          id,
+          sourceUrl: `https://osv.dev/vulnerability/${encodeURIComponent(id)}`,
+        },
+      })
+    }
+  }
+  const unique = [...new Map(candidates.map((candidate) => [`${candidate.ecosystem}:${candidate.packageName}:${candidate.advisory.id}`, candidate])).values()]
+    .sort((left, right) => right.affectedVersions.length - left.affectedVersions.length || String(right.advisory.published || '').localeCompare(String(left.advisory.published || '')) || left.packageName.localeCompare(right.packageName))
+  return {
+    status: 'completed',
+    packagesChecked: inventory.length,
+    packageLimit,
+    advisoryCount: Math.min(unique.length, advisoryLimit),
+    truncated: unique.length > advisoryLimit || repositoryPackageInventory(repositoryResults).length > packageLimit,
+    packages: inventory.map((item) => ({ ecosystem: item.ecosystem, name: item.name, direct: item.direct, versions: [...item.versions], repositories: [...item.repositories] })),
+    advisories: unique.slice(0, advisoryLimit),
+    sourceUrl: url,
   }
 }
 
@@ -1071,12 +1174,37 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
       }
     }
   }))
-  const packageResolution = resolvePackageSelection({
-    requestedPackage: input.packageName,
-    advisoryPackage,
-    repositoryResults,
-  })
-  packageName = packageResolution.packageName
+  const repositoryOnly = !input.advisoryId && !input.packageName && !advisory
+  let discovery = null
+  let packageResolution
+  if (repositoryOnly) {
+    onProgress({ type: 'step', key: 'advisory-discovery', status: 'working', title: 'Checking repository dependencies', detail: 'Matching the recorded lockfile inventory against OSV advisories. No code is installed or executed.' })
+    try {
+      discovery = await collectRepositoryAdvisories(repositoryResults)
+      onProgress({ type: 'step', key: 'advisory-discovery', status: 'complete', title: 'Dependency exposure found', detail: `${discovery.packagesChecked} packages checked · ${discovery.advisoryCount} affected advisories${discovery.truncated ? ' · bounded to the first configured results' : ''}`, sourceUrls: [discovery.sourceUrl].filter(Boolean) })
+    } catch (error) {
+      discovery = { status: 'failed', packagesChecked: 0, advisoryCount: 0, truncated: false, packages: [], advisories: [], sourceUrl: 'https://api.osv.dev/v1/querybatch', error: error.message }
+      onProgress({ type: 'step', key: 'advisory-discovery', status: 'failed', title: 'Dependency exposure could not be checked', detail: error.message, sourceUrls: [discovery.sourceUrl] })
+    }
+    packageResolution = {
+      status: discovery.status === 'failed' ? 'failed' : 'repository_scan',
+      packageName: null,
+      candidates: discovery.advisories.map((candidate) => `${candidate.packageName}:${candidate.advisory.id}`),
+      source: discovery.sourceUrl,
+      reason: discovery.status === 'failed'
+        ? discovery.error
+        : `${discovery.packagesChecked} recorded package${discovery.packagesChecked === 1 ? '' : 's'} checked against OSV advisories.`,
+    }
+    packageName = null
+    advisory = discovery.advisories[0]?.advisory || null
+  } else {
+    packageResolution = resolvePackageSelection({
+      requestedPackage: input.packageName,
+      advisoryPackage,
+      repositoryResults,
+    })
+    packageName = packageResolution.packageName
+  }
   // A failed direct lookup is represented as an error-bearing record so the
   // collector can preserve its source URL. It is not usable advisory data;
   // when a package selector is available, fall back to OSV's package query.
@@ -1085,54 +1213,65 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
     advisory = queried.targetAdvisory ? { ...queried.targetAdvisory, sourceUrl: queried.sourceUrl } : null
   }
   const ecosystem = repositoryResults.find((result) => result.status === 'completed')?.ecosystem || 'npm'
-  const registry = packageName
+  const registry = !repositoryOnly && packageName
     ? await collectRegistry(packageName, ecosystem, advisory).catch((error) => ({ collector: 'registry-resolver', status: 'failed', package: packageName, ecosystem, error: error.message, fixedVersions: [], affectedVersions: [], maintainers: [] }))
     : { collector: 'registry-resolver', status: 'not_requested', package: null, ecosystem, fixedVersions: [], affectedVersions: [], maintainers: [] }
   onProgress({ type: 'step', key: 'registry', status: registry.status === 'failed' ? 'failed' : 'complete', title: 'Registry record ready', detail: packageName ? `${packageName} · ${registry.fixedVersions?.length || 0} fixed version${registry.fixedVersions?.length === 1 ? '' : 's'} found` : packageResolution.reason, sourceUrls: [registry.sourceUrl].filter(Boolean) })
-  const advisoryRecord = advisoryCollector(advisory, input.advisoryId)
-  const findings = repositoryResults.map((repository) => repository.status === 'completed'
-    ? classifyRepository({ repository, packageName, advisory, advisoryId: input.advisoryId || advisory?.id })
-    : {
-        repository: repository.repository,
-        repositoryUrl: repository.repositoryUrl,
-        packageName,
-        advisoryId: input.advisoryId || advisory?.id || 'advisory',
-        verdict: 'UNKNOWN',
-        reason: repository.error || 'Repository evidence collection failed.',
-        resolvedVersion: null,
-        declaredRange: null,
-        imports: [],
-        path: [input.advisoryId || advisory?.id || 'advisory', repository.repository || 'repository'],
-        fixedVersions: fixedVersionsFromAdvisory(advisory, packageName),
-        targetVersion: fixedVersionsFromAdvisory(advisory, packageName)[0] || null,
-        rangeAllowsFix: false,
-        allowedVersion: null,
-        sourceSampleSize: 0,
-        sourceBound: 'Repository evidence unavailable',
-        evidenceSources: [repository.repositoryUrl].filter(Boolean),
-      })
+  const advisoryRecord = repositoryOnly
+    ? { collector: 'advisory-resolver', status: discovery.status, sourceUrl: discovery.sourceUrl, entities: discovery.advisoryCount, targetAdvisory: advisory, vulnerabilities: discovery.advisories.map((candidate) => candidate.advisory), error: discovery.error || null }
+    : advisoryCollector(advisory, input.advisoryId)
+  const classifyFailedRepository = (repository, candidateAdvisory = advisory, candidatePackage = packageName) => ({
+    repository: repository.repository,
+    repositoryUrl: repository.repositoryUrl,
+    packageName: candidatePackage,
+    advisoryId: candidateAdvisory?.id || input.advisoryId || 'advisory',
+    advisory: candidateAdvisory,
+    verdict: 'UNKNOWN',
+    reason: repository.error || 'Repository evidence collection failed.',
+    resolvedVersion: null,
+    declaredRange: null,
+    imports: [],
+    path: [candidateAdvisory?.id || input.advisoryId || 'advisory', repository.repository || 'repository'],
+    fixedVersions: fixedVersionsFromAdvisory(candidateAdvisory, candidatePackage),
+    targetVersion: fixedVersionsFromAdvisory(candidateAdvisory, candidatePackage)[0] || null,
+    rangeAllowsFix: false,
+    allowedVersion: null,
+    sourceSampleSize: 0,
+    sourceBound: 'Repository evidence unavailable',
+    evidenceSources: [repository.repositoryUrl].filter(Boolean),
+  })
+  const findings = repositoryOnly
+    ? discovery.advisories.flatMap((candidate) => repositoryResults.map((repository) => repository.status === 'completed'
+      ? { ...classifyRepository({ repository, packageName: candidate.packageName, advisory: candidate.advisory, advisoryId: candidate.advisory.id }), advisory: candidate.advisory, discovery: { affectedVersions: candidate.affectedVersions } }
+      : classifyFailedRepository(repository, candidate.advisory, candidate.packageName)))
+    : repositoryResults.map((repository) => repository.status === 'completed'
+      ? classifyRepository({ repository, packageName, advisory, advisoryId: input.advisoryId || advisory?.id })
+      : classifyFailedRepository(repository))
   const graph = buildObservedGraph({ advisoryId: input.advisoryId || advisory?.id || 'advisory', advisorySourceUrl: advisory?.sourceUrl, packageName, repositoryFindings: findings })
   const sources = [...new Set([
     advisoryRecord.sourceUrl,
     registry.sourceUrl,
     ...repositoryResults.flatMap((result) => [result.sourceUrl, ...(result.sources || []).map((source) => source.url)]),
     ...(advisory?.references || []).map((reference) => reference.url),
+    ...(discovery?.advisories || []).map((candidate) => candidate.advisory.sourceUrl),
   ].filter(Boolean))]
-  const failed = [advisoryRecord, registry, ...repositoryResults].some((collector) => collector.status === 'failed')
+  const failed = [advisoryRecord, registry, discovery, ...repositoryResults].some((collector) => collector?.status === 'failed')
   const partialEvidence = repositoryResults.some((repository) => repository.manifest?.collection?.sourceFiles?.status && repository.manifest.collection.sourceFiles.status !== 'collected')
   onProgress({ type: 'step', key: 'classification', status: 'complete', title: 'Reachability classified', detail: findings.map((finding) => `${finding.repository}: ${finding.verdict}`).join(' · ') || 'No repositories were classified.' })
   return {
-    status: failed || partialEvidence ? 'partial' : packageName && advisory ? 'completed' : 'partial',
+    status: failed || partialEvidence ? 'partial' : repositoryOnly ? 'completed' : packageName && advisory ? 'completed' : 'partial',
     query,
     scenarioId,
     package: packageName,
     packageResolution,
+    mode: repositoryOnly ? 'repository' : 'advisory',
     target: { ...input, packageName, advisoryId: input.advisoryId || advisory?.id || null, repositories },
     advisory,
     registry,
     collectors: [advisoryRecord, registry, ...repositoryResults],
     repositories: repositoryResults,
     findings,
+    discovery,
     graph,
     sources,
     temporal: {

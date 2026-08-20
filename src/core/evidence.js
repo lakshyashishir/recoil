@@ -220,6 +220,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
   const resolvedVersions = [...new Set(manifest.resolvedVersions?.[packageName] || [resolvedVersion].filter(Boolean))]
   const declaredRange = manifest.dependencies?.[packageName] || manifest.devDependencies?.[packageName] || null
   const imports = (codeGraph.externalImports || []).filter((item) => item.packageName === packageName)
+  const codeOwners = [...new Set(imports.flatMap((item) => item.owners || []).filter(Boolean))]
   const sourceImpact = buildSourceImpact(codeGraph, imports)
   const recentChange = codeGraph.recentChange || null
   const changedFiles = recentChange?.files || []
@@ -238,7 +239,7 @@ export function classifyRepository({ repository, packageName, advisory, advisory
       line: item.line || null,
       sourceUrl: item.sourceUrl || null,
       symbols: change.symbols || [],
-      owners: change.owners || [],
+      owners: [...new Set([...(item.owners || []), ...(change.owners || [])])],
       symbolMatch: change.symbolMatch || null,
     })),
   } : null
@@ -296,6 +297,17 @@ export function classifyRepository({ repository, packageName, advisory, advisory
     declaredRange,
     pathObservedAt: manifest.temporal?.pathObservedAt || null,
     pathObservationSource: manifest.temporal?.sourceUrl || null,
+    pathObservation: manifest.temporal?.pathObservedAt
+      ? {
+          observedAt: manifest.temporal.pathObservedAt,
+          commit: manifest.temporal.pathObservationCommit || null,
+          author: manifest.temporal.pathObservationAuthor || null,
+          message: manifest.temporal.pathObservationMessage || null,
+          sourceUrl: manifest.temporal.pathObservationSourceUrl || manifest.temporal.sourceUrl || null,
+          caveat: 'This dates the first collected lockfile evidence, not the creation date of the vulnerable code.',
+        }
+      : null,
+    codeOwners,
     imports,
     path,
     dependencyPath: dependencyPathFor(manifest, packageName, lockfileSource),
@@ -323,9 +335,22 @@ export function classifyRepository({ repository, packageName, advisory, advisory
 }
 
 export function buildObservedGraph({ advisoryId, advisorySourceUrl = null, packageName, repositoryFindings = [] }) {
-  const nodes = [{ id: `advisory:${advisoryId}`, label: advisoryId, type: 'advisory', sourceUrl: advisorySourceUrl }]
+  const nodes = []
+  const advisoryNodes = new Set()
+  const addAdvisoryNode = (id, sourceUrl = null) => {
+    const normalizedId = id || 'advisory'
+    const nodeId = `advisory:${normalizedId}`
+    if (advisoryNodes.has(nodeId)) return nodeId
+    advisoryNodes.add(nodeId)
+    nodes.push({ id: nodeId, label: normalizedId, type: 'advisory', sourceUrl })
+    return nodeId
+  }
+  addAdvisoryNode(advisoryId, advisorySourceUrl)
   const edges = []
   for (const finding of repositoryFindings) {
+    const findingAdvisoryId = finding.advisoryId || advisoryId || 'advisory'
+    const findingAdvisorySource = finding.advisory?.sourceUrl || (findingAdvisoryId === advisoryId ? advisorySourceUrl : null)
+    const findingAdvisoryNode = addAdvisoryNode(findingAdvisoryId, findingAdvisorySource)
     const repoId = `repo:${finding.repository}`
     const evidencePath = finding.path || []
     const lockfileLabel = evidencePath.find((part) => /(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|cargo\.lock)$/i.test(String(part))) || evidencePath[2] || evidencePath[3] || 'unknown'
@@ -350,7 +375,7 @@ export function buildObservedGraph({ advisoryId, advisorySourceUrl = null, packa
       // outcomes. Keep verdict color on repository nodes only; a shared
       // dependency node has no single truthful verdict of its own.
       nodes.push({ id: packageId, label: packageId.replace('package:', ''), type: 'package', sourceUrl: lockfileSource, meta: { resolvedVersions } })
-      edges.push([`advisory:${advisoryId}`, packageId], [packageId, lockId])
+      edges.push([findingAdvisoryNode, packageId], [packageId, lockId])
     }
     const dependencyPath = finding.dependencyPath || []
     for (const [index, dependency] of dependencyPath.entries()) {

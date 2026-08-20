@@ -233,11 +233,11 @@ async function route(req, res) {
   if (req.method === 'POST' && action === 'investigate') {
     return body(req).then((payload) => {
       if (typeof payload.query !== 'string' || !payload.query.trim()) {
-        return json(res, 422, { error: 'Provide an advisory or package plus at least one public GitHub repository URL' })
+        return json(res, 422, { error: 'Provide a public GitHub repository URL, or an advisory/package plus a repository URL' })
       }
       const target = parseInvestigationInput(payload.query)
-      if (!target.advisoryId && !target.packageName) {
-        return json(res, 422, { error: 'Provide a GHSA/CVE advisory or package selector plus at least one public GitHub repository URL' })
+      if (!target.advisoryId && !target.packageName && target.repositories.length === 0) {
+        return json(res, 422, { error: 'Provide a public GitHub repository URL, or an advisory/package selector plus one' })
       }
       if (target.repositories.length === 0) {
         return json(res, 422, { error: 'Add at least one public GitHub repository URL so Recoil can prove reachability' })

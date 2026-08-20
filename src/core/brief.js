@@ -59,14 +59,19 @@ export function buildEvidenceBrief({ scenarioId, query, report, hydra } = {}) {
   if (!report) return null
   const findings = report.repositories || []
   const summary = report.summary || {}
+  const repositoryScan = report.mode === 'repository'
   const challenges = new Map((report.challenge || []).map((challenge) => [challenge.repository, challenge]))
-  const total = summary.totalRepositories ?? findings.length
+  const total = repositoryScan ? (summary.totalFindings ?? findings.length) : (summary.totalRepositories ?? findings.length)
   const reached = summary.reached || 0
-  const headline = summary.unknown
-    ? `${summary.unknown} of ${total} repositories need more evidence.`
-    : reached
-      ? `${reached} of ${total} repositories reach sampled vulnerable code.`
-      : `No repository reaches sampled vulnerable code.`
+  const headline = repositoryScan
+    ? summary.totalAdvisories
+      ? `${reached} of ${total} advisory checks reach sampled vulnerable code.`
+      : `No affected advisory was found across ${summary.packagesChecked || 0} recorded packages.`
+    : summary.unknown
+      ? `${summary.unknown} of ${total} repositories need more evidence.`
+      : reached
+        ? `${reached} of ${total} repositories reach sampled vulnerable code.`
+        : `No repository reaches sampled vulnerable code.`
   const temporal = report.rewind || {}
   const memory = temporal.memory || {}
   const graphContext = memory.graphContext || {}
@@ -88,7 +93,9 @@ export function buildEvidenceBrief({ scenarioId, query, report, hydra } = {}) {
     '',
     `**${headline}**`,
     '',
-    `The case separates an affected dependency from a source-backed path. ${reached ? `${summary.declaredOnly || 0} repository${summary.declaredOnly === 1 ? '' : 'ies'} were declared-only and ${summary.notAffected || 0} were outside the affected range.` : 'The collected evidence does not support a stronger reachability claim.'}`,
+    repositoryScan
+      ? `The repository scan separates recorded package presence from source-backed reachability across ${summary.packagesChecked || 0} packages. ${summary.declaredOnly || 0} checks were declared-only and ${summary.unknown || 0} need more evidence.`
+      : `The case separates an affected dependency from a source-backed path. ${reached ? `${summary.declaredOnly || 0} repository${summary.declaredOnly === 1 ? '' : 'ies'} were declared-only and ${summary.notAffected || 0} were outside the affected range.` : 'The collected evidence does not support a stronger reachability claim.'}`,
     '',
     '## Repository findings',
     '',
@@ -100,6 +107,14 @@ export function buildEvidenceBrief({ scenarioId, query, report, hydra } = {}) {
       return `| ${cell(repositoryName(finding.repository))} | ${cell(verdictLabel(finding.verdict))} | ${cell(resolved)} | ${finding.imports?.length || 0} | ${cell(fixLabel(challenge))} |`
     }),
     '',
+    '## Smallest fix set',
+    '',
+    ...(report.smallestFixSet?.items?.length
+      ? report.smallestFixSet.items.map((item, index) => `${index + 1}. **${cell(item.packageName)}@${cell(item.targetVersion)}** closes ${item.closesFindings} observed finding${item.closesFindings === 1 ? '' : 's'} across ${item.repositories.length} ${item.repositories.length === 1 ? 'repository' : 'repositories'}: ${item.repositories.map((repository) => cell(repositoryName(repository))).join(', ')}.`)
+      : ['No verified fix set was computed from the collected findings.']),
+    '',
+    report.smallestFixSet?.note || 'Fix prioritization is based on observed evidence, not a mathematical minimum cut.',
+    '',
     '## Cited evidence paths',
     '',
     ...findings.flatMap((finding) => {
@@ -109,6 +124,23 @@ export function buildEvidenceBrief({ scenarioId, query, report, hydra } = {}) {
         ? proof.map((step) => `  - ${cell(step.label)} — ${step.source ? sourceLink(step.source) : 'source unavailable'}`)
         : [`  - ${cell(path)}`]
       return [`### ${cell(repositoryName(finding.repository))} · ${cell(verdictLabel(finding.verdict))}`, '', `**Path:** \`${path}\``, ...sourceLines, '', `**Reason:** ${text(finding.reason)}`, '']
+    }),
+    '## Provenance',
+    '',
+    ...findings.flatMap((finding) => {
+      const observation = finding.pathObservation
+      const owners = finding.codeOwners || []
+      if (!observation && !owners.length) return []
+      const lines = [`### ${cell(repositoryName(finding.repository))}`]
+      if (observation) {
+        lines.push(`- Lockfile path first observed: ${cell(observation.observedAt)}`)
+        lines.push(`- Introducing commit: ${cell(observation.commit || 'not available')} · ${cell(observation.author || 'author unavailable')}`)
+        lines.push(`- Commit subject: ${cell(observation.message || 'message unavailable')}`)
+        lines.push(`- Boundary: ${cell(observation.caveat)}`)
+      }
+      if (owners.length) lines.push(`- Code owner at sampled import: ${owners.map(cell).join(', ')}`)
+      lines.push('')
+      return lines
     }),
     '## Temporal evidence',
     '',
