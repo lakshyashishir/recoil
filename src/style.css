@@ -1747,6 +1747,12 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-workspace-graph .map-node.node-selected,
 .case-workspace-graph .map-edge-selected { opacity: 1; }
 
+/* Sticky case navigation should never cover the heading that explains the
+   panel the user just opened. Keep programmatic tab jumps optically below it. */
+#case-tab-panel, #case-graph, #case-proof, #case-history, #case-audit {
+  scroll-margin-top: 132px;
+}
+
 @media (max-width: 720px) {
   .case-facts-line { grid-template-columns: 1fr; margin-top: 12px; }
   .case-fact, .case-fact + .case-fact { padding: 13px 0; border-left: 0; }
