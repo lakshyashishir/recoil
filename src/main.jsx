@@ -1659,7 +1659,8 @@ function App() {
     try {
       const next = await api(`/api/scenarios/${scenarioId}/rewind`, { method: 'POST', body: JSON.stringify({ asOf }) })
       setReport(next.report)
-      setHydra({ ...(investigation?.hydra || {}), recall: { ...next.hydra, chunkCount: next.hydra?.chunks?.length || 0 }, temporalRecall: next.hydra })
+      const recalled = next.hydra || { status: 'failed', reason: 'The temporal read returned no summary.' }
+      setHydra({ ...(investigation?.hydra || {}), recall: recalled, temporalRecall: recalled })
     } catch (cause) { setError(cause.message) }
   }
 
