@@ -154,7 +154,6 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
     </header>
     <section className="landing-grid">
       <div className="landing-intro">
-        <p className="landing-kicker">Public evidence, one answer</p>
         <h1>Which repositories actually reach <span>affected code?</span></h1>
         <p>Give Recoil an advisory and real repositories. It follows the lockfile to source, dates the path, and checks the smallest defensible fix.</p>
       </div>
@@ -273,7 +272,7 @@ function LiveRepositoryProgress({ query, events = [], report = null, graphProgre
   events.filter((event) => event.repository).forEach((event) => latestByRepository.set(repositoryKey(event.repository), event))
   return <section className="live-repositories" aria-label="Repository collection status">
     <div className="live-repositories-heading"><span>Repositories</span><span>{completed} of {total} complete</span></div>
-    <div className="live-repository-progress" role="progressbar" aria-label="Repositories mapped" aria-valuemin="0" aria-valuemax={total} aria-valuenow={completed}><span style={{ width: `${percentage}%` }} /></div>
+    <div className="live-repository-progress" role="progressbar" aria-label="Repositories mapped" aria-valuemin="0" aria-valuemax={total} aria-valuenow={completed}><span style={{ '--progress-scale': percentage / 100 }} /></div>
     <div className="live-repository-list">
       {repositories.map((repository, index) => {
         const event = latestByRepository.get(repositoryKey(repository))
