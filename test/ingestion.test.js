@@ -280,6 +280,9 @@ test('repository-only ingestion scans the recorded inventory without choosing on
     assert.equal(ingestion.mode, 'repository')
     assert.equal(ingestion.packageResolution.status, 'repository_scan')
     assert.equal(ingestion.findings.length, 0)
+    const report = buildInvestigationReport(ingestion)
+    assert.equal(report.summary.totalRepositories, 2)
+    assert.equal(report.evidenceQuality.readyForRecording, true)
     assert.ok(events.some((event) => event.key === 'advisory-discovery' && event.status === 'complete'))
   } finally {
     globalThis.fetch = previousFetch

@@ -526,6 +526,13 @@ h1, h2, p { margin-top: 0; }
   .floating-error { right: 12px; bottom: 12px; left: 12px; }
 }
 
+@media (max-width: 720px) {
+  .case-outcome-disclosure > summary { align-items: flex-start; flex-wrap: wrap; }
+  .case-outcome-disclosure > summary small { width: 100%; margin-left: 0; }
+  .no-findings-state { grid-template-columns: 1fr; gap: 16px; }
+  .no-findings-meta { width: max-content; min-width: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
@@ -1427,6 +1434,13 @@ body { font-family: var(--sans); line-height: 1.45; }
 .case-outcome-disclosure > summary:hover { color: var(--accent); }
 .case-outcome-disclosure > summary small { margin-left: auto; color: var(--muted); font: 10px/1.3 var(--mono); font-weight: 400; }
 .case-outcome-disclosure .case-outcome-index { margin: 0; padding-top: 6px; border-bottom: 0; }
+.no-findings-state { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: end; margin: 0 0 20px; padding: 22px 0 24px; border-bottom: 1px solid var(--line); }
+.no-findings-state .section-kicker { margin-bottom: 8px; color: var(--accent); }
+.no-findings-state h2 { max-width: 700px; margin: 0 0 8px; color: var(--text); font-size: clamp(22px, 2.5vw, 31px); font-weight: 600; letter-spacing: -.035em; line-height: 1.1; }
+.no-findings-state p { max-width: 680px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.no-findings-meta { display: grid; gap: 5px; min-width: 150px; padding-left: 16px; border-left: 2px solid var(--green); color: var(--green); font-size: 11px; }
+.no-findings-meta small { color: var(--muted); font: 10px/1.3 var(--mono); }
+.no-findings-state:not(.no-findings-state-complete) .no-findings-meta { border-left-color: var(--accent); color: var(--accent); }
 .case-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
 /* The cited path is the primary evidence view. Give it the full reading

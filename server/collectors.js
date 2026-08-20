@@ -1257,7 +1257,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   ].filter(Boolean))]
   const failed = [advisoryRecord, registry, discovery, ...repositoryResults].some((collector) => collector?.status === 'failed')
   const partialEvidence = repositoryResults.some((repository) => repository.manifest?.collection?.sourceFiles?.status && repository.manifest.collection.sourceFiles.status !== 'collected')
-  onProgress({ type: 'step', key: 'classification', status: 'complete', title: 'Reachability classified', detail: findings.map((finding) => `${finding.repository}: ${finding.verdict}`).join(' · ') || 'No repositories were classified.' })
+  onProgress({ type: 'step', key: 'classification', status: 'complete', detail: findings.map((finding) => `${finding.repository}: ${finding.verdict}`).join(' · ') || (repositoryOnly && discovery?.advisoryCount === 0 ? `No affected advisory matched ${discovery.packagesChecked} recorded packages.` : 'No repositories were classified.'), title: 'Reachability classified' })
   return {
     status: failed || partialEvidence ? 'partial' : repositoryOnly ? 'completed' : packageName && advisory ? 'completed' : 'partial',
     query,

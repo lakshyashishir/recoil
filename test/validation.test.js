@@ -45,3 +45,18 @@ test('evidence quality exposes incomplete collectors and mixed-version ambiguity
   assert.equal(hasIncompleteEvidence({ report: { evidenceQuality: quality } }), true)
   assert.equal(hasIncompleteEvidence({ evidenceStatus: 'partial', report: { evidenceQuality: { readyForRecording: true } } }), true)
 })
+
+test('repository inventory with no affected advisories is a complete negative result', () => {
+  const quality = buildEvidenceQuality({
+    status: 'completed',
+    noFindingsIsValid: true,
+    collectors: [
+      { collector: 'advisory-resolver', status: 'completed' },
+      { collector: 'registry-resolver', status: 'not_requested' },
+    ],
+    repositories: [],
+  })
+  assert.equal(quality.status, 'complete')
+  assert.equal(quality.readyForRecording, true)
+  assert.match(quality.reason, /no affected advisory/i)
+})

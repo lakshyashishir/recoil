@@ -309,6 +309,9 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
     status: ingestion?.status || 'partial',
     collectors: ingestion?.collectors || [],
     repositories: currentFindings,
+    noFindingsIsValid: repositoryScan
+      && ingestion?.discovery?.status === 'completed'
+      && Number(ingestion.discovery.advisoryCount || 0) === 0,
   })
   const advisoryRecords = [...new Map(currentFindings
     .map((finding) => finding.advisory || advisory)
@@ -316,7 +319,10 @@ export function buildInvestigationReport(ingestion, { asOf = new Date().toISOStr
     .map((item) => [item.id, item]))
     .values()]
   const summary = {
-    totalRepositories: repositoryScan ? new Set(currentFindings.map((finding) => finding.repository).filter(Boolean)).size : currentFindings.length,
+    totalRepositories: repositoryScan
+      ? new Set(currentFindings.map((finding) => finding.repository).filter(Boolean)).size
+        || (ingestion?.repositories || []).filter((repository) => repository.status === 'completed').length
+      : currentFindings.length,
     reached: reached.length,
     declaredOnly: declaredOnly.length,
     notAffected: unaffected.length,
