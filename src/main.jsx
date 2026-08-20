@@ -1422,7 +1422,10 @@ function CaseNavigator({ finding, activeTab, onTabChange }) {
 }
 
 function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedIndex, setSelectedIndex] = useState(() => {
+    const reachedIndex = report?.repositories?.findIndex((finding) => finding.verdict === 'REACHED') ?? -1
+    return reachedIndex >= 0 ? reachedIndex : 0
+  })
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
   // The observed graph is the clearest first explanation of the case. Cited
