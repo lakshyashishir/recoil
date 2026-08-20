@@ -592,7 +592,6 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
     return <section className="evidence-map proof-map-shell" aria-label="Cited evidence paths">
       <div className="map-heading"><div><span className="section-kicker">Evidence paths</span><h2>One cited path per repository</h2><p className="map-heading-detail">Start with the relationships that decide the case. Select a repository, then open any source link to inspect the record behind that hop.</p></div><div className="map-heading-actions"><span className="map-count">{report?.repositories?.length || 0} paths · {graph.nodes.length} entities</span>{onToggleGraph && <button className="map-view-toggle" type="button" onClick={onToggleGraph}><Waypoints size={13} /> Open graph view</button>}</div></div>
       <ProofMap findings={report?.repositories || []} selectedIndex={Math.max(0, report?.repositories?.findIndex((finding) => finding.repository === selectedFinding?.repository) ?? 0)} onSelectFinding={onSelectFinding} challenges={report?.challenge || []} historical={historical} />
-      <SharedResolution correlations={report?.crossRepositoryCorrelations || []} />
     </section>
   }
   const layout = useMemo(() => graphLayout(graph, selectedFinding), [graph, selectedFinding])
