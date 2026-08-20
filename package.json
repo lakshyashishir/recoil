@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "start": "node scripts/start.js",
+    "serve": "RECOIL_SERVE_STATIC=1 RECOIL_HOST=0.0.0.0 node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
     "build:tui": "node scripts/verify-tui.mjs",
     "preview": "vite preview --host 127.0.0.1",
@@ -20,13 +21,16 @@
     "server": "node --env-file-if-exists=.env server/index.js"
   },
   "dependencies": {
-    "@opentui/core": "^0.5.3",
-    "@opentui/react": "^0.5.3",
-    "@vitejs/plugin-react": "latest",
-    "lucide-react": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "vite": "latest"
+    "@opentui/core": "0.5.3",
+    "@opentui/react": "0.5.3",
+    "@vitejs/plugin-react": "6.0.5",
+    "lucide-react": "1.31.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "vite": "8.2.1"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "engines": {
+    "node": ">=22.12"
+  }
 }

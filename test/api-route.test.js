@@ -86,6 +86,14 @@ test('API accepts a repository-only investigation for dependency discovery', asy
   assert.equal(result.body.id, 'input-target-guard')
 })
 
+test('API rejects oversized public investigation input', async () => {
+  const result = await request('POST', '/api/scenarios/input-size-guard/investigate', {
+    query: `https://github.com/example/repository ${'x'.repeat(10_001)}`,
+  })
+  assert.equal(result.statusCode, 413)
+  assert.match(result.body.error, /too large/i)
+})
+
 test('API creates an isolated case session with a stable case ID', async () => {
   const result = await request('POST', '/api/scenarios', { id: 'session-contract', query: 'GHSA-session-1234-5678 https://github.com/example/repository' })
   assert.equal(result.statusCode, 201)

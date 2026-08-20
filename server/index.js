@@ -1,6 +1,6 @@
 import http from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { hydraStatus } from './hydra.js'
@@ -11,46 +11,124 @@ import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { buildEvidenceBrief } from '../src/core/brief.js'
 import { summarizeGraphContext } from '../src/core/graph-context.js'
 
-const port = Number(process.env.RECOIL_PORT || 8787)
+const port = Number(process.env.RECOIL_PORT || process.env.PORT || 8787)
 const host = process.env.RECOIL_HOST || '127.0.0.1'
+const serveStaticEnabled = process.env.RECOIL_SERVE_STATIC === '1'
+const staticDirectory = resolve(process.env.RECOIL_STATIC_DIR || 'dist')
+const maxConcurrentInvestigations = Math.max(1, Number(process.env.RECOIL_MAX_CONCURRENT_INVESTIGATIONS || 3))
+const maxRequestBytes = Math.max(1024, Number(process.env.RECOIL_MAX_REQUEST_BYTES || 64 * 1024))
+const scanRateLimit = Math.max(1, Number(process.env.RECOIL_SCAN_RATE_LIMIT || 8))
+const scanRateWindowMs = Math.max(60_000, Number(process.env.RECOIL_SCAN_RATE_WINDOW_MS || 15 * 60_000))
+const scanRequests = new Map()
 const workspacePersistenceEnabled = !process.env.NODE_TEST_CONTEXT && process.env.RECOIL_DISABLE_WORKSPACE !== '1'
 const workspaceFile = resolve(process.env.RECOIL_WORKSPACE_FILE || '.recoil-data/workspace.json')
 const scenarios = new Map(loadWorkspaceRecords().map((record) => [record.id, record]))
 
-function json(res, status, payload) {
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'access-control-allow-origin': '*',
+function responseHeaders(contentType = 'application/json; charset=utf-8') {
+  return {
+    'content-type': contentType,
+    'access-control-allow-origin': process.env.RECOIL_ALLOWED_ORIGIN || '*',
     'access-control-allow-headers': 'content-type',
     'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'strict-origin-when-cross-origin',
+    'x-frame-options': 'DENY',
+  }
+}
+
+function json(res, status, payload) {
+  res.writeHead(status, {
+    ...responseHeaders(),
   })
   res.end(JSON.stringify(payload))
 }
 
 function downloadJson(res, status, filename, payload) {
   res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
+    ...responseHeaders(),
     'content-disposition': `attachment; filename="${filename}"`,
-    'access-control-allow-origin': '*',
-    'access-control-allow-headers': 'content-type',
   })
   res.end(JSON.stringify(payload, null, 2))
 }
 
 function downloadText(res, status, filename, contentType, payload) {
   res.writeHead(status, {
-    'content-type': `${contentType}; charset=utf-8`,
+    ...responseHeaders(`${contentType}; charset=utf-8`),
     'content-disposition': `attachment; filename="${filename}"`,
-    'access-control-allow-origin': '*',
-    'access-control-allow-headers': 'content-type',
   })
   res.end(payload)
 }
 
 async function body(req) {
   let raw = ''
-  for await (const chunk of req) raw += chunk
+  for await (const chunk of req) {
+    raw += chunk
+    if (Buffer.byteLength(raw) > maxRequestBytes) {
+      const error = new Error('Request body is too large')
+      error.statusCode = 413
+      throw error
+    }
+  }
   return raw ? JSON.parse(raw) : {}
+}
+
+const staticContentTypes = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.woff2': 'font/woff2',
+}
+
+function serveStatic(req, res, pathname) {
+  if (!serveStaticEnabled || !['GET', 'HEAD'].includes(req.method)) return false
+  const requested = pathname === '/' ? '/index.html' : pathname
+  const candidate = resolve(staticDirectory, `.${decodeURIComponent(requested)}`)
+  const safeCandidate = candidate.startsWith(`${staticDirectory}/`) ? candidate : null
+  const file = safeCandidate && existsSync(safeCandidate) && statSync(safeCandidate).isFile()
+    ? safeCandidate
+    : resolve(staticDirectory, 'index.html')
+  if (!existsSync(file)) return false
+  const extension = file.slice(file.lastIndexOf('.'))
+  const immutableAsset = file.includes(`${staticDirectory}/assets/`)
+  res.writeHead(200, {
+    'content-type': staticContentTypes[extension] || 'application/octet-stream',
+    'cache-control': immutableAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'strict-origin-when-cross-origin',
+    'x-frame-options': 'DENY',
+  })
+  if (req.method === 'HEAD') res.end()
+  else res.end(readFileSync(file))
+  return true
+}
+
+function activeInvestigationCount() {
+  return [...scenarios.values()].filter((record) => ['running', 'finalizing'].includes(record.investigation?.status)).length
+}
+
+function clientAddress(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+  return forwarded || req.socket?.remoteAddress || 'local'
+}
+
+function consumeScanBudget(req) {
+  if (process.env.NODE_TEST_CONTEXT || process.env.RECOIL_DISABLE_RATE_LIMIT === '1') return true
+  const now = Date.now()
+  const key = clientAddress(req)
+  const current = scanRequests.get(key)
+  const entry = !current || now - current.startedAt >= scanRateWindowMs
+    ? { startedAt: now, count: 0 }
+    : current
+  entry.count += 1
+  scanRequests.set(key, entry)
+  return entry.count <= scanRateLimit
 }
 
 /**
@@ -318,6 +396,11 @@ async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
   if (req.method === 'OPTIONS') return json(res, 204, {})
 
+  if (!url.pathname.startsWith('/api/')) {
+    if (serveStatic(req, res, url.pathname)) return undefined
+    return json(res, 404, { error: 'Not found' })
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/health') {
     return json(res, 200, {
       ok: true,
@@ -373,7 +456,7 @@ async function route(req, res) {
       const id = payload.id || randomUUID().slice(0, 8)
       persistWorkspace()
       return json(res, 201, { scenarioId: id, ...snapshot(getOrCreate(id, payload)) })
-    }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
+    }).catch((error) => json(res, error.statusCode || 400, { error: error.statusCode ? error.message : 'Invalid JSON body' }))
   }
 
   const match = url.pathname.match(/^\/api\/scenarios\/([^/]+)(?:\/([^/]+))?$/)
@@ -393,6 +476,9 @@ async function route(req, res) {
       if (typeof payload.query !== 'string' || !payload.query.trim()) {
         return json(res, 422, { error: 'Provide a public GitHub repository URL, or an advisory/package plus a repository URL' })
       }
+      if (payload.query.length > 10_000) {
+        return json(res, 413, { error: 'Investigation input is too large' })
+      }
       const target = parseInvestigationInput(payload.query)
       if (!target.advisoryId && !target.packageName && target.repositories.length === 0) {
         return json(res, 422, { error: 'Provide a public GitHub repository URL, or an advisory/package selector plus one' })
@@ -403,19 +489,25 @@ async function route(req, res) {
       if (['running', 'finalizing'].includes(record.investigation?.status)) {
         return json(res, 409, { error: 'An investigation is already running for this case' })
       }
+      if (activeInvestigationCount() >= maxConcurrentInvestigations) {
+        return json(res, 429, { error: 'The public demo is at capacity. Try again when another scan completes.' })
+      }
+      if (!consumeScanBudget(req)) {
+        return json(res, 429, { error: 'This public demo has reached its scan limit. Try again later.' })
+      }
       record.ingestion = { status: 'not_started', collectors: [] }
       record.hydra = { status: 'not_started', memoryCount: 0 }
       startInvestigation(record, payload.query)
       persistWorkspace()
       return json(res, 202, snapshot(record))
-    }).catch(() => json(res, 400, { error: 'Invalid JSON body' }))
+    }).catch((error) => json(res, error.statusCode || 400, { error: error.statusCode ? error.message : 'Invalid JSON body' }))
   }
 
   if (req.method === 'POST' && action === 'rewind') {
     return body(req).then((payload) => {
       const asOf = typeof payload.asOf === 'string' ? payload.asOf : new Date().toISOString()
       return rewindInvestigation(record, asOf).then((result) => json(res, result.error ? 409 : 200, { scenarioId: record.id, report: result.report, hydra: publicHydraRecall(result.hydra), error: result.error }))
-    }).catch((error) => json(res, 400, { error: error.message }))
+    }).catch((error) => json(res, error.statusCode || 400, { error: error.message }))
   }
 
   if (req.method === 'GET' && action === 'report') {

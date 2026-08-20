@@ -1,0 +1,13 @@
+.git
+.github
+.env
+.env.*
+.recoil-cache
+.recoil-data
+.recoil-recordings
+dist
+docs
+node_modules
+test
+*.log
+.DS_Store

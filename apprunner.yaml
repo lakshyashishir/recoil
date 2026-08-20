@@ -1,0 +1,22 @@
+version: 1.0
+runtime: nodejs22
+build:
+  commands:
+    pre-build:
+      - npm ci
+    build:
+      - npm run build
+run:
+  runtime-version: 22.14.0
+  command: npm run serve
+  network:
+    port: 8787
+  env:
+    - name: NODE_ENV
+      value: production
+    - name: RECOIL_MAX_CONCURRENT_INVESTIGATIONS
+      value: "3"
+    - name: RECOIL_SCAN_RATE_LIMIT
+      value: "8"
+    - name: RECOIL_SCAN_RATE_WINDOW_MS
+      value: "900000"

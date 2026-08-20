@@ -147,6 +147,8 @@ npm run start
 
 The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` and point `RECOIL_API_URL` at the reachable API address when serving the app from a container or hosted environment. `GET /api/health` exposes the product capability and recording contract: the required three verdicts, HydraDB persistence and temporal-recall requirements, and whether partial HydraDB writes have been explicitly enabled.
 
+For a hosted demo, Recoil can serve the built frontend and API from one long-running process. The repository includes a multi-stage `Dockerfile`, an App Runner source configuration, CloudFront infrastructure, public-demo request limits, immutable asset caching, and SPA fallback. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 Repository source sampling reads the GitHub tree once, then prefers `raw.githubusercontent.com` for the
 bounded source files so a three-repository recording does not spend one API request per source file. Raw
 source responses are cached under the same bounded TTL as GitHub JSON, making a second run replayable

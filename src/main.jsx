@@ -136,7 +136,7 @@ function Verdict({ value, compact = false }) {
   return <span className={`verdict verdict-${String(value || 'UNKNOWN').toLowerCase()} ${compact ? 'verdict-compact' : ''}`}>{icon}{label}</span>
 }
 
-function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme }) {
+function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme, workspace, onOpenCase }) {
   const textareaRef = useRef(null)
   const advisory = value.match(/(?:GHSA|CVE)-[A-Z0-9-]+/i)?.[0]
   const packageSelector = value.match(/\b(?:npm|cargo):[^\s]+/i)?.[0]
@@ -144,6 +144,7 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
   const target = advisory || packageSelector
   const repositoryScan = Boolean(!target && repositories.length)
   const ready = Boolean(repositories.length && (target || repositoryScan))
+  const verifiedCase = (workspace?.cases || []).find((item) => item.evidenceReady && item.summary?.reached > 0)
   const chooseExample = (example) => {
     setValue(example.value)
     window.requestAnimationFrame(() => textareaRef.current?.focus())
@@ -171,6 +172,7 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
           <span>Examples</span>
           {INVESTIGATION_EXAMPLES.map((example) => <button className="example-chip" key={example.label} type="button" onClick={() => chooseExample(example)}>{example.label}</button>)}
         </div>
+        {verifiedCase && <button className="verified-case-link" type="button" onClick={() => onOpenCase(verifiedCase.id)}><ShieldCheck size={14} /><span>Open a verified case</span><small>{verifiedCase.summary.reached} reached, {verifiedCase.summary.declaredOnly || 0} present, {verifiedCase.summary.notAffected || 0} safe</small><ArrowUpRight size={13} /></button>}
         {error && <div className="error-banner" role="alert"><CircleAlert size={15} /> {error}</div>}
       </div>
     </section>
@@ -1410,6 +1412,35 @@ function challengeForFinding(challenges = [], finding) {
     && (!finding?.packageName || !item.packageName || item.packageName === finding.packageName)) || null
 }
 
+function githubIssueDraftUrl({ finding, challenge, scenarioId }) {
+  if (!finding?.repository || finding.verdict !== 'REACHED') return null
+  const repository = repositoryKey(finding.repository)
+  if (!repository.includes('/')) return null
+  const importer = finding.imports?.[0]
+  const title = `[Security] ${finding.advisoryId || finding.packageName || 'Reachable dependency'} reaches source`
+  const route = (finding.path || []).map((part) => routeDisplayPart(part, finding)).join(' -> ')
+  const lines = [
+    '## Recoil finding',
+    '',
+    `- Verdict: ${finding.verdict}`,
+    `- Dependency: ${finding.packageName || 'unknown'}@${finding.resolvedVersion || 'unknown'}`,
+    `- Source: ${importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'not located'}`,
+    `- Observed route: ${route || 'not available'}`,
+    `- First observed: ${finding.pathObservedAt?.slice(0, 10) || 'not dated'}`,
+    `- Proposed version: ${challenge?.proposedVersion || 'not verified'}`,
+    '',
+    finding.reason || 'Recoil found a source-backed path to the affected dependency.',
+    '',
+    `Case: ${typeof window === 'undefined' ? scenarioId : `${window.location.origin}${window.location.pathname}?case=${scenarioId}`}`,
+    '',
+    '_Generated from public static evidence. No package code was executed._',
+  ]
+  const url = new URL(`https://github.com/${repository}/issues/new`)
+  url.searchParams.set('title', title)
+  url.searchParams.set('body', lines.join('\n'))
+  return url.toString()
+}
+
 function ReachabilityLedger({ findings = [], summary = {}, mode = 'advisory' }) {
   const repositoryScan = mode === 'repository'
   const total = repositoryScan ? (summary.totalFindings || findings.length) : (summary.totalRepositories || findings.length)
@@ -2079,9 +2110,10 @@ function ConsoleSidebar({ activeView, onNavigate, onNewCase, workspace, theme, o
   </aside>
 }
 
-function ConsoleTopbar({ report, scenarioId, onNewCase }) {
+function ConsoleTopbar({ report, scenarioId, onNewCase, investigationStatus, hydra }) {
   const label = report?.mode === 'repository' ? queryRepositories(report?.query || '')[0] || 'Repository scan' : report?.advisory?.id || scenarioId
-  return <header className="console-topbar"><div><span>Current case</span><strong>{label}</strong></div><div className="console-topbar-actions"><span className="console-complete"><Check size={12} /> Complete</span><button type="button" onClick={onNewCase}><Plus size={13} /> New scan</button></div></header>
+  const indexing = investigationStatus === 'finalizing' || hydra?.indexingPending
+  return <header className="console-topbar"><div><span>Current case</span><strong>{label}</strong></div><div className="console-topbar-actions"><span className={`console-complete ${indexing ? 'is-indexing' : ''}`}>{indexing ? <LoaderCircle className="spin" size={12} /> : <Check size={12} />}{indexing ? 'Evidence ready, saving history' : 'Complete'}</span><button type="button" onClick={onNewCase}><Plus size={13} /> New scan</button></div></header>
 }
 
 function ConsolePageHeading({ eyebrow, title, detail, action = null }) {
@@ -2120,7 +2152,9 @@ function SelectedFindingPanel({ finding, challenge, report, scenarioId }) {
   const importer = finding.imports?.[0]
   const owners = [...new Set((finding.imports || []).flatMap((item) => item.owners || []))]
   const command = packageFixCommand(finding, challenge)
-  return <aside className="selected-finding-panel"><div className="selected-finding-title"><span>Selected finding</span><Verdict value={finding.verdict} compact /><h2>{repositoryName(finding.repository)}</h2><p>{finding.reason}</p></div><dl><div><dt>Observed route</dt><dd>{finding.path?.length ? finding.path.map((part) => shorten(routeDisplayPart(part, finding), 28)).join(' → ') : 'No source-backed route'}</dd></div><div><dt>Source</dt><dd>{importer ? <SourceLink href={importer.sourceUrl}>{importer.path}{importer.line ? `:${importer.line}` : ''}</SourceLink> : 'No sampled import'}</dd></div><div><dt>Owner</dt><dd>{owners.length ? owners.join(', ') : 'No CODEOWNERS match'}</dd></div><div><dt>First observed</dt><dd>{compactDate(finding.pathObservedAt)}</dd></div><div><dt>Fix check</dt><dd>{challenge?.proposedVersion ? `${finding.resolvedVersion || 'current'} → ${challenge.proposedVersion}` : challenge?.detail || 'No version change proved'}</dd></div></dl>{command && <CopyFixCommand command={command} compact />}<div className="selected-finding-exports"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></aside>
+  const observation = finding.pathObservation
+  const issueUrl = githubIssueDraftUrl({ finding, challenge, scenarioId })
+  return <aside className="selected-finding-panel"><div className="selected-finding-title"><span>Selected finding</span><Verdict value={finding.verdict} compact /><h2>{repositoryName(finding.repository)}</h2><p>{finding.reason}</p></div><dl><div><dt>Observed route</dt><dd>{finding.path?.length ? finding.path.map((part) => shorten(routeDisplayPart(part, finding), 28)).join(' → ') : 'No source-backed route'}</dd></div><div><dt>Source</dt><dd>{importer ? <SourceLink href={importer.sourceUrl}>{importer.path}{importer.line ? `:${importer.line}` : ''}</SourceLink> : 'No sampled import'}</dd></div><div><dt>Owner</dt><dd>{owners.length ? owners.join(', ') : 'No CODEOWNERS match'}</dd></div><div><dt>First observed</dt><dd>{compactDate(finding.pathObservedAt)}</dd></div>{observation?.commit && <div><dt>Introducing commit</dt><dd><SourceLink href={observation.sourceUrl}>{shorten(observation.commit, 10)} {observation.message ? `- ${shorten(observation.message, 34)}` : ''}</SourceLink></dd></div>}<div><dt>Fix check</dt><dd>{challenge?.proposedVersion ? `${finding.resolvedVersion || 'current'} → ${challenge.proposedVersion}` : challenge?.detail || 'No version change proved'}</dd></div></dl>{command && <CopyFixCommand command={command} compact />}{issueUrl && <a className="github-issue-link" href={issueUrl} target="_blank" rel="noreferrer"><GitBranch size={14} /> Open issue draft <ArrowUpRight size={13} /></a>}<div className="selected-finding-exports"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></aside>
 }
 
 function IncidentView({ report, workspace, scenarioId, onOpenCase }) {
@@ -2131,11 +2165,12 @@ function IncidentView({ report, workspace, scenarioId, onOpenCase }) {
   const challenge = challengeForFinding(challenges, finding)
   const summary = report?.summary || summarizeFindings(findings)
   const total = summary.totalFindings || summary.totalRepositories || findings.length
+  const affectedMatches = Number(summary.reached || 0) + Number(summary.declaredOnly || 0)
   const title = report?.mode === 'repository'
     ? summary.totalAdvisories ? `${summary.reached || 0} of ${total} advisory checks reach source.` : `No affected advisory found across ${summary.packagesChecked || 0} packages.`
     : summary.reached ? `${summary.reached} of ${total} repositories reach vulnerable code.` : 'No sampled source path reaches vulnerable code.'
   const recentCases = (workspace?.cases || []).filter((item) => item.id !== scenarioId).slice(0, 5)
-  return <div className="console-view"><ConsolePageHeading eyebrow={report?.mode === 'repository' ? 'Repository scan' : report?.advisory?.id || 'Incident'} title={title} detail={report?.mode === 'repository' ? 'Recoil discovers advisories from the recorded dependency inventory, then tests source reachability.' : 'Presence and reachability are kept separate. Open any finding to inspect its evidence and fix.'} action={<CopyCaseHandoff report={report} findings={findings} summary={summary} />} /><div className="console-metrics"><ConsoleMetric value={summary.reached || 0} label="reach source" tone={summary.reached ? 'danger' : 'safe'} /><ConsoleMetric value={summary.declaredOnly || 0} label="present only" /><ConsoleMetric value={summary.notAffected || 0} label="not affected" tone="safe" /><ConsoleMetric value={summary.unknown || 0} label="need evidence" tone={summary.unknown ? 'warning' : ''} /><ConsoleMetric value={report?.smallestFixSet?.length || challenges.filter((item) => item.status === 'FIX_SURVIVES').length} label="verified fixes" /></div>{findings.length ? <><RemediationBoard findings={findings} challenges={challenges} onSelect={setSelectedIndex} /><div className="console-incident-grid"><FindingTable findings={findings} challenges={challenges} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /><SelectedFindingPanel finding={finding} challenge={challenge} report={report} scenarioId={scenarioId} /></div></> : <NoFindingsState report={report} />}{recentCases.length > 0 && <section className="recent-cases"><div className="console-section-heading"><div><h2>Recent cases</h2><p>Retained locally and enriched with HydraDB history when available.</p></div><span>{workspace?.cases?.length || 0} total</span></div>{recentCases.map((item) => <button key={item.id} type="button" onClick={() => onOpenCase(item.id)}><span><strong>{item.advisoryId || item.repositories?.[0]?.repository || 'Repository scan'}</strong><small>{compactDate(item.completedAt)}</small></span><span>{item.summary?.reached || 0} reached · {item.graph?.nodes || 0} entities</span><ArrowUpRight size={13} /></button>)}</section>}</div>
+  return <div className="console-view"><ConsolePageHeading eyebrow={report?.mode === 'repository' ? 'Repository scan' : report?.advisory?.id || 'Incident'} title={title} detail={report?.mode === 'repository' ? 'Recoil discovers advisories from the recorded dependency inventory, then tests source reachability.' : 'Presence and reachability are kept separate. Open any finding to inspect its evidence and fix.'} action={<CopyCaseHandoff report={report} findings={findings} summary={summary} />} />{affectedMatches > (summary.reached || 0) && <div className="proof-reduction"><strong>{affectedMatches} affected package matches</strong><ArrowUpRight size={14} /><strong>{summary.reached || 0} source-backed route{summary.reached === 1 ? '' : 's'}</strong><span>Recoil removes findings that stop at the lockfile.</span></div>}<div className="console-metrics"><ConsoleMetric value={summary.reached || 0} label="reach source" tone={summary.reached ? 'danger' : 'safe'} /><ConsoleMetric value={summary.declaredOnly || 0} label="present only" /><ConsoleMetric value={summary.notAffected || 0} label="not affected" tone="safe" /><ConsoleMetric value={summary.unknown || 0} label="need evidence" tone={summary.unknown ? 'warning' : ''} /><ConsoleMetric value={report?.smallestFixSet?.length || challenges.filter((item) => item.status === 'FIX_SURVIVES').length} label="verified fixes" /></div>{findings.length ? <><RemediationBoard findings={findings} challenges={challenges} onSelect={setSelectedIndex} /><div className="console-incident-grid"><FindingTable findings={findings} challenges={challenges} selectedIndex={selectedIndex} onSelect={setSelectedIndex} /><SelectedFindingPanel finding={finding} challenge={challenge} report={report} scenarioId={scenarioId} /></div></> : <NoFindingsState report={report} />}{recentCases.length > 0 && <section className="recent-cases"><div className="console-section-heading"><div><h2>Recent cases</h2><p>Retained locally and enriched with HydraDB history when available.</p></div><span>{workspace?.cases?.length || 0} total</span></div>{recentCases.map((item) => <button key={item.id} type="button" onClick={() => onOpenCase(item.id)}><span><strong>{item.advisoryId || item.repositories?.[0]?.repository || 'Repository scan'}</strong><small>{compactDate(item.completedAt)}</small></span><span>{item.summary?.reached || 0} reached · {item.graph?.nodes || 0} entities</span><ArrowUpRight size={13} /></button>)}</section>}</div>
 }
 
 function RepositoriesView({ workspace, onOpenCase, onNewCase }) {
@@ -2205,7 +2240,7 @@ function ConnectView({ report, scenarioId }) {
   ].map(([title, command, detail]) => <article key={title}><Terminal size={16} /><span>{title}</span><p>{detail}</p><code>{command}</code><button type="button" onClick={() => copyText(command)}><Copy size={13} /> Copy command</button></article>)}</div><section className="connect-artifacts"><div><FileText size={17} /><span><strong>Evidence brief</strong><small>Portable Markdown for a ticket or review.</small></span><BriefLink scenarioId={scenarioId} /></div><div><ShieldCheck size={17} /><span><strong>Integrity receipt</strong><small>SHA-256 addressed JSON with cited evidence.</small></span><ReceiptLink scenarioId={scenarioId} /></div></section></div>
 }
 
-function SecurityConsole({ report, hydra, scenarioId, workspace, activeView, onNavigate, onNewCase, onOpenCase, onRewind, theme, onToggleTheme }) {
+function SecurityConsole({ report, hydra, scenarioId, workspace, activeView, onNavigate, onNewCase, onOpenCase, onRewind, theme, onToggleTheme, investigationStatus }) {
   let content
   if (activeView === 'repositories') content = <RepositoriesView workspace={workspace} onOpenCase={onOpenCase} onNewCase={onNewCase} />
   else if (activeView === 'graph') content = <GraphView report={report} />
@@ -2213,7 +2248,7 @@ function SecurityConsole({ report, hydra, scenarioId, workspace, activeView, onN
   else if (activeView === 'ask') content = <AskView report={report} />
   else if (activeView === 'connect') content = <ConnectView report={report} scenarioId={scenarioId} />
   else content = <IncidentView report={report} workspace={workspace} scenarioId={scenarioId} onOpenCase={onOpenCase} />
-  return <div className="console-shell"><ConsoleSidebar activeView={activeView} onNavigate={onNavigate} onNewCase={onNewCase} workspace={workspace} theme={theme} onToggleTheme={onToggleTheme} /><div className="console-content"><ConsoleTopbar report={report} scenarioId={scenarioId} onNewCase={onNewCase} /><main className="console-main">{content}</main></div></div>
+  return <div className="console-shell"><ConsoleSidebar activeView={activeView} onNavigate={onNavigate} onNewCase={onNewCase} workspace={workspace} theme={theme} onToggleTheme={onToggleTheme} /><div className="console-content"><ConsoleTopbar report={report} scenarioId={scenarioId} onNewCase={onNewCase} investigationStatus={investigationStatus} hydra={hydra} /><main className="console-main">{content}</main></div></div>
 }
 
 function App() {
@@ -2260,6 +2295,13 @@ function App() {
   }, [landing, scenarioId, snapshot?.investigation?.status, snapshot?.investigation?.completedAt])
 
   useEffect(() => {
+    if (investigation?.status === 'finalizing' && investigation.report) {
+      setReport(investigation.report)
+      setShowReportEarly(true)
+    }
+  }, [investigation?.status, investigation?.report])
+
+  useEffect(() => {
     const activeStatus = snapshot?.investigation?.status
     const hydraPending = snapshot?.investigation?.hydra?.indexingPending === true
     const shouldPoll = busy || ['running', 'finalizing'].includes(activeStatus) || activeStatus === 'complete' && hydraPending
@@ -2270,6 +2312,10 @@ function App() {
         const next = await api(`/api/scenarios/${scenarioId}`)
         if (cancelled) return
         setSnapshot(next)
+        if (next.investigation?.status === 'finalizing' && next.investigation.report) {
+          setReport(next.investigation.report)
+          setShowReportEarly(true)
+        }
         if (next.investigation?.status === 'complete' || next.investigation?.status === 'failed') {
           setBusy(false)
           if (next.investigation.status === 'complete') setReport(next.investigation.report)
@@ -2346,9 +2392,9 @@ function App() {
     } catch (cause) { setError(cause.message) }
   }
 
-  if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} theme={theme} onToggleTheme={toggleTheme} />
+  if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} theme={theme} onToggleTheme={toggleTheme} workspace={workspace} onOpenCase={openCase} />
   const showReport = Boolean(activeReport && (isComplete || showReportEarly))
-  if (showReport) return <SecurityConsole key={scenarioId} report={activeReport} hydra={hydra || investigation?.hydra} scenarioId={scenarioId} workspace={workspace} activeView={activeView} onNavigate={setActiveView} onNewCase={newInvestigation} onOpenCase={openCase} onRewind={rewind} theme={theme} onToggleTheme={toggleTheme} />
+  if (showReport) return <SecurityConsole key={scenarioId} report={activeReport} hydra={hydra || investigation?.hydra} scenarioId={scenarioId} workspace={workspace} activeView={activeView} onNavigate={setActiveView} onNewCase={newInvestigation} onOpenCase={openCase} onRewind={rewind} theme={theme} onToggleTheme={toggleTheme} investigationStatus={investigation?.status} />
   return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{investigation?.status === 'failed' ? <FailedView snapshot={snapshot} onNewCase={newInvestigation} /> : <RunningView snapshot={snapshot} onOpenReport={() => setShowReportEarly(true)} />}{error && investigation?.status !== 'failed' && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 
