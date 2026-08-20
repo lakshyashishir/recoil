@@ -211,7 +211,9 @@ export async function executeInvestigation(record) {
       type: 'step',
       key: 'proving-paths',
       status: 'complete',
-      title: report.evidenceQuality.readyForRecording ? 'Paths proved' : 'Evidence classified with gaps',
+      title: report.summary.totalAdvisories === 0 && report.mode === 'repository'
+        ? 'No affected paths found'
+        : report.evidenceQuality.readyForRecording ? 'Paths proved' : 'Evidence classified with gaps',
       detail: `${report.summary.reached} reached · ${report.summary.declaredOnly} declared only · ${report.summary.notAffected} not affected${report.summary.unknown ? ` · ${report.summary.unknown} unknown` : ''}`,
     })
     pushEvent(state, {

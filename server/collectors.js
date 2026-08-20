@@ -1107,7 +1107,8 @@ export function resolvePackageSelection({ requestedPackage = null, advisoryPacka
 
 export async function runMultiRepositoryIngestion({ query = '', scenarioId = '0017', onProgress = () => {} } = {}) {
   const input = parseInvestigationInput(query)
-  onProgress({ type: 'step', key: 'public-records', status: 'working', title: 'Reading public records', detail: 'Resolving the advisory and package identity from OSV and the public registry.' })
+  const repositoryScanInput = !input.advisoryId && !input.packageName
+  onProgress({ type: 'step', key: 'public-records', status: 'working', title: 'Reading public records', detail: repositoryScanInput ? 'Reading repository manifests and lockfiles; advisory matches will be discovered from the recorded inventory.' : 'Resolving the advisory and package identity from OSV and the public registry.' })
   let advisory = await collectAdvisoryById(input.advisoryId)
   const advisoryPackage = advisoryPackageName(advisory)
   const requestedPackage = input.packageName || advisoryPackage
@@ -1216,7 +1217,7 @@ export async function runMultiRepositoryIngestion({ query = '', scenarioId = '00
   const registry = !repositoryOnly && packageName
     ? await collectRegistry(packageName, ecosystem, advisory).catch((error) => ({ collector: 'registry-resolver', status: 'failed', package: packageName, ecosystem, error: error.message, fixedVersions: [], affectedVersions: [], maintainers: [] }))
     : { collector: 'registry-resolver', status: 'not_requested', package: null, ecosystem, fixedVersions: [], affectedVersions: [], maintainers: [] }
-  onProgress({ type: 'step', key: 'registry', status: registry.status === 'failed' ? 'failed' : 'complete', title: 'Registry record ready', detail: packageName ? `${packageName} · ${registry.fixedVersions?.length || 0} fixed version${registry.fixedVersions?.length === 1 ? '' : 's'} found` : packageResolution.reason, sourceUrls: [registry.sourceUrl].filter(Boolean) })
+  onProgress({ type: 'step', key: 'registry', status: registry.status === 'failed' ? 'failed' : 'complete', title: repositoryOnly ? 'Dependency inventory ready' : 'Registry record ready', detail: packageName ? `${packageName} · ${registry.fixedVersions?.length || 0} fixed version${registry.fixedVersions?.length === 1 ? '' : 's'} found` : packageResolution.reason, sourceUrls: [registry.sourceUrl].filter(Boolean) })
   const advisoryRecord = repositoryOnly
     ? { collector: 'advisory-resolver', status: discovery.status, sourceUrl: discovery.sourceUrl, entities: discovery.advisoryCount, targetAdvisory: advisory, vulnerabilities: discovery.advisories.map((candidate) => candidate.advisory), error: discovery.error || null }
     : advisoryCollector(advisory, input.advisoryId)
