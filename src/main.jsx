@@ -549,6 +549,14 @@ function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, challenge
       const selected = index === selectedIndex
       const sourceImpact = finding.sourceImpact
       const challenge = challenges.find((item) => item.repository === finding.repository)
+      const sourceCoverage = sourceCoverageLabel(finding)
+      const sourceBoundary = finding.verdict === 'DECLARED_ONLY'
+        ? 'no import found in sampled files'
+        : finding.verdict === 'REACHED'
+          ? 'an import was observed in sampled source'
+          : finding.verdict === 'NOT_AFFECTED'
+            ? 'version range checked; source use is not needed for this verdict'
+            : 'the source sample is incomplete'
       return <article className={`proof-map-lane ${selected ? 'proof-map-lane-selected' : ''}`} key={finding.repository || index}>
         <button className="proof-map-repository" type="button" onClick={() => onSelectFinding?.(index)} aria-pressed={selected}>
           <span className="proof-map-index">0{index + 1}</span>
@@ -570,6 +578,7 @@ function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, challenge
           })}
         </div> : <div className="proof-map-no-path"><span>No observed path</span><small>{finding.reason || 'The available evidence does not support a stronger conclusion.'}</small></div>}
         {sourceImpact?.files?.length > 0 && <div className="proof-map-source-context"><span>Source context</span><strong>{sourceImpact.sampledFileCount} sampled file{sourceImpact.sampledFileCount === 1 ? '' : 's'} · {sourceImpact.observedEdgeCount} local import edge{sourceImpact.observedEdgeCount === 1 ? '' : 's'}</strong><small>{sourceImpact.files.slice(0, 4).map((file) => file.path).join(' → ')}{sourceImpact.files.length > 4 ? ' → …' : ''}</small></div>}
+        {sourceCoverage && <div className="proof-map-boundary"><span>Source boundary</span><strong>{sourceCoverage}</strong><small>{sourceBoundary}</small></div>}
         <p className="proof-map-lane-note">{historical ? 'Dated reconstruction; current remediation is shown in the present case.' : finding.reason || 'Every displayed hop is taken from the collected public evidence.'}</p>
       </article>
     })}
