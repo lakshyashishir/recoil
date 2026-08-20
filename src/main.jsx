@@ -1797,6 +1797,13 @@ function CaseOutcomeStrip({ report, findings = [], summary = {}, hydra, historic
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY').length
   const notAffected = findings.filter((finding) => finding.verdict === 'NOT_AFFECTED').length
   const unknown = findings.filter((finding) => ['UNKNOWN', 'NOT_YET_OBSERVED'].includes(finding.verdict)).length
+  const outcomeTotal = findings.length
+  const outcomeSegments = [
+    { key: 'reached', label: 'reached', count: reached },
+    { key: 'declared', label: 'listed only', count: declaredOnly },
+    { key: 'safe', label: 'outside range', count: notAffected },
+    { key: 'unknown', label: 'needs review', count: unknown },
+  ]
   const primaryFinding = findings.find((finding) => finding.verdict === 'REACHED') || findings[0]
   const challenge = historical ? null : report?.challenge?.find((item) => item.repository === primaryFinding?.repository)
   const importer = primaryFinding?.imports?.[0]
@@ -1865,7 +1872,7 @@ function CaseOutcomeStrip({ report, findings = [], summary = {}, hydra, historic
 
   return <section className="case-outcome-strip" aria-label="Case outcome summary">
     <div className="case-outcome-action"><span className="case-outcome-label">Recommended next step</span><strong>{actionTitle}</strong><small>{actionDetail}</small>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={12} /></button>}</div>
-    <div className="case-outcome-fact"><span className="case-outcome-label">Reachability</span><strong>{reachability}</strong><small>{reachabilityDetail}</small></div>
+    <div className="case-outcome-fact case-outcome-reachability"><span className="case-outcome-label">Reachability</span><strong>{reachability}</strong>{outcomeTotal > 0 && <div className="case-outcome-distribution" role="img" aria-label={outcomeSegments.filter((segment) => segment.count > 0).map((segment) => `${segment.count} ${segment.label}`).join(', ')}>{outcomeSegments.filter((segment) => segment.count > 0).map((segment) => <span key={segment.key} className={`case-outcome-segment case-outcome-segment-${segment.key}`} style={{ width: `${(segment.count / outcomeTotal) * 100}%` }} />)}</div>}<div className="case-outcome-legend" aria-hidden="true">{outcomeSegments.filter((segment) => segment.count > 0).map((segment) => <span key={segment.key}><i className={`case-outcome-dot case-outcome-dot-${segment.key}`} />{segment.count} {segment.label}</span>)}</div><small>{reachabilityDetail}</small></div>
     <div className="case-outcome-fact"><span className="case-outcome-label">Timing</span><strong>{timing}</strong><small>{timingDetail}</small>{onOpenHistory && <button type="button" onClick={onOpenHistory}>{historical ? 'Return to current' : 'Open timeline'}<ArrowUpRight size={12} /></button>}</div>
     <div className="case-outcome-fact"><span className="case-outcome-label">Durable history</span><strong>{memoryValue}</strong><small>{memoryDetail}</small></div>
   </section>
