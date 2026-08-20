@@ -1551,3 +1551,38 @@ body { font-family: var(--sans); line-height: 1.45; }
   .hydra-comparison-line { align-items: flex-start; flex-direction: column; gap: 9px; }
   .hydra-comparison-meta { width: 100%; justify-content: space-between; }
 }
+
+/* The first report read is a proof sequence, not a metrics row. Keep each
+   claim tied to the evidence view that can substantiate it. */
+.case-facts-line {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0;
+  margin: 14px 0 18px;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.case-fact {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 20px 15px 0;
+}
+.case-fact + .case-fact { padding-left: 20px; border-left: 1px solid var(--line-soft); }
+.case-fact-label { color: var(--muted); font: 10px/1 var(--mono); }
+.case-fact strong { overflow: hidden; color: var(--text); font: 600 14px/1.25 var(--sans); text-overflow: ellipsis; white-space: nowrap; }
+.case-fact strong.is-positive { color: var(--green); }
+.case-fact small { max-width: 420px; overflow: hidden; color: var(--faint); font-size: 10px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.case-fact button { display: inline-flex; align-items: center; gap: 4px; width: max-content; margin-top: 2px; padding: 0; color: var(--accent); background: transparent; font-size: 10px; }
+.case-fact button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.case-fact button:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 3px; }
+
+@media (max-width: 720px) {
+  .case-facts-line { grid-template-columns: 1fr; margin-top: 12px; }
+  .case-fact, .case-fact + .case-fact { padding: 13px 0; border-left: 0; }
+  .case-fact + .case-fact { border-top: 1px solid var(--line-soft); }
+  .case-fact strong, .case-fact small { white-space: normal; }
+}
