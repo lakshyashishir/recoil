@@ -1299,6 +1299,16 @@ function CaseContrast({ findings = [], selectedIndex = 0, onSelect, historical =
   </section>
 }
 
+function CaseSourcePreview({ finding, historical = false }) {
+  const importer = finding?.imports?.[0]
+  if (!importer?.snippet) return null
+  return <section className="case-source-preview" aria-label="Observed source import">
+    <div className="case-source-preview-heading"><span className="section-kicker">{historical ? 'Historical source evidence' : 'Source-backed import'}</span><strong>{repositoryName(finding.repository)} · {importer.path}{importer.line ? `:${importer.line}` : ''}</strong></div>
+    <code>{importer.snippet}</code>
+    {importer.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}
+  </section>
+}
+
 function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
@@ -1689,6 +1699,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseFactsLine summary={summary} packageName={report?.package} challenge={primaryChallenge} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
     <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} />
+    <CaseSourcePreview finding={selectedFinding} historical={historical} />
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
