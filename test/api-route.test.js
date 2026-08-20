@@ -102,6 +102,17 @@ test('API creates an isolated case session with a stable case ID', async () => {
   assert.equal(result.body.state.status, 'idle')
 })
 
+test('API keeps a repository watch independently of a scan', async () => {
+  const created = await request('POST', '/api/watches', { repository: 'https://github.com/example/persistent-watch', scan: false })
+  assert.equal(created.statusCode, 201)
+  assert.equal(created.body.watch.repository, 'example/persistent-watch')
+  assert.equal(created.body.watch.scanCount, 0)
+  const workspace = await request('GET', '/api/workspace')
+  const retained = workspace.body.repositories.find((item) => item.repository === 'example/persistent-watch')
+  assert.equal(retained.status, 'idle')
+  assert.equal(retained.lastScannedAt, null)
+})
+
 test('API route chain starts, completes, rewinds, and exports a receipt', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.OPENAI_API_KEY

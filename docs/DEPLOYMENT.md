@@ -25,7 +25,16 @@ The included `apprunner.yaml` installs the locked dependencies, builds the front
 4. Set a health check to HTTP `/api/health`.
 5. Open the App Runner URL and run one repository scan before adding CloudFront.
 
-The application cache and workspace paths are local to the instance. HydraDB remains the durable temporal record. A restarted or scaled instance may start with an empty local recent-case list, but new investigations remain valid.
+The hackathon deployment should run as one instance because it intentionally exposes one tenant. Set
+`RECOIL_WORKSPACE_FILE` to a mounted persistent path when the hosting platform supports volumes. HydraDB is
+the durable temporal evidence record, while the local workspace file owns watch scheduling and recent UI
+state. Without a mounted path, replacing the instance starts a fresh watchlist even though existing HydraDB
+evidence remains valid. Do not scale this single-workspace build horizontally: each instance would otherwise
+run its own monitor.
+
+Set `RECOIL_WATCH_INTERVAL_MS` only after the demo repository list is final; every interval performs real
+public collection and can consume GitHub, OSV, OpenAI, and HydraDB quota. `RECOIL_NOTIFICATION_WEBHOOK_URL`
+is optional and receives `recoil.notification/v1` JSON for a new reachable exposure or verdict change.
 
 ## CloudFront
 

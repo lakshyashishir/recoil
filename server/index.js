@@ -10,6 +10,7 @@ import { parseInvestigationInput } from './collectors.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { buildEvidenceBrief } from '../src/core/brief.js'
 import { summarizeGraphContext } from '../src/core/graph-context.js'
+import { answerWorkspaceQuestion, buildFleetGraph, buildIncidentGraph, buildIncidents, normalizedRepository } from './workspace.js'
 
 const port = Number(process.env.RECOIL_PORT || process.env.PORT || 8787)
 const host = process.env.RECOIL_HOST || '127.0.0.1'
@@ -22,14 +23,24 @@ const scanRateWindowMs = Math.max(60_000, Number(process.env.RECOIL_SCAN_RATE_WI
 const scanRequests = new Map()
 const workspacePersistenceEnabled = !process.env.NODE_TEST_CONTEXT && process.env.RECOIL_DISABLE_WORKSPACE !== '1'
 const workspaceFile = resolve(process.env.RECOIL_WORKSPACE_FILE || '.recoil-data/workspace.json')
-const scenarios = new Map(loadWorkspaceRecords().map((record) => [record.id, record]))
+const persistedWorkspace = loadWorkspace()
+const scenarios = new Map(persistedWorkspace.records.map((record) => [record.id, record]))
+const watches = new Map(persistedWorkspace.watches.map((watch) => [watch.id, watch]))
+const workspaceState = {
+  createdAt: persistedWorkspace.createdAt || new Date().toISOString(),
+  lastMonitorAt: persistedWorkspace.lastMonitorAt || null,
+  notifications: persistedWorkspace.notifications || [],
+  processedCaseIds: new Set(persistedWorkspace.processedCaseIds?.length
+    ? persistedWorkspace.processedCaseIds
+    : persistedWorkspace.records.filter((record) => record.investigation?.status === 'complete').map((record) => record.id)),
+}
 
 function responseHeaders(contentType = 'application/json; charset=utf-8') {
   return {
     'content-type': contentType,
     'access-control-allow-origin': process.env.RECOIL_ALLOWED_ORIGIN || '*',
     'access-control-allow-headers': 'content-type',
-    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'strict-origin-when-cross-origin',
@@ -189,6 +200,7 @@ function publicInvestigation(investigation) {
 function serializableRecord(record) {
   return {
     id: record.id,
+    watchId: record.watchId || null,
     query: record.query || '',
     mode: record.mode || 'evidence',
     createdAt: record.createdAt || record.investigation?.startedAt || new Date().toISOString(),
@@ -200,27 +212,162 @@ function serializableRecord(record) {
   }
 }
 
-function loadWorkspaceRecords() {
-  if (!workspacePersistenceEnabled) return []
-  if (!existsSync(workspaceFile)) return []
+function watchId(repository) {
+  return `repo-${normalizedRepository(repository).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+}
+
+function watchForRepository(repository) {
+  const normalized = normalizedRepository(repository)
+  return [...watches.values()].find((watch) => normalizedRepository(watch.repository) === normalized) || null
+}
+
+function createWatch(repository, repositoryUrl, extra = {}) {
+  const normalized = normalizedRepository(repositoryUrl || repository)
+  if (!normalized || !normalized.includes('/')) return null
+  const existing = watchForRepository(normalized)
+  if (existing) return existing
+  const now = new Date().toISOString()
+  const watch = {
+    id: watchId(normalized),
+    repository: normalized,
+    repositoryUrl: repositoryUrl || `https://github.com/${normalized}`,
+    ref: extra.ref || null,
+    ecosystem: extra.ecosystem || null,
+    status: 'idle',
+    autoScan: extra.autoScan !== false,
+    createdAt: now,
+    updatedAt: now,
+    lastScannedAt: null,
+    latestCaseId: null,
+    scanCount: 0,
+    lastError: null,
+  }
+  watches.set(watch.id, watch)
+  return watch
+}
+
+function deriveWatches(records = []) {
+  const result = []
+  for (const record of records) {
+    const evidenceRepositories = record.investigation?.evidence?.repositories || record.ingestion?.repositories || []
+    for (const repository of evidenceRepositories) {
+      const normalized = normalizedRepository(repository.repositoryUrl || repository.repository || repository.sourceUrl)
+      if (!normalized || result.some((watch) => watch.repository === normalized)) continue
+      result.push({
+        id: watchId(normalized),
+        repository: normalized,
+        repositoryUrl: repository.repositoryUrl || repository.sourceUrl || `https://github.com/${normalized}`,
+        ref: repository.ref || null,
+        ecosystem: repository.ecosystem || repository.manifest?.ecosystem || null,
+        status: 'idle',
+        autoScan: true,
+        createdAt: record.createdAt || record.investigation?.startedAt || new Date().toISOString(),
+        updatedAt: record.investigation?.completedAt || record.updatedAt || new Date().toISOString(),
+        lastScannedAt: null,
+        latestCaseId: null,
+        scanCount: 0,
+        lastError: null,
+      })
+    }
+  }
+  return result
+}
+
+function loadWorkspace() {
+  if (!workspacePersistenceEnabled) return { records: [], watches: [] }
+  if (!existsSync(workspaceFile)) return { records: [], watches: [] }
   try {
     const payload = JSON.parse(readFileSync(workspaceFile, 'utf8'))
-    return Array.isArray(payload?.records) ? payload.records : []
+    const records = Array.isArray(payload?.records) ? payload.records : []
+    return {
+      records,
+      watches: Array.isArray(payload?.watches) ? payload.watches : deriveWatches(records),
+      createdAt: payload?.createdAt || null,
+      lastMonitorAt: payload?.lastMonitorAt || null,
+      notifications: Array.isArray(payload?.notifications) ? payload.notifications : [],
+      processedCaseIds: Array.isArray(payload?.processedCaseIds) ? payload.processedCaseIds : [],
+    }
   } catch (error) {
     console.warn(`Recoil workspace could not be read: ${error.message}`)
-    return []
+    return { records: [], watches: [] }
+  }
+}
+
+function notifyWorkspaceChanges() {
+  const completed = [...scenarios.values()]
+    .filter((record) => record.investigation?.status === 'complete' && record.investigation?.report)
+    .sort((left, right) => String(left.investigation.completedAt || '').localeCompare(String(right.investigation.completedAt || '')))
+  for (const record of completed) {
+    if (workspaceState.processedCaseIds.has(record.id)) continue
+    const targetRepositories = parseInvestigationInput(record.query).repositories.map((repository) => normalizedRepository(repository.url))
+    const prior = [...completed].reverse().find((candidate) => candidate.id !== record.id
+      && String(candidate.investigation.completedAt || '') < String(record.investigation.completedAt || '')
+      && parseInvestigationInput(candidate.query).repositories.some((repository) => targetRepositories.includes(normalizedRepository(repository.url))))
+    const previousVerdicts = new Map((prior?.investigation?.report?.repositories || []).map((finding) => [`${String(finding.advisoryId).toUpperCase()}:${normalizedRepository(finding.repositoryUrl || finding.repository)}`, finding.verdict]))
+    const changes = (record.investigation.report.repositories || []).filter((finding) => {
+      const key = `${String(finding.advisoryId).toUpperCase()}:${normalizedRepository(finding.repositoryUrl || finding.repository)}`
+      return previousVerdicts.get(key) !== finding.verdict
+    })
+    const important = changes.filter((finding) => finding.verdict === 'REACHED' || previousVerdicts.has(`${String(finding.advisoryId).toUpperCase()}:${normalizedRepository(finding.repositoryUrl || finding.repository)}`))
+    if (important.length) {
+      const notification = {
+        id: `change-${record.id}`,
+        caseId: record.id,
+        createdAt: record.investigation.completedAt,
+        severity: important.some((finding) => finding.verdict === 'REACHED') ? 'action' : 'resolved',
+        title: important.some((finding) => finding.verdict === 'REACHED') ? 'New reachable exposure' : 'Exposure changed',
+        detail: important.map((finding) => `${finding.advisoryId} · ${normalizedRepository(finding.repositoryUrl || finding.repository)} · ${finding.verdict}`).join(' | '),
+      }
+      workspaceState.notifications = [notification, ...workspaceState.notifications.filter((item) => item.id !== notification.id)].slice(0, 100)
+      const webhook = process.env.RECOIL_NOTIFICATION_WEBHOOK_URL
+      if (webhook) void fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ schema: 'recoil.notification/v1', notification }) }).catch((error) => console.warn(`Recoil notification webhook failed: ${error.message}`))
+    }
+    workspaceState.processedCaseIds.add(record.id)
+  }
+}
+
+function syncWatches() {
+  const cases = [...scenarios.values()]
+    .filter((record) => record.query)
+    .sort((left, right) => String(left.investigation?.startedAt || left.createdAt || '').localeCompare(String(right.investigation?.startedAt || right.createdAt || '')))
+  for (const watch of watches.values()) {
+    const related = cases.filter((record) => {
+      if (record.watchId === watch.id) return true
+      const parsed = parseInvestigationInput(record.query)
+      return parsed.repositories.some((repository) => normalizedRepository(repository.url) === watch.repository)
+    })
+    const latest = related.at(-1)
+    const complete = related.filter((record) => record.investigation?.status === 'complete')
+    const failed = related.filter((record) => record.investigation?.status === 'failed').at(-1)
+    watch.scanCount = complete.length
+    watch.latestCaseId = latest?.id || watch.latestCaseId || null
+    watch.lastScannedAt = complete.at(-1)?.investigation?.completedAt || watch.lastScannedAt || null
+    watch.status = ['running', 'finalizing'].includes(latest?.investigation?.status) ? 'scanning' : latest?.investigation?.status === 'failed' ? 'failed' : 'idle'
+    watch.lastError = watch.status === 'failed' ? failed?.investigation?.error || 'Scan failed' : null
+    watch.updatedAt = latest?.investigation?.completedAt || latest?.investigation?.startedAt || watch.updatedAt
   }
 }
 
 function persistWorkspace() {
   if (!workspacePersistenceEnabled) return
   try {
+    syncWatches()
+    notifyWorkspaceChanges()
     mkdirSync(dirname(workspaceFile), { recursive: true })
     const temporary = `${workspaceFile}.tmp`
     const records = [...scenarios.values()]
       .filter((record) => record.investigation || record.query)
       .map(serializableRecord)
-    writeFileSync(temporary, JSON.stringify({ schema: 'recoil.workspace/v1', updatedAt: new Date().toISOString(), records }, null, 2))
+    writeFileSync(temporary, JSON.stringify({
+      schema: 'recoil.workspace/v2',
+      createdAt: workspaceState.createdAt,
+      updatedAt: new Date().toISOString(),
+      lastMonitorAt: workspaceState.lastMonitorAt,
+      notifications: workspaceState.notifications,
+      processedCaseIds: [...workspaceState.processedCaseIds],
+      watches: [...watches.values()],
+      records,
+    }, null, 2))
     renameSync(temporary, workspaceFile)
   } catch (error) {
     console.warn(`Recoil workspace could not be saved: ${error.message}`)
@@ -290,44 +437,46 @@ function caseSummary(record) {
 }
 
 function workspaceSnapshot() {
+  syncWatches()
   const cases = [...scenarios.values()]
     .filter((record) => record.investigation?.report || record.investigation?.status === 'running' || record.query)
     .map(caseSummary)
     .sort((left, right) => String(right.completedAt || right.startedAt || '').localeCompare(String(left.completedAt || left.startedAt || '')))
-  const repositoryMap = new Map()
-  for (const item of cases) {
-    const scans = item.scannedRepositories?.length ? item.scannedRepositories : item.repositories
-    for (const scanned of scans) {
-      const key = scanned.repository || scanned.repositoryUrl
-      if (!key) continue
-      const matchingFindings = item.repositories.filter((finding) => finding.repository === scanned.repository)
-      const current = repositoryMap.get(key) || { repository: scanned.repository, repositoryUrl: scanned.repositoryUrl, ecosystem: scanned.ecosystem || null, cases: 0, advisories: new Set(), needsAction: 0, presentOnly: 0, safe: 0, needsEvidence: 0, latestCaseId: item.id, lastScannedAt: item.completedAt || item.startedAt }
-      current.cases += 1
-      current.sourceFiles = Math.max(current.sourceFiles || 0, scanned.sourceFiles || 0)
-      for (const finding of matchingFindings) {
-        if (finding.advisoryId) current.advisories.add(finding.advisoryId)
-        if (finding.bucket === 'needs_action') current.needsAction += 1
-        if (finding.bucket === 'present_only') current.presentOnly += 1
-        if (finding.bucket === 'safe') current.safe += 1
-        if (finding.bucket === 'needs_evidence') current.needsEvidence += 1
-      }
-      repositoryMap.set(key, current)
+  const records = [...scenarios.values()]
+  const incidents = buildIncidents(records)
+  const repositories = [...watches.values()].map((watch) => {
+    const findings = incidents.flatMap((incident) => incident.findings.filter((finding) => finding.repositoryKey === watch.repository))
+    const latestCase = cases.find((item) => item.id === watch.latestCaseId)
+    return {
+      ...watch,
+      cases: watch.scanCount,
+      advisories: new Set(findings.map((finding) => finding.advisoryId)).size,
+      needsAction: findings.filter((finding) => finding.verdict === 'REACHED').length,
+      presentOnly: findings.filter((finding) => finding.verdict === 'DECLARED_ONLY').length,
+      safe: findings.filter((finding) => finding.verdict === 'NOT_AFFECTED').length,
+      needsEvidence: findings.filter((finding) => !['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'].includes(finding.verdict)).length,
+      sourceFiles: latestCase?.scannedRepositories?.find((item) => normalizedRepository(item.repositoryUrl || item.repository) === watch.repository)?.sourceFiles || 0,
     }
-  }
-  const repositories = [...repositoryMap.values()].map((repository) => ({ ...repository, advisories: repository.advisories.size })).sort((left, right) => String(right.lastScannedAt || '').localeCompare(String(left.lastScannedAt || '')))
+  }).sort((left, right) => String(right.lastScannedAt || right.createdAt || '').localeCompare(String(left.lastScannedAt || left.createdAt || '')))
+  const fleetGraph = buildFleetGraph(records, repositories, incidents)
   return {
-    schema: 'recoil.workspace-summary/v1',
+    schema: 'recoil.workspace-summary/v2',
+    workspace: { mode: 'single-tenant', createdAt: workspaceState.createdAt, lastMonitorAt: workspaceState.lastMonitorAt },
     cases,
     repositories,
+    incidents,
+    fleetGraph,
+    notifications: workspaceState.notifications.slice(0, 20),
     metrics: {
       cases: cases.length,
       repositories: repositories.length,
-      needsAction: cases.reduce((total, item) => total + Number(item.summary?.reached || 0), 0),
-      presentOnly: cases.reduce((total, item) => total + Number(item.summary?.declaredOnly || 0), 0),
-      safe: cases.reduce((total, item) => total + Number(item.summary?.notAffected || 0), 0),
-      needsEvidence: cases.reduce((total, item) => total + Number(item.summary?.unknown || 0), 0),
-      graphNodes: cases.reduce((total, item) => total + item.graph.nodes, 0),
-      graphEdges: cases.reduce((total, item) => total + item.graph.edges, 0),
+      incidents: incidents.length,
+      needsAction: incidents.reduce((total, item) => total + item.summary.reached, 0),
+      presentOnly: incidents.reduce((total, item) => total + item.summary.declaredOnly, 0),
+      safe: incidents.reduce((total, item) => total + item.summary.notAffected, 0),
+      needsEvidence: incidents.reduce((total, item) => total + item.summary.unknown, 0),
+      graphNodes: fleetGraph.nodes.length,
+      graphEdges: fleetGraph.edges.length,
     },
   }
 }
@@ -392,6 +541,39 @@ function resetRecord(record) {
   record.investigation = null
 }
 
+function startWatchScan(watch) {
+  if (!watch) return { error: 'Repository watch not found', statusCode: 404 }
+  if (watch.status === 'scanning') return { error: 'This repository is already being scanned', statusCode: 409 }
+  if (activeInvestigationCount() >= maxConcurrentInvestigations) return { error: 'The scanner is at capacity. Try again when another scan completes.', statusCode: 429 }
+  const id = randomUUID().slice(0, 8)
+  const record = getOrCreate(id, { query: watch.repositoryUrl })
+  record.watchId = watch.id
+  watch.status = 'scanning'
+  watch.latestCaseId = id
+  watch.updatedAt = new Date().toISOString()
+  watch.lastError = null
+  startInvestigation(record, watch.repositoryUrl)
+  persistWorkspace()
+  return { watch, record }
+}
+
+function scanAllWatches() {
+  const started = []
+  const skipped = []
+  workspaceState.lastMonitorAt = new Date().toISOString()
+  for (const watch of watches.values()) {
+    if (!watch.autoScan || watch.status === 'scanning') {
+      skipped.push({ id: watch.id, reason: watch.autoScan ? 'already scanning' : 'automatic scans disabled' })
+      continue
+    }
+    const result = startWatchScan(watch)
+    if (result.error) skipped.push({ id: watch.id, reason: result.error })
+    else started.push({ watchId: watch.id, caseId: result.record.id, repository: watch.repository })
+  }
+  persistWorkspace()
+  return { checkedAt: workspaceState.lastMonitorAt, started, skipped }
+}
+
 async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
   if (req.method === 'OPTIONS') return json(res, 204, {})
@@ -438,6 +620,10 @@ async function route(req, res) {
         'per-hop-provenance',
         'strict-recording-gate',
         'evidence-brief',
+        'persistent-repository-watchlist',
+        'workspace-incident-aggregation',
+        'scheduled-rescans',
+        'workspace-graph-query',
       ],
       time: new Date().toISOString(),
     })
@@ -449,6 +635,51 @@ async function route(req, res) {
 
   if (req.method === 'GET' && url.pathname === '/api/workspace') {
     return json(res, 200, workspaceSnapshot())
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/incidents') {
+    return json(res, 200, { incidents: buildIncidents([...scenarios.values()]) })
+  }
+
+  const incidentMatch = url.pathname.match(/^\/api\/incidents\/([^/]+)$/)
+  if (req.method === 'GET' && incidentMatch) {
+    const incidentId = decodeURIComponent(incidentMatch[1]).toUpperCase()
+    const incident = buildIncidents([...scenarios.values()]).find((item) => item.id === incidentId)
+    if (!incident) return json(res, 404, { error: 'Incident not found' })
+    return json(res, 200, { incident, graph: buildIncidentGraph([...scenarios.values()], incidentId) })
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/ask') {
+    return body(req).then((payload) => {
+      if (typeof payload.question !== 'string' || !payload.question.trim()) return json(res, 422, { error: 'Ask a question about the workspace' })
+      return json(res, 200, { answer: answerWorkspaceQuestion(payload.question, workspaceSnapshot()) })
+    }).catch((error) => json(res, error.statusCode || 400, { error: error.message }))
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/watches') {
+    return body(req).then((payload) => {
+      const target = parseInvestigationInput(String(payload.repository || payload.url || ''))
+      const repository = target.repositories[0]
+      if (!repository) return json(res, 422, { error: 'Provide a public GitHub repository URL' })
+      const watch = createWatch(repository.slug, repository.url, { ref: repository.ref, autoScan: payload.autoScan !== false })
+      persistWorkspace()
+      if (payload.scan === false) return json(res, 201, { watch, workspace: workspaceSnapshot() })
+      const result = startWatchScan(watch)
+      if (result.error) return json(res, result.statusCode, { error: result.error, watch })
+      return json(res, 202, { watch, scenarioId: result.record.id, ...snapshot(result.record) })
+    }).catch((error) => json(res, error.statusCode || 400, { error: error.message }))
+  }
+
+  const watchMatch = url.pathname.match(/^\/api\/watches\/([^/]+)(?:\/(scan))?$/)
+  if (watchMatch && req.method === 'POST' && watchMatch[2] === 'scan') {
+    const watch = watches.get(decodeURIComponent(watchMatch[1]))
+    const result = startWatchScan(watch)
+    if (result.error) return json(res, result.statusCode, { error: result.error })
+    return json(res, 202, { watch: result.watch, scenarioId: result.record.id, ...snapshot(result.record) })
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/monitor/check') {
+    return json(res, 202, scanAllWatches())
   }
 
   if (req.method === 'POST' && url.pathname === '/api/scenarios') {
@@ -497,6 +728,7 @@ async function route(req, res) {
       }
       record.ingestion = { status: 'not_started', collectors: [] }
       record.hydra = { status: 'not_started', memoryCount: 0 }
+      for (const repository of target.repositories) createWatch(repository.slug, repository.url, { ref: repository.ref })
       startInvestigation(record, payload.query)
       persistWorkspace()
       return json(res, 202, snapshot(record))
@@ -585,6 +817,13 @@ if (runningAsEntryPoint) {
   })
 
   server.listen(port, host, () => {
+    persistWorkspace()
     console.log(`Recoil API listening on http://${host}:${port}`)
+    const watchIntervalMs = Number(process.env.RECOIL_WATCH_INTERVAL_MS || 0)
+    if (watchIntervalMs > 0) {
+      console.log(`Repository monitor enabled every ${watchIntervalMs}ms`)
+      const timer = setInterval(() => scanAllWatches(), Math.max(60_000, watchIntervalMs))
+      timer.unref()
+    }
   })
 }
