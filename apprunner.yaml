@@ -20,3 +20,5 @@ run:
       value: "8"
     - name: RECOIL_SCAN_RATE_WINDOW_MS
       value: "900000"
+    - name: RECOIL_WATCH_INTERVAL_MS
+      value: "21600000"

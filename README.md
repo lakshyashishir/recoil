@@ -76,6 +76,10 @@ History exposes HydraDB-backed evidence changes, Ask resolves bounded workspace 
 exposes the same engine through MCP, CLI, Markdown briefs, and verifiable receipts. The graph is an inspection
 surface rather than the verdict itself.
 
+The landing input is the watch entry point. Pasting one repository creates the durable watch and runs its
+first full dependency inventory. Pasting an advisory with repositories runs a focused comparison and adds
+those repositories to the same watchlist. Returning to the landing page never deletes prior watches or cases.
+
 ### Workspace and account model
 
 The hackathon build is intentionally one tenant and does not require an account. The Node service owns one
@@ -88,6 +92,9 @@ tenant ID; it does not require changing the evidence engine or incident model.
 `RECOIL_WATCH_INTERVAL_MS` to opt into scheduled checks, and optionally set
 `RECOIL_NOTIFICATION_WEBHOOK_URL` to receive a JSON event when a latest verdict becomes reachable or changes.
 Synthetic inputs are not used: every incident is recomputed from a real scan case.
+
+The included App Runner configuration checks active watches every six hours. Set the interval to `0` when
+running a quota-constrained local demo; watches remain durable and can still be checked manually.
 
 This is a bounded defensive analysis. Recoil never installs dependencies, executes public repository code, sends exploit payloads, or probes a live target.
 

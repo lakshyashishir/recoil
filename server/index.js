@@ -20,6 +20,9 @@ const maxConcurrentInvestigations = Math.max(1, Number(process.env.RECOIL_MAX_CO
 const maxRequestBytes = Math.max(1024, Number(process.env.RECOIL_MAX_REQUEST_BYTES || 64 * 1024))
 const scanRateLimit = Math.max(1, Number(process.env.RECOIL_SCAN_RATE_LIMIT || 8))
 const scanRateWindowMs = Math.max(60_000, Number(process.env.RECOIL_SCAN_RATE_WINDOW_MS || 15 * 60_000))
+const configuredWatchIntervalMs = Math.max(0, Number(process.env.RECOIL_WATCH_INTERVAL_MS || 0))
+const watchIntervalMs = configuredWatchIntervalMs > 0 ? Math.max(60_000, configuredWatchIntervalMs) : 0
+const monitorStartedAt = new Date().toISOString()
 const scanRequests = new Map()
 const workspacePersistenceEnabled = !process.env.NODE_TEST_CONTEXT && process.env.RECOIL_DISABLE_WORKSPACE !== '1'
 const workspaceFile = resolve(process.env.RECOIL_WORKSPACE_FILE || '.recoil-data/workspace.json')
@@ -40,7 +43,7 @@ function responseHeaders(contentType = 'application/json; charset=utf-8') {
     'content-type': contentType,
     'access-control-allow-origin': process.env.RECOIL_ALLOWED_ORIGIN || '*',
     'access-control-allow-headers': 'content-type',
-    'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'strict-origin-when-cross-origin',
@@ -461,7 +464,17 @@ function workspaceSnapshot() {
   const fleetGraph = buildFleetGraph(records, repositories, incidents)
   return {
     schema: 'recoil.workspace-summary/v2',
-    workspace: { mode: 'single-tenant', createdAt: workspaceState.createdAt, lastMonitorAt: workspaceState.lastMonitorAt },
+    workspace: {
+      mode: 'single-tenant',
+      createdAt: workspaceState.createdAt,
+      lastMonitorAt: workspaceState.lastMonitorAt,
+      monitor: {
+        enabled: watchIntervalMs > 0,
+        intervalMs: watchIntervalMs || null,
+        nextCheckAt: watchIntervalMs > 0 ? new Date(new Date(workspaceState.lastMonitorAt || monitorStartedAt).getTime() + watchIntervalMs).toISOString() : null,
+        notificationWebhook: Boolean(process.env.RECOIL_NOTIFICATION_WEBHOOK_URL),
+      },
+    },
     cases,
     repositories,
     incidents,
@@ -652,7 +665,7 @@ async function route(req, res) {
   if (req.method === 'POST' && url.pathname === '/api/ask') {
     return body(req).then((payload) => {
       if (typeof payload.question !== 'string' || !payload.question.trim()) return json(res, 422, { error: 'Ask a question about the workspace' })
-      return json(res, 200, { answer: answerWorkspaceQuestion(payload.question, workspaceSnapshot()) })
+      return json(res, 200, { answer: answerWorkspaceQuestion(payload.question, workspaceSnapshot(), payload.scope) })
     }).catch((error) => json(res, error.statusCode || 400, { error: error.message }))
   }
 
@@ -671,6 +684,17 @@ async function route(req, res) {
   }
 
   const watchMatch = url.pathname.match(/^\/api\/watches\/([^/]+)(?:\/(scan))?$/)
+  if (watchMatch && req.method === 'PATCH' && !watchMatch[2]) {
+    return body(req).then((payload) => {
+      const watch = watches.get(decodeURIComponent(watchMatch[1]))
+      if (!watch) return json(res, 404, { error: 'Repository watch not found' })
+      if (typeof payload.autoScan !== 'boolean') return json(res, 422, { error: 'Provide autoScan as a boolean' })
+      watch.autoScan = payload.autoScan
+      watch.updatedAt = new Date().toISOString()
+      persistWorkspace()
+      return json(res, 200, { watch, workspace: workspaceSnapshot() })
+    }).catch((error) => json(res, error.statusCode || 400, { error: error.message }))
+  }
   if (watchMatch && req.method === 'POST' && watchMatch[2] === 'scan') {
     const watch = watches.get(decodeURIComponent(watchMatch[1]))
     const result = startWatchScan(watch)
@@ -819,7 +843,6 @@ if (runningAsEntryPoint) {
   server.listen(port, host, () => {
     persistWorkspace()
     console.log(`Recoil API listening on http://${host}:${port}`)
-    const watchIntervalMs = Number(process.env.RECOIL_WATCH_INTERVAL_MS || 0)
     if (watchIntervalMs > 0) {
       console.log(`Repository monitor enabled every ${watchIntervalMs}ms`)
       const timer = setInterval(() => scanAllWatches(), Math.max(60_000, watchIntervalMs))

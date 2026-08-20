@@ -219,11 +219,53 @@ export function buildIncidentGraph(records = [], advisoryId = '') {
   return { nodes: [...nodes.values()], edges: [...edges.values()], truncated: nodes.size >= 140 || edges.size >= 220 }
 }
 
-export function answerWorkspaceQuestion(question, workspace) {
-  const query = String(question || '').trim().toLowerCase()
-  if (!query) return null
+function summarizeScopedFindings(findings = []) {
+  const summary = { reached: 0, declaredOnly: 0, notAffected: 0, unknown: 0 }
+  for (const finding of findings) {
+    if (finding.verdict === 'REACHED') summary.reached += 1
+    else if (finding.verdict === 'DECLARED_ONLY') summary.declaredOnly += 1
+    else if (finding.verdict === 'NOT_AFFECTED') summary.notAffected += 1
+    else summary.unknown += 1
+  }
+  return summary
+}
+
+function scopeWorkspace(workspace = {}, scope = {}) {
+  if (!scope?.type || scope.type === 'workspace') return workspace
   const incidents = workspace.incidents || []
   const watches = workspace.repositories || []
+  const cases = workspace.cases || []
+  if (scope.type === 'incident') {
+    const id = String(scope.value || '').toUpperCase()
+    const selected = incidents.filter((incident) => incident.id === id)
+    const repositories = new Set(selected.flatMap((incident) => incident.repositories || []))
+    const caseIds = new Set(selected.flatMap((incident) => incident.cases || []))
+    return { ...workspace, incidents: selected, repositories: watches.filter((watch) => repositories.has(watch.repository)), cases: cases.filter((item) => caseIds.has(item.id) || String(item.advisoryId || '').toUpperCase() === id) }
+  }
+  if (scope.type === 'repository') {
+    const repository = normalizedRepository(scope.value)
+    const selected = incidents.map((incident) => {
+      const findings = incident.findings.filter((finding) => finding.repositoryKey === repository)
+      if (!findings.length) return null
+      const summary = summarizeScopedFindings(findings)
+      return { ...incident, findings, summary, status: incidentStatus(summary), repositories: [repository], repositoryCount: 1, cases: [...new Set(findings.map((finding) => finding.caseId))] }
+    }).filter(Boolean)
+    return {
+      ...workspace,
+      incidents: selected,
+      repositories: watches.filter((watch) => watch.repository === repository),
+      cases: cases.filter((item) => (item.scannedRepositories || []).some((entry) => normalizedRepository(entry.repositoryUrl || entry.repository) === repository) || (item.repositories || []).some((entry) => normalizedRepository(entry.repositoryUrl || entry.repository) === repository)),
+    }
+  }
+  return workspace
+}
+
+export function answerWorkspaceQuestion(question, workspace, scope = { type: 'workspace' }) {
+  const query = String(question || '').trim().toLowerCase()
+  if (!query) return null
+  const scoped = scopeWorkspace(workspace, scope)
+  const incidents = scoped.incidents || []
+  const watches = scoped.repositories || []
   const open = incidents.filter((incident) => incident.status === 'open')
   if (/who|owner|owns|route/.test(query)) {
     const rows = open.flatMap((incident) => incident.findings.filter((finding) => finding.verdict === 'REACHED').map((finding) => ({
@@ -244,7 +286,7 @@ export function answerWorkspaceQuestion(question, workspace) {
     return { intent: 'fixes', sentence: `${rows.filter((row) => /fix survives/.test(row.secondary)).length} verified fix${rows.length === 1 ? '' : 'es'} are available across open incidents.`, rows }
   }
   if (/change|previous|since|delta|history|new/.test(query)) {
-    const changed = (workspace.cases || []).filter((item) => item.changes && Object.values(item.changes).some(Number)).slice(0, 12)
+    const changed = (scoped.cases || []).filter((item) => item.changes && Object.values(item.changes).some(Number)).slice(0, 12)
     return { intent: 'changes', sentence: `${changed.length} recent scan${changed.length === 1 ? '' : 's'} contain graph changes against prior evidence.`, rows: changed.map((item) => ({ primary: item.advisoryId || item.scannedRepositories?.[0]?.repository || item.id, secondary: `${item.changes.addedNodes} entities added · ${item.changes.removedNodes} removed`, caseId: item.id })) }
   }
   if (/repo|watch|inventory|coverage/.test(query)) {

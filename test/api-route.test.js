@@ -107,10 +107,18 @@ test('API keeps a repository watch independently of a scan', async () => {
   assert.equal(created.statusCode, 201)
   assert.equal(created.body.watch.repository, 'example/persistent-watch')
   assert.equal(created.body.watch.scanCount, 0)
+  const paused = await request('PATCH', `/api/watches/${created.body.watch.id}`, { autoScan: false })
+  assert.equal(paused.statusCode, 200)
+  assert.equal(paused.body.watch.autoScan, false)
   const workspace = await request('GET', '/api/workspace')
   const retained = workspace.body.repositories.find((item) => item.repository === 'example/persistent-watch')
   assert.equal(retained.status, 'idle')
   assert.equal(retained.lastScannedAt, null)
+  assert.equal(retained.autoScan, false)
+  assert.equal(typeof workspace.body.workspace.monitor.enabled, 'boolean')
+  const resumed = await request('PATCH', `/api/watches/${created.body.watch.id}`, { autoScan: true })
+  assert.equal(resumed.statusCode, 200)
+  assert.equal(resumed.body.watch.autoScan, true)
 })
 
 test('API route chain starts, completes, rewinds, and exports a receipt', async () => {

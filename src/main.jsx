@@ -150,7 +150,7 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme,
   const target = advisory || packageSelector
   const repositoryScan = Boolean(!target && repositories.length)
   const ready = Boolean(repositories.length && (target || repositoryScan))
-  const verifiedCase = (workspace?.cases || []).find((item) => item.evidenceReady && item.summary?.reached > 0)
+  const latestCase = (workspace?.cases || [])[0]
   const chooseExample = (example) => {
     setValue(example.value)
     window.requestAnimationFrame(() => textareaRef.current?.focus())
@@ -162,23 +162,19 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme,
     </header>
     <section className="landing-grid">
       <div className="landing-intro">
-        <h1>Does this dependency actually reach your code?</h1>
-        <p>Paste a repository or advisory. Recoil follows the public evidence to the source file that matters.</p>
+        <h1>Watch repositories for vulnerabilities that reach code.</h1>
+        <p>Add a public repository once. Recoil inventories it now, keeps it on watch, and opens an incident only when evidence reaches source.</p>
       </div>
       <div className="landing-form-wrap">
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-          <label htmlFor="investigation-input">Repository or advisory</label>
+          <label htmlFor="investigation-input">Repository to watch</label>
           <textarea ref={textareaRef} id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (ready && !busy) onSubmit() } }} placeholder={'https://github.com/org/repository\nOR\nGHSA-xvch-5gv4-984h https://github.com/org/repository'} rows={5} />
           <div className="form-footer">
-            <span>Public records · Ctrl/⌘↵ to run</span>
-            <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>Investigate <ArrowUpRight size={15} /></>}</button>
+            <span>{repositoryScan ? 'Adds a durable watch and runs the first inventory' : 'Focused advisory comparison · Ctrl/⌘↵'}</span>
+            <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>{repositoryScan ? 'Watch repository' : 'Investigate advisory'} <ArrowUpRight size={15} /></>}</button>
           </div>
         </form>
-        <div className="example-picker" aria-label="Example investigations">
-          <span>Examples</span>
-          {INVESTIGATION_EXAMPLES.map((example) => <button className="example-chip" key={example.label} type="button" onClick={() => chooseExample(example)}>{example.label}</button>)}
-        </div>
-        {verifiedCase && <button className="verified-case-link" type="button" onClick={() => onOpenCase(verifiedCase.id)}><ShieldCheck size={14} /><span>Open a verified case</span><small>{verifiedCase.summary.reached} reached, {verifiedCase.summary.declaredOnly || 0} present, {verifiedCase.summary.notAffected || 0} safe</small><ArrowUpRight size={13} /></button>}
+        <div className="landing-shortcuts"><button type="button" onClick={() => chooseExample(INVESTIGATION_EXAMPLES[0])}>Load comparison example</button>{latestCase && <button type="button" onClick={() => onOpenCase(latestCase.id)}>Return to workspace <ArrowUpRight size={12} /></button>}</div>
         {error && <div className="error-banner" role="alert"><CircleAlert size={15} /> {error}</div>}
       </div>
     </section>
@@ -2098,6 +2094,23 @@ function compactDate(value) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
 }
 
+function relativeSchedule(value) {
+  if (!value) return 'Not scheduled'
+  const milliseconds = new Date(value).getTime() - Date.now()
+  if (!Number.isFinite(milliseconds)) return compactDate(value)
+  const minutes = Math.round(milliseconds / 60_000)
+  if (Math.abs(minutes) < 60) return minutes <= 0 ? 'Due now' : `In ${minutes} min`
+  const hours = Math.round(minutes / 60)
+  if (Math.abs(hours) < 24) return hours <= 0 ? 'Due now' : `In ${hours} hr`
+  return compactDate(value)
+}
+
+function intervalLabel(milliseconds) {
+  if (!milliseconds) return 'Manual checks'
+  const hours = milliseconds / 3_600_000
+  return hours >= 24 && hours % 24 === 0 ? `Every ${hours / 24} days` : `Every ${Math.round(hours)} hours`
+}
+
 function findingKey(finding = {}, index = 0) {
   return `${finding.repository || index}:${finding.advisoryId || 'advisory'}:${finding.packageName || 'package'}`
 }
@@ -2106,7 +2119,7 @@ function ConsoleSidebar({ activeView, onNavigate, onNewCase, workspace, theme, o
   const metrics = workspace?.metrics || {}
   return <aside className="console-sidebar">
     <div className="console-brand"><span className="brand-mark" /><span>RECOIL</span></div>
-    <button className="console-new" type="button" onClick={onNewCase}><Plus size={14} /> Scan repository</button>
+    <button className="console-new" type="button" onClick={onNewCase}><Plus size={14} /> Add repository</button>
     <nav className="console-nav" aria-label="Workspace">
       {CONSOLE_NAVIGATION.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" className={activeView === item.id ? 'active' : ''} onClick={() => onNavigate(item.id)}><Icon size={15} /><span><strong>{item.label}</strong><small>{item.detail}</small></span>{item.id === 'incidents' && Number(metrics.needsAction) > 0 && <em>{metrics.needsAction}</em>}</button> })}
     </nav>
@@ -2117,10 +2130,31 @@ function ConsoleSidebar({ activeView, onNavigate, onNewCase, workspace, theme, o
   </aside>
 }
 
-function ConsoleTopbar({ report, scenarioId, onNewCase, investigationStatus, hydra }) {
-  const label = report?.mode === 'repository' ? queryRepositories(report?.query || '')[0] || 'Repository scan' : report?.advisory?.id || scenarioId
+function contextKey(context = {}) {
+  return `${context.type || 'workspace'}:${context.value || ''}`
+}
+
+function contextLabel(context = {}) {
+  if (context.type === 'incident') return context.value || 'Incident'
+  if (context.type === 'repository') return repositoryName(context.value || '') || 'Repository'
+  return 'Workspace'
+}
+
+function ConsoleContextPicker({ workspace, context, onChange }) {
+  const incidents = workspace?.incidents || []
+  const repositories = workspace?.repositories || []
+  const value = contextKey(context)
+  return <label className="console-context-picker"><span>Scope</span><select value={value} onChange={(event) => { const [type, ...parts] = event.target.value.split(':'); onChange({ type, value: parts.join(':') }) }}>
+    <option value="workspace:">Workspace</option>
+    {incidents.length > 0 && <optgroup label="Incidents">{incidents.map((incident) => <option key={incident.id} value={`incident:${incident.id}`}>{incident.id} · {incident.status}</option>)}</optgroup>}
+    {repositories.length > 0 && <optgroup label="Repositories">{repositories.map((repository) => <option key={repository.repository} value={`repository:${repository.repository}`}>{repository.repository}</option>)}</optgroup>}
+  </select></label>
+}
+
+function ConsoleTopbar({ workspace, context, onContextChange, onNewCase, investigationStatus, hydra }) {
   const indexing = investigationStatus === 'finalizing' || hydra?.indexingPending
-  return <header className="console-topbar"><div><span>Current case</span><strong>{label}</strong></div><div className="console-topbar-actions"><span className={`console-complete ${indexing ? 'is-indexing' : ''}`}>{indexing ? <LoaderCircle className="spin" size={12} /> : <Check size={12} />}{indexing ? 'Evidence ready, saving history' : 'Complete'}</span><button type="button" onClick={onNewCase}><Plus size={13} /> New scan</button></div></header>
+  const monitor = workspace?.workspace?.monitor
+  return <header className="console-topbar"><ConsoleContextPicker workspace={workspace} context={context} onChange={onContextChange} /><div className="console-topbar-actions"><span className={`console-complete ${indexing ? 'is-indexing' : ''}`}>{indexing ? <LoaderCircle className="spin" size={12} /> : monitor?.enabled ? <Clock3 size={12} /> : <Check size={12} />}{indexing ? 'Saving evidence' : monitor?.enabled ? 'Watch active' : 'Evidence current'}</span><button type="button" onClick={onNewCase}><Plus size={13} /> Add repository</button></div></header>
 }
 
 function ConsolePageHeading({ eyebrow, title, detail, action = null }) {
@@ -2200,15 +2234,20 @@ function IncidentResponseLoop({ finding, onInspect }) {
   return <section className="incident-response-loop"><div className="incident-response-heading"><div><span>Recoil response loop</span><h3>Proof → fix → handoff</h3></div><button type="button" onClick={onInspect}>Inspect full evidence <ArrowUpRight size={13} /></button></div><div className="incident-response-steps"><article className="incident-response-proof"><span><i>01</i> Proof</span><strong>{importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : finding.verdict === 'DECLARED_ONLY' ? 'Stops at the lockfile' : 'No source path required'}</strong><p>{finding.reason}</p>{importer?.sourceUrl && <SourceLink href={importer.sourceUrl}>Open source line</SourceLink>}{finding.pathObservation?.sourceUrl && <SourceLink href={finding.pathObservation.sourceUrl}>Introducing commit</SourceLink>}</article><article className="incident-response-fix"><span><i>02</i> Verified fix</span><strong>{challenge?.proposedVersion ? `${finding.packageName}@${finding.resolvedVersion || '?'} → ${challenge.proposedVersion}` : challenge?.status === 'ALREADY_SAFE' ? 'Current version is outside the range' : 'No safe version proved'}</strong><p>{challenge?.detail || 'Recoil will not suggest a version that has not passed the advisory range check.'}</p>{command && <CopyFixCommand command={command} compact />}<em className={fixVerified ? 'is-verified' : ''}>{fixVerified ? 'Version challenge passed' : 'Review required'}</em></article><article className="incident-response-handoff"><span><i>03</i> Handoff</span><strong>{owners.length ? owners.join(', ') : 'Repository security owner'}</strong><p>Send the cited route and challenged fix to a human or coding agent without asking it to rediscover the incident.</p><div><CopyRemediationNote finding={finding} challenge={challenge || {}} />{issueUrl && <a href={issueUrl} target="_blank" rel="noreferrer"><GitBranch size={13} /> Draft GitHub issue</a>}</div></article></div></section>
 }
 
-function IncidentView({ report, workspace, scenarioId, onOpenCase }) {
+function IncidentView({ report, workspace, scenarioId, onOpenCase, context, onContextChange }) {
   const incidents = workspace?.incidents || []
   const currentAdvisory = report?.repositories?.find((finding) => finding.verdict === 'REACHED')?.advisoryId || report?.advisory?.id || report?.repositories?.[0]?.advisoryId
-  const [selectedId, setSelectedId] = useState(() => String(currentAdvisory || incidents[0]?.id || '').toUpperCase())
+  const scopedIncident = context?.type === 'incident' ? context.value : null
+  const [selectedId, setSelectedId] = useState(() => String(scopedIncident || currentAdvisory || incidents[0]?.id || '').toUpperCase())
   const [activeFinding, setActiveFinding] = useState(null)
   const [proofFinding, setProofFinding] = useState(null)
   const selected = incidents.find((incident) => incident.id === selectedId) || incidents[0]
+  useEffect(() => {
+    if (context?.type === 'incident' && incidents.some((incident) => incident.id === context.value)) setSelectedId(context.value)
+  }, [context?.type, context?.value, incidents])
   const chooseIncident = (incident) => {
     setSelectedId(incident.id)
+    onContextChange?.({ type: 'incident', value: incident.id })
     setActiveFinding(null)
     setProofFinding(null)
     const caseId = incident.findings?.find((finding) => finding.verdict === 'REACHED')?.caseId || incident.cases?.[0]
@@ -2221,29 +2260,58 @@ function IncidentView({ report, workspace, scenarioId, onOpenCase }) {
   return <div className="console-view incident-inbox-view"><ConsolePageHeading eyebrow="Incident inbox" title={`${openCount} incident${openCount === 1 ? '' : 's'} need action`} detail={`${workspace?.repositories?.length || 0} watched repositories · latest evidence per advisory and repository`} action={<div className="incident-handoff-actions"><CopyCaseHandoff report={report} findings={activeReportFindings} summary={report?.summary || summarizeFindings(activeReportFindings)} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div>} /><div className="incident-dashboard"><aside className="incident-index"><div><span>Incidents</span><strong>{incidents.length}</strong></div>{incidents.map((incident) => <button type="button" className={selected?.id === incident.id ? 'active' : ''} key={incident.id} onClick={() => chooseIncident(incident)}><span className={`incident-status incident-status-${incident.status}`} /> <span><strong>{incident.id}</strong><small>{incident.title}</small></span><em>{incident.summary.reached}</em></button>)}</aside>{selected && <section className="incident-detail"><header><div><span className={`incident-state incident-state-${selected.status}`}>{selected.status === 'open' ? 'Action required' : selected.status}</span><h2>{selected.title}</h2><p>{selected.id} · observed in {selected.repositoryCount} {selected.repositoryCount === 1 ? 'repository' : 'repositories'}</p></div>{selected.sourceUrl && <SourceLink href={selected.sourceUrl}>advisory</SourceLink>}</header><div className="incident-detail-metrics"><ConsoleMetric value={selected.summary.reached} label="reach source" tone={selected.summary.reached ? 'danger' : 'safe'} /><ConsoleMetric value={selected.summary.declaredOnly} label="stop at lockfile" /><ConsoleMetric value={selected.summary.notAffected} label="outside range" tone="safe" /><ConsoleMetric value={selected.summary.unknown} label="need evidence" tone={selected.summary.unknown ? 'warning' : ''} /></div><div className="incident-map-heading"><div><span>Verified routes</span><h3>Advisory → dependency → repository → source</h3></div><small>Select a route to drive the response loop</small></div><IncidentRoutePreview findings={selected.findings} onSelect={setActiveFinding} /><IncidentResponseLoop finding={focusedFinding} onInspect={() => setProofFinding(focusedFinding)} /><div className="incident-repository-list"><div className="incident-repository-head"><span>Repository</span><span>Resolution</span><span>Evidence</span><span>Decision</span></div>{selected.findings.map((finding, index) => <button className={focusedFinding === finding ? 'active' : ''} key={findingKey(finding, index)} type="button" onClick={() => setActiveFinding(finding)}><strong>{finding.repositoryKey}</strong><span>{finding.packageName}@{finding.resolvedVersion || 'unknown'}</span><span>{finding.imports?.[0] ? `${finding.imports[0].path}${finding.imports[0].line ? `:${finding.imports[0].line}` : ''}` : 'No sampled import'}</span><Verdict value={finding.verdict} compact /></button>)}</div></section>}</div>{proofFinding && <div className="incident-proof-overlay" role="presentation" onClick={() => setProofFinding(null)}><div className="incident-proof-drawer" role="dialog" aria-label="Finding proof" onClick={(event) => event.stopPropagation()}><button className="incident-proof-close" type="button" onClick={() => setProofFinding(null)}>Close</button><SelectedFindingPanel finding={proofFinding} challenge={proofFinding.challenge} report={report} scenarioId={proofFinding.caseId || scenarioId} /></div></div>}</div>
 }
 
-function RepositoriesView({ workspace, onOpenCase, onWatchRepository, onScanWatch, onScanAll, actionBusy }) {
+function RepositoriesView({ workspace, onOpenCase, onWatchRepository, onScanWatch, onScanAll, onToggleWatch, actionBusy, context, onContextChange }) {
   const repositories = workspace?.repositories || []
+  const monitor = workspace?.workspace?.monitor || {}
   const [repositoryUrl, setRepositoryUrl] = useState('')
   const submit = (event) => { event.preventDefault(); if (repositoryUrl.trim()) { onWatchRepository(repositoryUrl.trim()); setRepositoryUrl('') } }
-  return <div className="console-view"><ConsolePageHeading eyebrow="Repository watch" title={`${repositories.length} repositories monitored`} detail="Add a repository once. Every scan becomes a new evidence snapshot; the watch remains." action={<button className="console-secondary-action" type="button" disabled={actionBusy || !repositories.length} onClick={onScanAll}><RotateCcw className={actionBusy ? 'spin' : ''} size={14} /> Check all</button>} /><form className="watch-repository-form" onSubmit={submit}><GitBranch size={15} /><input value={repositoryUrl} onChange={(event) => setRepositoryUrl(event.target.value)} placeholder="https://github.com/owner/repository" /><button type="submit" disabled={actionBusy || !repositoryUrl.trim()}>Watch and scan</button></form><div className="repository-list"><div className="repository-list-head"><span>Repository</span><span>Scans</span><span>Incidents</span><span>Status</span><span>Last checked</span><span /></div>{repositories.map((repository) => <div className="repository-row" key={repository.id || repository.repository}><button type="button" onClick={() => repository.latestCaseId && onOpenCase(repository.latestCaseId)}><span><GitBranch size={14} /><strong>{repositoryName(repository.repository)}</strong></span><span>{repository.scanCount || repository.cases || 0}</span><span>{repository.advisories || 0}</span><span className={repository.status === 'scanning' ? 'repository-scanning' : repository.needsAction ? 'repository-open' : 'repository-clear'}>{repository.status === 'scanning' ? 'scanning' : repository.needsAction ? `${repository.needsAction} open` : repository.lastScannedAt ? 'clear' : 'not scanned'}</span><span>{repository.lastScannedAt ? compactDate(repository.lastScannedAt) : '—'}</span></button><button className="repository-scan-action" type="button" disabled={actionBusy || repository.status === 'scanning'} onClick={() => onScanWatch(repository.id)}>{repository.status === 'scanning' ? <LoaderCircle className="spin" size={13} /> : <RotateCcw size={13} />} Scan</button></div>)}</div>{!repositories.length && <div className="console-empty"><GitBranch size={24} /><h2>No repositories on watch</h2><p>Paste a public GitHub repository above. No account setup is required.</p></div>}</div>
+  const openRepository = (repository) => {
+    onContextChange?.({ type: 'repository', value: repository.repository })
+    if (repository.latestCaseId) onOpenCase(repository.latestCaseId, 'repositories')
+  }
+  return <div className="console-view repository-watch-view"><ConsolePageHeading eyebrow="Repository watches" title={`${repositories.length} repositories on watch`} detail="Each watch keeps its latest dependency inventory, incident state, and immutable scan history." action={<button className="console-secondary-action" type="button" disabled={actionBusy || !repositories.length} onClick={onScanAll}><RotateCcw className={actionBusy ? 'spin' : ''} size={14} /> Check all now</button>} />
+    <section className={`monitor-status ${monitor.enabled ? 'monitor-status-active' : ''}`}><div><span className="monitor-pulse" /><span><strong>{monitor.enabled ? 'Automatic monitoring is active' : 'Watches are durable; automatic checks are paused'}</strong><small>{monitor.enabled ? `${intervalLabel(monitor.intervalMs)} · next check ${relativeSchedule(monitor.nextCheckAt)}` : 'Set RECOIL_WATCH_INTERVAL_MS to run recurring inventory and advisory checks.'}</small></span></div><div><span>{repositories.filter((repository) => repository.autoScan).length} active</span><span>{workspace?.notifications?.length || 0} changes recorded</span>{monitor.notificationWebhook && <span>Webhook connected</span>}</div></section>
+    <form className="watch-repository-form" onSubmit={submit}><GitBranch size={15} /><input value={repositoryUrl} onChange={(event) => setRepositoryUrl(event.target.value)} placeholder="https://github.com/owner/repository" /><button type="submit" disabled={actionBusy || !repositoryUrl.trim()}>Add watch</button></form>
+    <div className="repository-list"><div className="repository-list-head"><span>Repository</span><span>Watch</span><span>Open</span><span>Last evidence</span><span>Actions</span></div>{repositories.map((repository) => <div className={`repository-row ${context?.type === 'repository' && context.value === repository.repository ? 'active' : ''}`} key={repository.id || repository.repository}><button type="button" onClick={() => openRepository(repository)}><span><GitBranch size={14} /><span><strong>{repositoryName(repository.repository)}</strong><small>{repository.sourceFiles || 0} source files sampled · {repository.scanCount || repository.cases || 0} snapshots</small></span></span><span className={repository.autoScan ? 'repository-watch-active' : 'repository-watch-paused'}>{repository.autoScan ? 'Active' : 'Paused'}</span><span className={repository.needsAction ? 'repository-open' : 'repository-clear'}>{repository.needsAction ? `${repository.needsAction} need action` : repository.lastScannedAt ? 'Clear' : 'Pending'}</span><span>{repository.lastScannedAt ? compactDate(repository.lastScannedAt) : 'Not yet'}</span></button><div className="repository-row-actions"><button type="button" disabled={actionBusy} onClick={() => onToggleWatch(repository.id, !repository.autoScan)}>{repository.autoScan ? 'Pause' : 'Resume'}</button><button className="repository-scan-action" type="button" disabled={actionBusy || repository.status === 'scanning'} onClick={() => onScanWatch(repository.id)}>{repository.status === 'scanning' ? <LoaderCircle className="spin" size={13} /> : <RotateCcw size={13} />} Check</button></div></div>)}</div>{!repositories.length && <div className="console-empty"><GitBranch size={24} /><h2>No repositories on watch</h2><p>Add one public repository. Recoil will inventory it immediately and retain future snapshots.</p></div>}</div>
 }
 
-function FocusedFleetGraph({ graph, focus }) {
+function FocusedFleetGraph({ graph, focus, mode = 'exposure' }) {
   const [selectedNodeId, setSelectedNodeId] = useState(null)
-  useEffect(() => setSelectedNodeId(null), [focus?.type, focus?.value])
+  useEffect(() => setSelectedNodeId(null), [focus?.type, focus?.value, mode])
   const layout = useMemo(() => {
-    const nodes = graph?.nodes || []
-    const edges = graph?.edges || []
+    const allNodes = graph?.nodes || []
+    const allEdges = graph?.edges || []
+    const repository = focus?.type === 'repository' ? repositoryKey(focus.value).toLowerCase() : null
+    let nodes = repository ? allNodes.filter((node) => (node.repositories || []).some((item) => repositoryKey(item).toLowerCase() === repository)) : allNodes
+    let edges = repository ? allEdges.filter((edge) => (edge.repositories || []).some((item) => repositoryKey(item).toLowerCase() === repository)) : allEdges
+    const nodeById = new Map(nodes.map((node) => [node.id, node]))
     const visible = new Set()
     if (focus?.type === 'repository') {
-      const target = repositoryKey(focus.value).toLowerCase()
-      for (const edge of edges) {
-        if (!(edge.repositories || []).some((repository) => repositoryKey(repository).toLowerCase() === target)) continue
-        visible.add(edge.source)
-        visible.add(edge.target)
-      }
-      for (const node of nodes) {
-        if ((node.repositories || []).some((repository) => repositoryKey(repository).toLowerCase() === target)) visible.add(node.id)
+      if (mode === 'inventory') {
+        const importedPackages = new Set(edges.filter((edge) => nodeById.get(edge.source)?.type === 'package' && nodeById.get(edge.target)?.type === 'code').map((edge) => edge.source))
+        const packages = nodes.filter((node) => node.type === 'package')
+        const keptPackages = packages.filter((node) => importedPackages.has(node.id)).slice(0, 7)
+        for (const node of nodes) if (['repository', 'lockfile', 'code'].includes(node.type)) visible.add(node.id)
+        for (const node of keptPackages) visible.add(node.id)
+        const hiddenCount = Math.max(0, packages.length - keptPackages.length)
+        if (hiddenCount) {
+          const groupId = `group:${repository}`
+          const lockfile = nodes.find((node) => node.type === 'lockfile')
+          nodes = [...nodes, { id: groupId, type: 'group', label: `${hiddenCount} other packages`, meta: { detail: 'Collapsed inventory entries' } }]
+          visible.add(groupId)
+          if (lockfile) edges = [...edges, { source: groupId, target: lockfile.id, predicate: 'collapsed inventory' }]
+        }
+      } else {
+        const outgoing = new Map()
+        for (const edge of edges) outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target])
+        const seeds = nodes.filter((node) => node.type === 'advisory').map((node) => node.id)
+        for (const id of seeds) visible.add(id)
+        let frontier = [...seeds]
+        for (let depth = 0; depth < 8 && frontier.length && visible.size < 60; depth += 1) {
+          const next = []
+          for (const id of frontier) for (const related of outgoing.get(id) || []) if (!visible.has(related)) { visible.add(related); next.push(related) }
+          frontier = next
+        }
       }
     } else if (focus?.type === 'incident') {
       const target = String(focus.value || '').toUpperCase()
@@ -2257,55 +2325,87 @@ function FocusedFleetGraph({ graph, focus }) {
         for (const id of frontier) for (const related of outgoing.get(id) || []) if (!visible.has(related) && visible.size < 70) { visible.add(related); next.push(related) }
         frontier = next
       }
+    } else {
+      const outgoing = new Map()
+      for (const edge of edges) outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target])
+      const seeds = nodes.filter((node) => node.type === 'advisory').slice(0, 4).map((node) => node.id)
+      for (const id of seeds) visible.add(id)
+      let frontier = [...seeds]
+      for (let depth = 0; depth < 8 && frontier.length && visible.size < 70; depth += 1) {
+        const next = []
+        for (const id of frontier) for (const related of outgoing.get(id) || []) if (!visible.has(related)) { visible.add(related); next.push(related) }
+        frontier = next
+      }
     }
-    if (!visible.size && nodes[0]) visible.add(nodes[0].id)
     const shown = nodes.filter((node) => visible.has(node.id))
-    const columnFor = (type) => ({ advisory: 0, package: 1, lockfile: 2, repository: 3, code: 4, symbol: 5 }[type] ?? 3)
+    const inventory = focus?.type === 'repository' && mode === 'inventory'
+    const columnFor = (type) => inventory
+      ? ({ package: 0, group: 0, lockfile: 1, repository: 2, code: 3, symbol: 4 }[type] ?? 2)
+      : ({ advisory: 0, package: 1, lockfile: 2, repository: 3, code: 4, symbol: 5 }[type] ?? 3)
     const groups = new Map()
     for (const node of shown) groups.set(columnFor(node.type), [...(groups.get(columnFor(node.type)) || []), node])
-    const width = 1180
-    const height = Math.max(520, ...[...groups.values()].map((items) => items.length * 70 + 110))
+    const width = 1080
+    const height = 540
+    const maxColumn = Math.max(1, ...groups.keys())
     const positioned = shown.map((node) => {
       const column = columnFor(node.type)
       const group = groups.get(column)
       const row = group.findIndex((item) => item.id === node.id)
-      return { ...node, x: 28 + column * 222, y: 72 + row * 70 + Math.max(0, (height - 150 - group.length * 70) / 2) }
+      const gap = group.length > 1 ? Math.min(58, 410 / (group.length - 1)) : 0
+      const groupHeight = gap * Math.max(0, group.length - 1)
+      return { ...node, x: 28 + column * ((width - 250) / maxColumn), y: 58 + (height - 120 - groupHeight) / 2 + row * gap }
     })
     const byId = new Map(positioned.map((node) => [node.id, node]))
     return { width, height, nodes: positioned, edges: edges.filter((edge) => byId.has(edge.source) && byId.has(edge.target)).map((edge) => ({ ...edge, sourceNode: byId.get(edge.source), targetNode: byId.get(edge.target) })) }
-  }, [graph, focus?.type, focus?.value])
+  }, [graph, focus?.type, focus?.value, mode])
   const selected = layout.nodes.find((node) => node.id === selectedNodeId)
-  return <div className="fleet-graph-canvas"><svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Focused evidence graph"><defs><marker id="fleet-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" /></marker></defs>{layout.edges.map((edge, index) => <path className="fleet-edge" key={`${edge.source}-${edge.target}-${index}`} d={`M${edge.sourceNode.x + 168},${edge.sourceNode.y + 20} C${edge.sourceNode.x + 190},${edge.sourceNode.y + 20} ${edge.targetNode.x - 22},${edge.targetNode.y + 20} ${edge.targetNode.x},${edge.targetNode.y + 20}`} markerEnd="url(#fleet-arrow)" />)}{layout.nodes.map((node) => <g className={`fleet-node fleet-node-${node.type} ${node.reached ? 'fleet-node-reached' : ''} ${selectedNodeId === node.id ? 'selected' : ''}`} key={node.id} transform={`translate(${node.x} ${node.y})`} onClick={() => setSelectedNodeId(node.id)} role="button" tabIndex="0"><rect width="168" height="40" rx="4" /><circle cx="13" cy="20" r="3" /><text x="23" y="16">{node.type || 'entity'}</text><text className="fleet-node-label" x="23" y="29">{shorten(node.label || node.id, 23)}</text></g>)}</svg>{selected && <div className="fleet-node-inspector"><span>{selected.type}</span><strong>{selected.label || selected.id}</strong>{selected.sourceUrl ? <SourceLink href={selected.sourceUrl}>Open evidence</SourceLink> : <small>Observed graph entity</small>}</div>}</div>
+  return <div className={`fleet-graph-canvas ${layout.nodes.length ? '' : 'fleet-graph-canvas-empty'}`}>{layout.nodes.length ? <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Focused evidence graph"><defs><marker id="fleet-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" /></marker></defs>{layout.edges.map((edge, index) => <path className="fleet-edge" key={`${edge.source}-${edge.target}-${index}`} d={`M${edge.sourceNode.x + 180},${edge.sourceNode.y + 23} C${edge.sourceNode.x + 205},${edge.sourceNode.y + 23} ${edge.targetNode.x - 25},${edge.targetNode.y + 23} ${edge.targetNode.x},${edge.targetNode.y + 23}`} markerEnd="url(#fleet-arrow)" />)}{layout.nodes.map((node) => <g className={`fleet-node fleet-node-${node.type} ${node.reached ? 'fleet-node-reached' : ''} ${selectedNodeId === node.id ? 'selected' : ''}`} key={node.id} transform={`translate(${node.x} ${node.y})`} onClick={() => setSelectedNodeId(node.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedNodeId(node.id) }} role="button" tabIndex="0"><rect width="180" height="46" rx="4" /><circle cx="14" cy="23" r="3" /><text x="25" y="18">{node.type === 'group' ? 'collapsed' : node.type || 'entity'}</text><text className="fleet-node-label" x="25" y="33">{shorten(node.label || node.id, 25)}</text></g>)}</svg> : <div className="fleet-empty-path"><ShieldCheck size={22} /><strong>No current exposure path</strong><span>The latest evidence contains no advisory route for this scope.</span></div>}{selected && <div className="fleet-node-inspector"><span>{selected.type}</span><strong>{selected.label || selected.id}</strong>{selected.meta?.detail && <small>{selected.meta.detail}</small>}{selected.sourceUrl ? <SourceLink href={selected.sourceUrl}>Open evidence</SourceLink> : <small>Observed graph entity</small>}</div>}</div>
 }
 
-function GraphView({ report, workspace }) {
+function GraphView({ report, workspace, context, onContextChange }) {
   const incidents = workspace?.incidents || []
   const repositories = workspace?.repositories || []
   const graph = workspace?.fleetGraph
-  const focusOptions = [
-    ...incidents.map((incident) => ({ key: `incident:${incident.id}`, type: 'incident', value: incident.id, label: incident.id, detail: `${incident.summary.reached} reached` })),
-    ...repositories.map((repository) => ({ key: `repository:${repository.repository}`, type: 'repository', value: repository.repository, label: repositoryName(repository.repository), detail: 'latest scan' })),
-  ]
-  const initialFocusKey = focusOptions.find((option) => option.type === 'incident' && incidents.find((incident) => incident.id === option.value)?.status === 'open')?.key || focusOptions[0]?.key || ''
-  const [focusKey, setFocusKey] = useState(initialFocusKey)
-  useEffect(() => {
-    if (focusOptions.length && !focusOptions.some((option) => option.key === focusKey)) setFocusKey(focusOptions[0].key)
-  }, [focusKey, focusOptions])
-  const focus = focusOptions.find((option) => option.key === focusKey) || focusOptions[0]
+  const [mode, setMode] = useState('exposure')
+  const focus = context?.type === 'workspace' ? { type: 'workspace', value: '' } : context
+  const selectedRepository = focus?.type === 'repository' ? repositories.find((repository) => repository.repository === focus.value) : null
+  const selectedIncident = focus?.type === 'incident' ? incidents.find((incident) => incident.id === focus.value) : null
+  const currentRepositoryFindings = selectedRepository ? incidents.flatMap((incident) => incident.findings.filter((finding) => finding.repositoryKey === selectedRepository.repository)) : []
+  const latestCase = selectedRepository ? (workspace?.cases || []).find((item) => item.id === selectedRepository.latestCaseId) : null
+  useEffect(() => setMode('exposure'), [focus?.type, focus?.value])
   if (!graph?.nodes?.length) {
     const findings = report?.repositories || []
     const selectedFinding = findings.find((finding) => finding.verdict === 'REACHED') || findings[0]
     return <div className="console-view console-graph-view"><ConsolePageHeading eyebrow="Evidence graph" title="No fleet graph yet" detail="The current case is shown below. Add repositories to the watchlist to build the cross-scan graph." /><div className="graph-workspace"><div className="graph-workspace-main"><EvidenceMap report={report} selectedFinding={selectedFinding} /></div></div></div>
   }
-  return <div className="console-view console-graph-view"><ConsolePageHeading eyebrow="Fleet evidence graph" title={focus?.type === 'repository' ? `${repositoryName(focus.value)} evidence` : 'Current incident path'} detail={focus?.type === 'repository' ? 'Only entities from this repository’s latest completed scan are shown.' : 'Only downstream paths from this advisory are shown across current repository snapshots.'} /><div className="fleet-graph-layout"><aside className="fleet-focus-list"><div><span>Focus</span><strong>{focusOptions.length}</strong></div>{focusOptions.map((option) => <button type="button" className={focusKey === option.key ? 'active' : ''} key={option.key} onClick={() => setFocusKey(option.key)}><strong>{option.label}</strong><small>{option.detail}</small></button>)}</aside><section><div className="fleet-graph-toolbar"><span><i className="graph-key graph-key-observed" /> observed</span><span><i className="graph-key graph-key-reached" /> reached source</span><small>{focus?.type === 'repository' ? 'Latest repository snapshot' : 'Current advisory blast radius'}</small></div><FocusedFleetGraph graph={graph} focus={focus} /></section></div></div>
+  const title = focus?.type === 'repository' ? repositoryName(focus.value) : focus?.type === 'incident' ? focus.value : 'Workspace exposure'
+  const detail = focus?.type === 'repository' ? `${selectedRepository?.scanCount || 0} retained snapshots · ${selectedRepository?.needsAction || 0} open paths` : focus?.type === 'incident' ? `${selectedIncident?.repositoryCount || 0} repositories in the latest incident state` : `${incidents.length} current incidents across ${repositories.length} watched repositories`
+  const showClearState = focus?.type === 'repository' && mode === 'exposure' && currentRepositoryFindings.length === 0
+  return <div className="console-view console-graph-view"><ConsolePageHeading eyebrow={mode === 'inventory' ? 'Dependency inventory' : 'Exposure graph'} title={title} detail={detail} action={focus?.type === 'repository' ? <div className="graph-mode-switch" role="tablist"><button type="button" className={mode === 'exposure' ? 'active' : ''} onClick={() => setMode('exposure')}>Exposure</button><button type="button" className={mode === 'inventory' ? 'active' : ''} onClick={() => setMode('inventory')}>Inventory</button></div> : null} />
+    {showClearState ? <section className="repository-clear-graph"><div><ShieldCheck size={24} /><span><strong>No current vulnerable path</strong><small>The latest repository inventory produced no advisory finding that reaches source.</small></span></div><dl><div><dt>{latestCase?.summary?.packagesChecked || 0}</dt><dd>packages checked</dd></div><div><dt>{selectedRepository?.sourceFiles || 0}</dt><dd>source files sampled</dd></div><div><dt>{selectedRepository?.scanCount || 0}</dt><dd>retained snapshots</dd></div></dl><button type="button" onClick={() => setMode('inventory')}>Inspect compact inventory <ArrowUpRight size={13} /></button></section> : <section className="fleet-graph-surface"><div className="fleet-graph-toolbar"><span><i className="graph-key graph-key-observed" /> observed evidence</span><span><i className="graph-key graph-key-reached" /> source reached</span><small>{mode === 'inventory' ? 'Unused entries are collapsed' : 'Only advisory paths are shown'}</small></div><FocusedFleetGraph graph={graph} focus={focus} mode={mode} /></section>}
+    {focus?.type === 'workspace' && incidents.length > 0 && <div className="graph-scope-shortcuts"><span>Inspect one incident</span>{incidents.slice(0, 4).map((incident) => <button type="button" key={incident.id} onClick={() => onContextChange({ type: 'incident', value: incident.id })}>{incident.id}<small>{incident.summary.reached} reached</small></button>)}</div>}
+  </div>
 }
 
-function ChangesView({ report, hydra, onRewind }) {
-  const findings = report?.repositories || []
-  const related = report?.rewind?.memory?.relatedCases || hydra?.recall?.relatedCases || []
-  const graphDelta = graphSnapshotDelta(report?.rewind?.graph || {}, report?.graph || {})
-  const before = report?.rewind?.beforeAdvisory
-  return <div className="console-view"><ConsolePageHeading eyebrow="HydraDB history" title="What changed since the previous evidence boundary" detail="Current conclusions remain source-backed; memory contributes dated context and graph differences." action={before ? <button className="console-secondary-action" type="button" onClick={() => onRewind(before)}><Clock3 size={14} /> Before disclosure</button> : null} /><div className="console-metrics"><ConsoleMetric value={graphDelta.addedNodes.length} label="entities added" tone={graphDelta.addedNodes.length ? 'warning' : ''} /><ConsoleMetric value={graphDelta.removedNodes.length} label="entities removed" /><ConsoleMetric value={graphDelta.addedEdges.length} label="paths added" tone={graphDelta.addedEdges.length ? 'danger' : ''} /><ConsoleMetric value={graphDelta.removedEdges.length} label="paths removed" tone={graphDelta.removedEdges.length ? 'safe' : ''} /><ConsoleMetric value={related.length} label="related cases" /></div><HistoryDelta findings={findings} challenges={report?.challenge || []} relatedCases={related} /><TemporalGraphDelta report={report} /><section className="hydra-proof-strip"><Database size={17} /><div><strong>{hydra?.status === 'persisted' ? 'Current case stored in HydraDB' : hydra?.status === 'queued' ? 'Current case is indexing' : 'Current case is local only'}</strong><span>{hydra?.graphVerification?.status === 'verified' ? `${hydra.graphVerification.tripletCount || 0} current-case graph relations read back` : hydra?.reason || hydra?.indexingError || 'No remote graph verification available.'}</span></div></section></div>
+function caseMatchesContext(item, context) {
+  if (!context || context.type === 'workspace') return true
+  if (context.type === 'incident') return String(item.advisoryId || '').toUpperCase() === String(context.value || '').toUpperCase() || (item.repositories || []).some((entry) => String(entry.advisoryId || '').toUpperCase() === String(context.value || '').toUpperCase())
+  if (context.type === 'repository') return [...(item.scannedRepositories || []), ...(item.repositories || [])].some((entry) => repositoryKey(entry.repositoryUrl || entry.repository).toLowerCase() === repositoryKey(context.value).toLowerCase())
+  return true
+}
+
+function ChangesView({ report, hydra, onRewind, workspace, context, onOpenCase }) {
+  const cases = (workspace?.cases || []).filter((item) => caseMatchesContext(item, context))
+  const notifications = (workspace?.notifications || []).filter((notification) => cases.some((item) => item.id === notification.caseId))
+  const before = context?.type === 'incident' && String(report?.advisory?.id || '').toUpperCase() === String(context.value || '').toUpperCase() ? report?.rewind?.beforeAdvisory : null
+  const changedCases = cases.filter((item) => item.changes && Object.values(item.changes).some(Number))
+  const reachedCases = cases.filter((item) => item.summary?.reached > 0)
+  const title = context?.type === 'workspace' ? 'Workspace history' : `${contextLabel(context)} history`
+  return <div className="console-view history-view"><ConsolePageHeading eyebrow="Evidence history" title={title} detail="Immutable scans become a readable change log. HydraDB supplies dated context; each verdict still comes from collected evidence." action={before ? <button className="console-secondary-action" type="button" onClick={() => onRewind(before)}><Clock3 size={14} /> View before disclosure</button> : null} />
+    <div className="history-summary"><div><strong>{cases.length}</strong><span>snapshots</span></div><div><strong>{changedCases.length}</strong><span>graph changes</span></div><div><strong>{reachedCases.length}</strong><span>reached states</span></div><div><strong>{notifications.length}</strong><span>watch events</span></div></div>
+    <section className="history-timeline"><header><div><h2>Evidence timeline</h2><p>Newest first. Open any snapshot to inspect the exact graph and receipt.</p></div><span>{contextLabel(context)}</span></header>{cases.length ? <ol>{cases.map((item, index) => { const subject = item.advisoryId || item.scannedRepositories?.[0]?.repository || item.repositories?.[0]?.repository || 'Repository scan'; const notification = notifications.find((entry) => entry.caseId === item.id); const changes = item.changes || {}; return <li key={item.id}><div className={`history-marker ${item.summary?.reached ? 'history-marker-open' : ''}`}><span /></div><div className="history-time"><strong>{compactDate(item.completedAt || item.startedAt)}</strong><small>{item.completedAt ? new Date(item.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'In progress'}</small></div><article><div className="history-event-title"><span><strong>{subject}</strong><small>{item.mode === 'repository' ? 'Repository inventory' : 'Focused advisory scan'}</small></span><button type="button" onClick={() => onOpenCase(item.id, 'changes')}>Open snapshot <ArrowUpRight size={12} /></button></div><p>{notification?.title || (item.summary?.reached ? `${item.summary.reached} source-backed path${item.summary.reached === 1 ? '' : 's'} observed` : item.summary?.totalAdvisories ? `${item.summary.totalAdvisories} advisory matches checked` : `No active advisory found across ${item.summary?.packagesChecked || 0} packages`)}</p><div className="history-event-facts"><span>{item.graph?.nodes || 0} entities</span><span>{item.graph?.edges || 0} relations</span>{Object.values(changes).some(Number) && <span>{changes.addedNodes || 0} added · {changes.removedNodes || 0} removed</span>}<span>{item.hydra?.memoryCount || 0} HydraDB memories</span></div></article>{index < cases.length - 1 && <i />}</li>})}</ol> : <div className="history-empty"><History size={20} /><strong>No evidence history in this scope</strong><span>Run or schedule a repository watch to create the first snapshot.</span></div>}</section>
+    <section className="hydra-proof-strip"><Database size={17} /><div><strong>{hydra?.status === 'persisted' ? 'Latest opened case is stored in HydraDB' : hydra?.status === 'queued' ? 'Latest case is indexing' : 'Latest opened case is local only'}</strong><span>{hydra?.graphVerification?.status === 'verified' ? `${hydra.graphVerification.tripletCount || 0} scoped relations were read back for verification.` : 'History never replaces the source-backed verdict.'}</span></div></section>
+  </div>
 }
 
 function answerCaseQuestion(question, report) {
@@ -2334,7 +2434,7 @@ function answerCaseQuestion(question, report) {
   return { sentence: `${report?.summary?.reached || 0} reached, ${report?.summary?.declaredOnly || 0} present only, ${report?.summary?.notAffected || 0} not affected, and ${report?.summary?.unknown || 0} need more evidence.`, rows }
 }
 
-function AskView({ report, onOpenCase }) {
+function AskView({ report, onOpenCase, context }) {
   const [question, setQuestion] = useState('Which incidents need action?')
   const [answer, setAnswer] = useState(null)
   const [asking, setAsking] = useState(false)
@@ -2343,12 +2443,12 @@ function AskView({ report, onOpenCase }) {
     const nextQuestion = value.trim()
     if (!nextQuestion || asking) return
     setQuestion(nextQuestion); setAsking(true)
-    try { const response = await api('/api/ask', { method: 'POST', body: JSON.stringify({ question: nextQuestion }) }); setAnswer(response.answer) }
+    try { const response = await api('/api/ask', { method: 'POST', body: JSON.stringify({ question: nextQuestion, scope: context }) }); setAnswer(response.answer) }
     catch { setAnswer(answerCaseQuestion(nextQuestion, report)) }
     finally { setAsking(false) }
   }
-  useEffect(() => { submit('Which incidents need action?') }, [])
-  return <div className="console-view ask-view"><ConsolePageHeading eyebrow="Workspace query" title="Ask the evidence graph" detail="Every answer is assembled from current findings and cited records. Natural language selects a typed graph query; it does not create facts." /><form onSubmit={(event) => { event.preventDefault(); submit() }}><Search size={17} /><input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask about incidents, repositories, owners, changes, or fixes" /><button type="submit" disabled={asking}>{asking ? 'Checking…' : 'Ask'}</button></form><div className="ask-examples">{examples.map((example) => <button type="button" key={example} onClick={() => submit(example)}>{example}</button>)}</div>{answer && <section className="ask-answer"><span>Computed answer</span><h2>{answer.sentence}</h2><div>{answer.rows.length ? answer.rows.map((row, index) => <article key={`${row.primary}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><button type="button" onClick={() => row.caseId && onOpenCase(row.caseId)} disabled={!row.caseId}><strong>{row.primary}</strong><small>{row.secondary}</small></button>{row.source && <SourceLink href={row.source}>evidence</SourceLink>}</article>) : <p>No supporting rows were found in the current workspace.</p>}</div></section>}</div>
+  useEffect(() => { setAnswer(null); submit('Which incidents need action?') }, [context?.type, context?.value])
+  return <div className="console-view ask-view"><ConsolePageHeading eyebrow="Evidence query" title={`Ask ${contextLabel(context).toLowerCase()}`} detail="Questions are translated into bounded workspace queries. Answers contain only stored findings and cited public evidence." /><div className="ask-workbench"><form onSubmit={(event) => { event.preventDefault(); submit() }}><Search size={17} /><input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask about incidents, owners, fixes, repositories, or changes" /><button type="submit" disabled={asking}>{asking ? 'Checking' : 'Ask'}</button></form><div className="ask-scope"><span>Searching</span><strong>{contextLabel(context)}</strong></div></div><div className="ask-examples">{examples.map((example) => <button type="button" key={example} onClick={() => submit(example)}>{example}</button>)}</div>{answer && <section className="ask-answer"><header><span>Answer from current evidence</span><strong>{answer.intent?.replaceAll('_', ' ') || 'workspace query'}</strong></header><h2>{answer.sentence}</h2><div>{answer.rows.length ? answer.rows.map((row, index) => <article key={`${row.primary}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><button type="button" onClick={() => row.caseId && onOpenCase(row.caseId, 'incidents')} disabled={!row.caseId}><strong>{row.primary}</strong><small>{row.secondary}</small></button>{row.source && <SourceLink href={row.source}>Open evidence</SourceLink>}</article>) : <p>No supporting rows were found in this scope.</p>}</div></section>}</div>
 }
 
 function ConnectView({ report, scenarioId }) {
@@ -2364,15 +2464,25 @@ function ConnectView({ report, scenarioId }) {
   ].map(([title, command, detail]) => <article key={title}><Terminal size={16} /><span>{title}</span><p>{detail}</p><code>{command}</code><button type="button" onClick={() => copyText(command)}><Copy size={13} /> Copy command</button></article>)}</div><section className="connect-artifacts"><div><FileText size={17} /><span><strong>Evidence brief</strong><small>Portable Markdown for a ticket or review.</small></span><BriefLink scenarioId={scenarioId} /></div><div><ShieldCheck size={17} /><span><strong>Integrity receipt</strong><small>SHA-256 addressed JSON with cited evidence.</small></span><ReceiptLink scenarioId={scenarioId} /></div></section></div>
 }
 
-function SecurityConsole({ report, hydra, scenarioId, workspace, activeView, onNavigate, onNewCase, onOpenCase, onRewind, onWatchRepository, onScanWatch, onScanAll, actionBusy, theme, onToggleTheme, investigationStatus }) {
+function initialWorkspaceContext(report) {
+  if (report?.mode === 'repository') {
+    const repository = queryRepositories(report?.query || '')[0] || report?.target?.repositories?.[0]?.repository
+    if (repository) return { type: 'repository', value: repositoryKey(repository).toLowerCase() }
+  }
+  const advisory = report?.advisory?.id || report?.repositories?.[0]?.advisoryId
+  return advisory ? { type: 'incident', value: String(advisory).toUpperCase() } : { type: 'workspace', value: '' }
+}
+
+function SecurityConsole({ report, hydra, scenarioId, workspace, activeView, onNavigate, onNewCase, onOpenCase, onRewind, onWatchRepository, onScanWatch, onScanAll, onToggleWatch, actionBusy, theme, onToggleTheme, investigationStatus }) {
+  const [context, setContext] = useState(() => initialWorkspaceContext(report))
   let content
-  if (activeView === 'repositories') content = <RepositoriesView workspace={workspace} onOpenCase={onOpenCase} onWatchRepository={onWatchRepository} onScanWatch={onScanWatch} onScanAll={onScanAll} actionBusy={actionBusy} />
-  else if (activeView === 'graph') content = <GraphView report={report} workspace={workspace} />
-  else if (activeView === 'changes') content = <ChangesView report={report} hydra={hydra} onRewind={onRewind} />
-  else if (activeView === 'ask') content = <AskView report={report} onOpenCase={onOpenCase} />
+  if (activeView === 'repositories') content = <RepositoriesView workspace={workspace} onOpenCase={onOpenCase} onWatchRepository={onWatchRepository} onScanWatch={onScanWatch} onScanAll={onScanAll} onToggleWatch={onToggleWatch} actionBusy={actionBusy} context={context} onContextChange={setContext} />
+  else if (activeView === 'graph') content = <GraphView report={report} workspace={workspace} context={context} onContextChange={setContext} />
+  else if (activeView === 'changes') content = <ChangesView report={report} hydra={hydra} onRewind={onRewind} workspace={workspace} context={context} onOpenCase={onOpenCase} />
+  else if (activeView === 'ask') content = <AskView report={report} onOpenCase={onOpenCase} context={context} />
   else if (activeView === 'connect') content = <ConnectView report={report} scenarioId={scenarioId} />
-  else content = <IncidentView report={report} workspace={workspace} scenarioId={scenarioId} onOpenCase={onOpenCase} />
-  return <div className="console-shell"><ConsoleSidebar activeView={activeView} onNavigate={onNavigate} onNewCase={onNewCase} workspace={workspace} theme={theme} onToggleTheme={onToggleTheme} /><div className="console-content"><ConsoleTopbar report={report} scenarioId={scenarioId} onNewCase={onNewCase} investigationStatus={investigationStatus} hydra={hydra} /><main className="console-main">{content}</main></div></div>
+  else content = <IncidentView report={report} workspace={workspace} scenarioId={scenarioId} onOpenCase={onOpenCase} context={context} onContextChange={setContext} />
+  return <div className="console-shell"><ConsoleSidebar activeView={activeView} onNavigate={onNavigate} onNewCase={onNewCase} workspace={workspace} theme={theme} onToggleTheme={onToggleTheme} /><div className="console-content"><ConsoleTopbar workspace={workspace} context={context} onContextChange={setContext} onNewCase={onNewCase} investigationStatus={investigationStatus} hydra={hydra} /><main className="console-main">{content}</main></div></div>
 }
 
 function App() {
@@ -2519,7 +2629,7 @@ function App() {
     setLanding(true); setSnapshot(null); setReport(null); setHydra(null); setError(''); setInput(DEFAULT_INPUT); setShowReportEarly(false); setBusy(false); setActiveView('incidents')
   }
 
-  async function openCase(id) {
+  async function openCase(id, nextView = 'incidents') {
     try {
       const next = await api(`/api/scenarios/${id}`)
       if (!next.investigation?.report) throw new Error('This retained case has no completed report')
@@ -2528,7 +2638,7 @@ function App() {
       setReport(next.investigation.report)
       setHydra(next.investigation.hydra)
       setLanding(false)
-      setActiveView('incidents')
+      setActiveView(nextView)
       setError('')
     } catch (cause) { setError(cause.message) }
   }
@@ -2560,9 +2670,18 @@ function App() {
     catch (cause) { setWorkspaceBusy(false); setError(cause.message) }
   }
 
+  async function toggleWatch(id, autoScan) {
+    setWorkspaceBusy(true); setError('')
+    try {
+      const next = await api(`/api/watches/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ autoScan }) })
+      setWorkspace(next.workspace || await api('/api/workspace'))
+    } catch (cause) { setError(cause.message) }
+    finally { setWorkspaceBusy(false) }
+  }
+
   if (!hasInvestigation) return <Landing value={input} setValue={setInput} onSubmit={investigate} busy={busy} error={error} theme={theme} onToggleTheme={toggleTheme} workspace={workspace} onOpenCase={openCase} />
   const showReport = Boolean(activeReport && (isComplete || showReportEarly))
-  if (showReport) return <SecurityConsole key={scenarioId} report={activeReport} hydra={hydra || investigation?.hydra} scenarioId={scenarioId} workspace={workspace} activeView={activeView} onNavigate={setActiveView} onNewCase={newInvestigation} onOpenCase={openCase} onRewind={rewind} onWatchRepository={watchRepository} onScanWatch={scanWatch} onScanAll={scanAll} actionBusy={workspaceBusy} theme={theme} onToggleTheme={toggleTheme} investigationStatus={investigation?.status} />
+  if (showReport) return <SecurityConsole key={scenarioId} report={activeReport} hydra={hydra || investigation?.hydra} scenarioId={scenarioId} workspace={workspace} activeView={activeView} onNavigate={setActiveView} onNewCase={newInvestigation} onOpenCase={openCase} onRewind={rewind} onWatchRepository={watchRepository} onScanWatch={scanWatch} onScanAll={scanAll} onToggleWatch={toggleWatch} actionBusy={workspaceBusy} theme={theme} onToggleTheme={toggleTheme} investigationStatus={investigation?.status} />
   return <div className="product-shell"><InvestigationHeader investigation={investigation} hydra={hydra || investigation?.hydra} onNewCase={newInvestigation} theme={theme} onToggleTheme={toggleTheme} />{investigation?.status === 'failed' ? <FailedView snapshot={snapshot} onNewCase={newInvestigation} /> : <RunningView snapshot={snapshot} onOpenReport={() => setShowReportEarly(true)} />}{error && investigation?.status !== 'failed' && <div className="floating-error"><CircleAlert size={14} /> {error}</div>}</div>
 }
 

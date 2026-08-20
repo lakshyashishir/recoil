@@ -127,3 +127,20 @@ test('workspace questions return typed, cited rows', () => {
   assert.equal(answer.rows[0].secondary, '@security')
   assert.match(answer.rows[0].source, /src\/index\.js/)
 })
+
+test('workspace questions remain bounded to the selected repository', () => {
+  const incidents = buildIncidents([
+    record('acme', '2026-08-20T00:00:00Z', 'REACHED', 'acme/app'),
+    record('other', '2026-08-20T00:00:00Z', 'REACHED', 'other/service'),
+  ])
+  const workspace = {
+    incidents,
+    repositories: [
+      { repository: 'acme/app', scanCount: 2, needsAction: 1 },
+      { repository: 'other/service', scanCount: 3, needsAction: 1 },
+    ],
+  }
+  const answer = answerWorkspaceQuestion('Who owns the reached path?', workspace, { type: 'repository', value: 'other/service' })
+  assert.equal(answer.rows.length, 1)
+  assert.equal(answer.rows[0].primary, 'other/service')
+})

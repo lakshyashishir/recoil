@@ -32,8 +32,9 @@ state. Without a mounted path, replacing the instance starts a fresh watchlist e
 evidence remains valid. Do not scale this single-workspace build horizontally: each instance would otherwise
 run its own monitor.
 
-Set `RECOIL_WATCH_INTERVAL_MS` only after the demo repository list is final; every interval performs real
-public collection and can consume GitHub, OSV, OpenAI, and HydraDB quota. `RECOIL_NOTIFICATION_WEBHOOK_URL`
+The included App Runner configuration sets `RECOIL_WATCH_INTERVAL_MS=21600000`, so active watches are checked
+every six hours. Change it to `0` for a manual-only deployment. Every interval performs real public
+collection and can consume GitHub, OSV, OpenAI, and HydraDB quota. `RECOIL_NOTIFICATION_WEBHOOK_URL`
 is optional and receives `recoil.notification/v1` JSON for a new reachable exposure or verdict change.
 
 ## CloudFront
