@@ -533,7 +533,7 @@ function GraphInspector({ node, report, graph, selectedFinding, onInspectProof }
   return <div className="graph-inspector" aria-live="polite"><div className="graph-inspector-copy"><span>Selected {node.type}</span><strong>{node.label}</strong><small>{metadata}</small></div>{evidenceValue && <div className="graph-inspector-evidence"><span>{evidenceLabel}</span><strong>{evidenceValue}</strong>{importer?.snippet && <code>{importer.snippet}</code>}{evidenceSource && <SourceLink href={evidenceSource}>{importer?.sourceUrl ? 'Open source line' : 'Open cited record'}</SourceLink>}</div>}{sourceSummary && <div className="graph-inspector-proof"><span>Selected route</span><strong>{sourceSummary}</strong></div>}<div className="graph-inspector-relations" aria-label="Observed relationships">{relations.slice(0, 2).map((relation) => <span key={`${relation.direction}-${relation.node.id}`}><i>{relation.direction === 'out' ? '→' : '←'}</i><strong>{graphEdgeLabel(relation.direction === 'out' ? node : relation.node, relation.direction === 'out' ? relation.node : node)}</strong><em>{shorten(relation.node.label, 25)}</em></span>)}{relations.length > 2 && <small>+{relations.length - 2} more</small>}</div><div className="graph-inspector-actions">{verdict && <Verdict value={verdict} compact />}{onInspectProof && <button type="button" onClick={onInspectProof}>Open fix check <ArrowUpRight size={12} /></button>}</div></div>
 }
 
-function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historical = false }) {
+function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, challenges = [], historical = false }) {
   const kindLabel = {
     advisory: 'advisory',
     resolved: 'resolved version',
@@ -548,10 +548,11 @@ function ProofMap({ findings = [], selectedIndex = 0, onSelectFinding, historica
       const parts = findingParts(finding)
       const selected = index === selectedIndex
       const sourceImpact = finding.sourceImpact
+      const challenge = challenges.find((item) => item.repository === finding.repository)
       return <article className={`proof-map-lane ${selected ? 'proof-map-lane-selected' : ''}`} key={finding.repository || index}>
         <button className="proof-map-repository" type="button" onClick={() => onSelectFinding?.(index)} aria-pressed={selected}>
           <span className="proof-map-index">0{index + 1}</span>
-          <span className="proof-map-repository-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? `${finding.resolvedVersions.length} versions` : finding.resolvedVersion || 'unresolved'}</small></span>
+          <span className="proof-map-repository-copy"><strong>{repositoryName(finding.repository)}</strong><small>{finding.packageName || 'package unresolved'} · {finding.resolvedVersions?.length > 1 ? `${finding.resolvedVersions.length} versions` : finding.resolvedVersion || 'unresolved'} · {routeActionLabel(finding, challenge, historical)}</small></span>
           <Verdict value={finding.verdict} compact />
         </button>
         {parts.length ? <div className="proof-map-path" aria-label={`Evidence path for ${repositoryName(finding.repository)}`}>
@@ -580,7 +581,8 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
   if (!live && proofFirst) {
     return <section className="evidence-map proof-map-shell" aria-label="Cited evidence paths">
       <div className="map-heading"><div><span className="section-kicker">Evidence paths</span><h2>One cited path per repository</h2><p className="map-heading-detail">Start with the relationships that decide the case. Select a repository, then open any source link to inspect the record behind that hop.</p></div><div className="map-heading-actions"><span className="map-count">{report?.repositories?.length || 0} paths · {graph.nodes.length} entities</span>{onToggleGraph && <button className="map-view-toggle" type="button" onClick={onToggleGraph}><Waypoints size={13} /> Open graph view</button>}</div></div>
-      <ProofMap findings={report?.repositories || []} selectedIndex={Math.max(0, report?.repositories?.findIndex((finding) => finding.repository === selectedFinding?.repository) ?? 0)} onSelectFinding={onSelectFinding} historical={historical} />
+      <ProofMap findings={report?.repositories || []} selectedIndex={Math.max(0, report?.repositories?.findIndex((finding) => finding.repository === selectedFinding?.repository) ?? 0)} onSelectFinding={onSelectFinding} challenges={report?.challenge || []} historical={historical} />
+      <SharedResolution correlations={report?.crossRepositoryCorrelations || []} />
     </section>
   }
   const layout = useMemo(() => graphLayout(graph, selectedFinding), [graph, selectedFinding])
@@ -1460,33 +1462,6 @@ function CaseFactsLine({ summary = {}, packageName, finding, challenge, hydra, h
   return <section className="case-facts-line" aria-label="Case proof summary">{facts.map((fact) => <article className="case-fact" key={fact.label}><span className="case-fact-label">{fact.label}</span><strong className={fact.positive ? 'is-positive' : ''}>{fact.value}</strong><small>{fact.detail}</small>{fact.command && <CopyFixCommand command={fact.command} compact />}{fact.action && <button type="button" onClick={fact.action.onClick}>{fact.action.label}<ArrowUpRight size={12} /></button>}</article>)}</section>
 }
 
-function CaseContrast({ findings = [], selectedIndex = 0, onSelect, historical = false }) {
-  if (!findings.length) return null
-  return <section className={`case-contrast ${historical ? 'case-contrast-historical' : ''}`} aria-label="Repository contrast">
-    <div className="case-contrast-heading"><span>Repository contrast</span><small>{findings.length} checked · computed from public evidence</small></div>
-    <div className="case-contrast-list">
-      {findings.map((finding, index) => {
-        const importer = finding.imports?.[0]
-        const version = finding.resolvedVersions?.length > 1 ? finding.resolvedVersions.join(', ') : finding.resolvedVersion || 'version unresolved'
-        const detail = finding.verdict === 'REACHED'
-          ? `${version} → ${importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'sampled source'}`
-          : finding.verdict === 'DECLARED_ONLY'
-            ? `${version} in lockfile · no sampled import`
-            : finding.verdict === 'NOT_AFFECTED'
-              ? `${version} · outside affected range`
-              : finding.reason || 'Evidence needs review'
-        const coverage = sourceCoverageLabel(finding)
-        return <button className={`case-contrast-item ${selectedIndex === index ? 'is-selected' : ''}`} key={finding.repository || index} type="button" onClick={() => onSelect?.(index)} aria-pressed={selectedIndex === index}>
-          <span className="case-contrast-status"><Verdict value={finding.verdict} compact /><span>0{index + 1}</span></span>
-          <strong>{repositoryName(finding.repository)}</strong>
-          <small>{detail}</small>
-          {coverage && <span className="case-contrast-coverage">{coverage}</span>}
-        </button>
-      })}
-    </div>
-  </section>
-}
-
 function CaseDecisionCallout({ findings = [], challenges = [], packageName, historical = false, onInspectProof, onOpenHistory, compact = false }) {
   const reached = findings.filter((finding) => finding.verdict === 'REACHED')
   const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY')
@@ -1885,11 +1860,9 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   })
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [activeTab, setActiveTab] = useState('graph')
-  // The graph is the product's differentiator: open the completed case on the
-  // observed topology, with the selected route and repository decisions beside
-  // it. The cited path view remains one click away when a reviewer wants the
-  // proof chain without the surrounding entities.
-  const [graphView, setGraphView] = useState(true)
+  // Open the completed case on the shortest cited paths first. The observed
+  // topology remains one click away when a reviewer wants the wider graph.
+  const [graphView, setGraphView] = useState(false)
   const [graphReplayToken, setGraphReplayToken] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyTarget, setHistoryTarget] = useState(null)
@@ -1968,11 +1941,6 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const historyAction = historical
     ? report?.rewind?.currentAsOf ? () => rewindTo(report.rewind.currentAsOf) : null
     : report?.rewind?.beforeAdvisory ? openHistory : null
-  const selectRepositoryFromSummary = (index) => {
-    setSelectedIndex(index)
-    setSelectedNodeId(null)
-    window.requestAnimationFrame(() => document.getElementById('case-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-  }
   const selectRepositoryFromGraph = (index) => {
     setSelectedIndex(index)
     setSelectedNodeId(null)
@@ -1986,10 +1954,9 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
     <CaseOutcomeStrip report={report} findings={findings} summary={summary} hydra={hydra} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} />
-    {!graphView && <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={selectRepositoryFromSummary} />}
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
-      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
+      {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={selectRepositoryFromGraph} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} onInspectProof={!historical ? () => inspectProof(selectedIndex) : null} />{(graphView || historical) && <RouteList findings={findings} selectedIndex={selectedIndex} onSelect={selectRepositoryFromGraph} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} />}</div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
       {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}

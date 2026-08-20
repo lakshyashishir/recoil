@@ -1432,10 +1432,8 @@ body { font-family: var(--sans); line-height: 1.45; }
 .failure-evidence-heading > span { white-space: nowrap; }
 .failure-evidence .evidence-map { min-height: 380px; }
 
-/* Graph view is the primary completed-case reading. Keep the actual graph
-   beside a compact repository comparison so the reviewer can see both the
-   relationship and the decision without scrolling through two separate
-   screens. The cited-path view keeps its full-width reading layout. */
+/* Keep the full graph as an inspection view. The cited-path view is the
+   primary completed-case reading and keeps repository decisions readable. */
 @media (min-width: 981px) {
   .case-workspace-graph { grid-template-columns: minmax(240px, .36fr) minmax(0, 1.64fr); gap: 26px; }
   .case-workspace-graph > .evidence-map { grid-column: 2; grid-row: 1; }
@@ -1543,80 +1541,12 @@ body { font-family: var(--sans); line-height: 1.45; }
   .route-list-compact .route-item-compact > .verdict { grid-column: 3; grid-row: 1; }
 }
 
-/* Put the computed repository contrast beside the answer. This is a flat
-   evidence strip, not a second row of dashboard cards. */
-.case-contrast {
-  display: grid;
-  gap: 8px;
-  margin: -2px 0 14px;
-  padding: 0 0 14px;
-  border-bottom: 1px solid var(--line);
-}
-.case-contrast-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-.case-contrast-heading span {
-  color: var(--muted);
-  font: 10px/1 var(--mono);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-.case-contrast-heading small {
-  color: var(--faint);
-  font-size: 10px;
-}
-.case-contrast-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  border-top: 1px solid var(--line-soft);
-  border-bottom: 1px solid var(--line-soft);
-}
-.case-contrast-item {
-  display: grid;
-  align-content: start;
-  gap: 7px;
-  min-width: 0;
-  padding: 12px 16px 13px 0;
-  color: var(--muted);
-  background: transparent;
-  text-align: left;
-  transition: color .2s ease, background .2s ease, padding .2s ease;
-}
-.case-contrast-item + .case-contrast-item {
-  padding-left: 16px;
-  border-left: 1px solid var(--line-soft);
-}
-.case-contrast-item:hover,
-.case-contrast-item:focus-visible,
-.case-contrast-item.is-selected {
-  color: var(--text);
-  background: var(--surface);
-}
-.case-contrast-item:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: -2px; }
-.case-contrast-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.case-contrast-status > span { color: var(--faint); font: 10px/1 var(--mono); }
-.case-contrast-item strong { overflow: hidden; color: inherit; font: 600 12px/1.25 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
-.case-contrast-item small { overflow: hidden; color: var(--faint); font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-.case-contrast-item.is-selected small { color: var(--muted); }
-.case-contrast-coverage { overflow: hidden; color: var(--faint); font: 9px/1.3 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
-.case-contrast-item.is-selected .case-contrast-coverage { color: var(--muted); }
-.case-contrast-historical .case-contrast-item { opacity: .8; }
-
 /* The answer should carry the visual weight; the graph and evidence details
    can remain dense without making the first screen feel like a poster. */
 .landing-intro h1 { max-width: 620px; font-size: clamp(40px, 4.4vw, 58px); line-height: 1.02; }
 .case-hero h1 { max-width: 740px; font-size: clamp(38px, 4.2vw, 56px); line-height: 1.04; }
 
 @media (max-width: 720px) {
-  .case-contrast { margin-top: -1px; }
-  .case-contrast-list { grid-template-columns: 1fr; }
-  .case-contrast-item, .case-contrast-item + .case-contrast-item { padding: 12px 0; border-left: 0; }
-  .case-contrast-item + .case-contrast-item { border-top: 1px solid var(--line-soft); }
-  .case-contrast-item small { white-space: normal; }
-  .case-contrast-coverage { white-space: normal; }
   .landing-intro h1 { font-size: clamp(37px, 10.5vw, 50px); }
   .case-hero h1 { font-size: clamp(36px, 10vw, 48px); }
 }
