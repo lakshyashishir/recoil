@@ -180,6 +180,9 @@ h1, h2, p { margin-top: 0; }
 .map-heading { min-height: 82px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
 .map-heading > div { min-width: 0; }
 .map-heading-detail { max-width: 560px; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.map-heading-outcome { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 8px 0 0; color: var(--text); font-size: 11px; line-height: 1.35; }
+.map-heading-outcome strong { font-weight: 600; }
+.map-heading-outcome span { color: var(--faint); font: 10px/1.35 var(--mono); }
 .map-heading-context { max-width: 680px; margin: 7px 0 0; color: var(--accent); font-size: 11px; line-height: 1.35; }
 .map-canvas { position: relative; min-width: 0; padding: 10px 12px 0; overflow: hidden; }
 .map-canvas > svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; overflow: visible; }
