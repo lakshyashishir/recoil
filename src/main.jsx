@@ -1661,26 +1661,23 @@ function summaryExposureLabel(finding, report) {
   return Number.isFinite(days) ? `${days.toLocaleString()} days` : 'The path existed'
 }
 
-function CaseConclusion({ report, findings, summary, historical, hydra }) {
+function CaseConclusion({ report, findings, historical, hydra }) {
   const imports = findings.reduce((total, finding) => total + (finding.imports?.length || 0), 0)
-  const challenge = report?.challenge || []
-  const verified = challenge.filter((item) => item.status === 'FIX_SURVIVES').length
-  const alreadySafe = challenge.filter((item) => item.status === 'ALREADY_SAFE').length
-  const noReachablePath = challenge.filter((item) => item.status === 'NO_REACHABLE_PATH').length
-  const history = historical ? `reconstructed ${report?.rewind?.asOf?.slice(0, 10) || 'historical date'}` : summary.exposureDays != null ? `${summary.exposureDays.toLocaleString()} days before disclosure` : 'not dated'
-  const memory = report?.rewind?.memory
-  const hydraPending = hydra?.indexingPending === true
-  const memoryLabel = memory?.status === 'recalled'
-    ? `${memory.datedChunkCount || 0} dated fact${memory.datedChunkCount === 1 ? '' : 's'} recalled${hydraPending ? ' · case indexing' : hydra?.status === 'persisted' ? ' · stored' : hydra?.status === 'queued' ? ' · write unconfirmed' : ''}`
-    : memory?.status === 'queued'
-      ? 'indexing in HydraDB'
-      : 'not available'
-  const remediation = historical
-    ? 'current evidence'
-    : [verified ? `${verified} fix verified` : null, alreadySafe ? `${alreadySafe} already safe` : null, noReachablePath ? `${noReachablePath} no reachable path` : null].filter(Boolean).join(' · ') || 'review required'
-  return <section className="case-conclusion" aria-label="Case decision">
-    <div className="case-conclusion-copy"><h2>Why this verdict holds</h2><p>{historical ? 'This is a dated reconstruction. The current report keeps reachability, timing, and remediation as separate evidence rather than collapsing them into one score.' : `Recoil compared ${report?.package || 'the affected package'} across the supplied repositories. A lockfile entry becomes a reachable path only when a sampled source import supports it.`}</p></div>
-    <dl className="case-conclusion-facts"><div><dt>Reachability</dt><dd>{imports} sampled import{imports === 1 ? '' : 's'}</dd></div><div><dt>History</dt><dd>{history}</dd></div><div><dt>Remediation</dt><dd>{remediation}</dd></div><div><dt>Memory</dt><dd>{memoryLabel}</dd></div></dl>
+  const sourceCount = report?.sources?.length || 0
+  const memory = report?.rewind?.memory || hydra?.recall
+  const proofBasis = historical
+    ? `a dated reconstruction across ${findings.length} repository${findings.length === 1 ? '' : 's'}`
+    : `${findings.length} repository${findings.length === 1 ? '' : 'ies'}, ${imports} sampled import${imports === 1 ? '' : 's'}, and ${sourceCount} public source${sourceCount === 1 ? '' : 's'}`
+  const memoryBasis = memory?.status === 'recalled'
+    ? `${memory.datedChunkCount || 0} dated fact${memory.datedChunkCount === 1 ? '' : 's'} recalled from HydraDB`
+    : historical
+      ? 'current remediation is hidden in this view'
+      : hydra?.status === 'persisted'
+        ? 'case stored in HydraDB'
+        : 'local evidence record'
+  return <section className="case-conclusion" aria-label="Evidence boundary">
+    <div className="case-conclusion-copy"><span className="section-kicker">Interpretation boundary</span><h2>Useful evidence, with its limits visible.</h2><p>{historical ? 'This view preserves what was knowable at the selected date. It does not turn a historical snapshot into a present-day remediation claim.' : 'Recoil proves a public dependency path, its source use, and the advisory-backed version check. It does not invent runtime infrastructure or collapse uncertainty into a risk score.'}</p></div>
+    <dl className="case-conclusion-facts"><div><dt>Computed from</dt><dd>{proofBasis}</dd><small>{memoryBasis}</small></div><div><dt>Not included</dt><dd>Package installation, code execution, exploit attempts, or repository changes.</dd><small>Every action remains a reviewable recommendation.</small></div></dl>
   </section>
 }
 
@@ -1990,7 +1987,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
     </div>
-    <CaseConclusion report={report} findings={findings} summary={summary} historical={historical} hydra={hydra} />
+    <CaseConclusion report={report} findings={findings} historical={historical} hydra={hydra} />
   </main>
 }
 
