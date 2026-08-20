@@ -186,7 +186,9 @@ h1, h2, p { margin-top: 0; }
 .map-heading-outcome span { color: var(--faint); font: 10px/1.35 var(--mono); }
 .map-heading-context { max-width: 680px; margin: 7px 0 0; color: var(--accent); font-size: 11px; line-height: 1.35; }
 .map-canvas { position: relative; min-width: 0; padding: 10px 12px 0; overflow: hidden; }
-.map-canvas > svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; overflow: visible; }
+.map-svg-viewport { min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.map-svg-viewport:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: -2px; }
+.map-svg-viewport > svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; overflow: visible; }
 .graph-inspector svg { width: auto; height: auto; }
 .map-layer-label { fill: var(--faint); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
 .map-edge { color: var(--line); stroke: currentColor; stroke-width: 1.4; opacity: .72; }
@@ -448,6 +450,10 @@ h1, h2, p { margin-top: 0; }
   .map-heading { padding: 17px; }
   .map-heading h2 { font-size: 18px; }
   .map-canvas { padding-left: 4px; padding-right: 4px; }
+  /* Keep the graph legible instead of scaling six evidence layers into a
+     thumbnail. The scroll belongs to the graph viewport, not the report. */
+  .map-svg-viewport { margin: 0 -4px; padding: 0 4px 7px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .map-svg-viewport > svg { width: 840px; max-width: none; }
   .graph-inspector { align-items: flex-start; flex-direction: column; gap: 9px; padding: 12px 17px 14px; }
   .graph-inspector-actions { justify-content: flex-start; }
   .case-hero { grid-template-columns: minmax(0, 1fr); }

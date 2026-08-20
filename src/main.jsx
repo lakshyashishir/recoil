@@ -577,7 +577,8 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
   return <section className="evidence-map" aria-label="Observed evidence map">
     <div className="map-heading"><div><span className="section-kicker">Observed graph</span><h2>{live ? graphProgress?.completedRepositories === graphProgress?.totalRepositories && graphProgress?.totalRepositories ? 'Evidence map ready' : 'Evidence arriving' : 'Follow the path to code'}</h2><p className="map-heading-detail">{live ? 'Each edge is added from a public record as it is collected.' : 'Read left to right: advisory → dependency → lockfile → repository → sampled source. The selected route is highlighted; click a node to inspect its cited relationship.'}</p>{outcomeSummary && <p className="map-heading-outcome"><strong>{outcomeSummary}</strong><span>computed from the repository evidence</span></p>}<p className="map-heading-context">{selectedContext}</p></div><div className="map-heading-actions"><span className="map-count">{live && graphProgress ? `${graphProgress.completedRepositories}/${graphProgress.totalRepositories} repositories · ` : ''}{layout.nodes.length} nodes · {layout.edges.length} edges</span>{!live && !historical && onToggleGraph && <button className="map-view-toggle" type="button" onClick={onToggleGraph}><FileText size={13} /> Show cited paths</button>}</div></div>
     <div className="map-canvas">
-      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
+      <div className="map-svg-viewport" tabIndex="0" aria-label="Scrollable evidence graph">
+      <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Evidence graph from advisory to repository source">
         <defs><marker id="recoil-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="currentColor" strokeWidth="1.2" /></marker></defs>
         {layerLabels.map((layer) => {
           const layerNodes = layout.nodes.filter((node) => node.type === layer.type)
@@ -614,6 +615,7 @@ function EvidenceMap({ report, selectedFinding, onSelectFinding, onSelectNode, s
           })}
         </g>
       </svg>
+      </div>
       <div className="map-legend" aria-label="Graph legend"><span><i className="legend-line legend-observed" /> observed</span><span><i className="legend-line legend-selected" /> selected path</span><span><i className="legend-dot legend-reached" /> reached</span><span><i className="legend-dot legend-declared" /> declared only</span><span><i className="legend-dot legend-safe" /> safe</span><span className="map-direction">arrows follow the evidence</span></div>
       {onSelectNode && (!live || selectedNode) && <GraphInspector node={selectedNode} report={report} graph={graph} selectedFinding={selectedFinding} />}
     </div>
