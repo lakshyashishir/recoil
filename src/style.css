@@ -1434,8 +1434,8 @@ body { font-family: var(--sans); line-height: 1.45; }
   .route-list-compact .route-item-compact > .verdict { grid-column: 3; grid-row: 1; }
 }
 
-/* Give the three-way result a visual shape before the reader enters the
-   evidence paths. Widths are derived only from the repository verdicts. */
+/* Put the computed repository contrast beside the answer. This is a flat
+   evidence strip, not a second row of dashboard cards. */
 .case-contrast {
   display: grid;
   gap: 8px;
@@ -1449,50 +1449,50 @@ body { font-family: var(--sans); line-height: 1.45; }
   justify-content: space-between;
   gap: 12px;
 }
-.case-contrast-heading strong {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-}
 .case-contrast-heading span {
+  color: var(--muted);
+  font: 10px/1 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.case-contrast-heading small {
   color: var(--faint);
   font-size: 10px;
 }
-.case-contrast-bar {
-  display: flex;
-  width: 100%;
-  height: 7px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: var(--surface-raised);
+.case-contrast-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
 }
-.case-contrast-segment {
-  min-width: 3px;
-  height: 100%;
-}
-.case-contrast-segment + .case-contrast-segment { border-left: 2px solid var(--bg); }
-.contrast-reached { background: var(--red); }
-.contrast-declared { background: var(--accent); }
-.contrast-safe { background: var(--green); }
-.contrast-unknown { background: var(--faint); }
-.case-contrast-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
+.case-contrast-item {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  padding: 12px 16px 13px 0;
   color: var(--muted);
-  font-size: 10px;
+  background: transparent;
+  text-align: left;
+  transition: color .2s ease, background .2s ease, padding .2s ease;
 }
-.case-contrast-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.case-contrast-item + .case-contrast-item {
+  padding-left: 16px;
+  border-left: 1px solid var(--line-soft);
 }
-.case-contrast-dot {
-  width: 6px;
-  height: 6px;
-  display: inline-block;
-  border-radius: 50%;
+.case-contrast-item:hover,
+.case-contrast-item:focus-visible,
+.case-contrast-item.is-selected {
+  color: var(--text);
+  background: var(--surface);
 }
+.case-contrast-item:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: -2px; }
+.case-contrast-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.case-contrast-status > span { color: var(--faint); font: 10px/1 var(--mono); }
+.case-contrast-item strong { overflow: hidden; color: inherit; font: 600 12px/1.25 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.case-contrast-item small { overflow: hidden; color: var(--faint); font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.case-contrast-item.is-selected small { color: var(--muted); }
+.case-contrast-historical .case-contrast-item { opacity: .8; }
 
 /* The answer should carry the visual weight; the graph and evidence details
    can remain dense without making the first screen feel like a poster. */
@@ -1502,7 +1502,10 @@ body { font-family: var(--sans); line-height: 1.45; }
 
 @media (max-width: 720px) {
   .case-contrast { margin-top: -1px; }
-  .case-contrast-legend { gap: 6px 12px; }
+  .case-contrast-list { grid-template-columns: 1fr; }
+  .case-contrast-item, .case-contrast-item + .case-contrast-item { padding: 12px 0; border-left: 0; }
+  .case-contrast-item + .case-contrast-item { border-top: 1px solid var(--line-soft); }
+  .case-contrast-item small { white-space: normal; }
   .landing-intro h1 { font-size: clamp(37px, 10.5vw, 50px); }
   .case-hero h1 { font-size: clamp(36px, 10vw, 48px); }
 }
