@@ -65,7 +65,7 @@ GHSA-xvch-5gv4-984h
   tweenjs/tween.js                → DECLARED_ONLY
   axios/axios@v1.x                → NOT_AFFECTED
 
-HydraDB: persisted · 9 memories · 22 dated facts · 12 graph triplets · 30 prior records recalled
+HydraDB: persisted · 9 memories · dated facts recalled · current-case graph relations verified · prior records recalled
 Sources: 84 public URLs
 Boundary: no install · no repository execution · no exploit payload
 Receipt: keep the latest `.recoil-recordings/<scenario-id>.json` produced by the strict smoke run
@@ -73,7 +73,9 @@ Receipt: keep the latest `.recoil-recordings/<scenario-id>.json` produced by the
 
 This is a real source-backed contrast, not a fixture: the first repository has a sampled import,
 the second has the affected resolution without a sampled import, and the third resolves outside the
-advisory range. Keep the receipt locally for the presentation; do not commit it.
+advisory range. HydraDB counts vary as the shared cloud corpus grows; the strict gate requires a
+non-empty dated recall and a current-case graph verification rather than fixed counts. Keep the receipt
+locally for the presentation; do not commit it.
 
 ## What the judge sees
 

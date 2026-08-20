@@ -480,6 +480,53 @@ test('HydraDB temporal recall focuses on dated reachability facts when graph mem
   }
 })
 
+test('HydraDB temporal recall keeps polling when graph memories arrive before dated facts', async () => {
+  const previousFetch = globalThis.fetch
+  const previousKey = process.env.HYDRA_DB_API_KEY
+  const previousDatabase = process.env.HYDRADB_DATABASE_ID
+  const previousWait = process.env.HYDRADB_TEMPORAL_RECALL_WAIT_MS
+  const previousPoll = process.env.HYDRADB_RECALL_POLL_MS
+  let focusedCalls = 0
+  const requests = []
+  process.env.HYDRA_DB_API_KEY = 'test-key'
+  process.env.HYDRADB_DATABASE_ID = 'test-database'
+  process.env.HYDRADB_TEMPORAL_RECALL_WAIT_MS = '100'
+  process.env.HYDRADB_RECALL_POLL_MS = '0'
+  globalThis.fetch = async (input, options) => {
+    assert.match(String(input), /\/query$/)
+    const request = JSON.parse(options.body)
+    requests.push(request)
+    const focused = request.query.startsWith('Reachability fact')
+    if (focused) focusedCalls += 1
+    const dated = focused && focusedCalls > 1
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { inner: {
+        chunks: [{ id: dated ? 'dated-fact' : focused ? 'graph-fact-2' : 'graph-fact-1', additional_metadata: { app: 'recoil', recoil_kind: dated ? 'temporal_fact' : 'observed_graph', ...(dated ? { valid_from: '2022-01-01T00:00:00Z' } : {}) } }],
+        graph_context: { triplets: [] },
+      } } }),
+    }
+  }
+  try {
+    const recalled = await recallTemporal('minimist GHSA-test', '2023-01-01T00:00:00.000Z')
+    assert.equal(requests.length, 3)
+    assert.equal(focusedCalls, 2)
+    assert.equal(recalled.datedChunkCount, 1)
+    assert.equal(recalled.focusedRecall, true)
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.HYDRA_DB_API_KEY
+    else process.env.HYDRA_DB_API_KEY = previousKey
+    if (previousDatabase === undefined) delete process.env.HYDRADB_DATABASE_ID
+    else process.env.HYDRADB_DATABASE_ID = previousDatabase
+    if (previousWait === undefined) delete process.env.HYDRADB_TEMPORAL_RECALL_WAIT_MS
+    else process.env.HYDRADB_TEMPORAL_RECALL_WAIT_MS = previousWait
+    if (previousPoll === undefined) delete process.env.HYDRADB_RECALL_POLL_MS
+    else process.env.HYDRADB_RECALL_POLL_MS = previousPoll
+  }
+})
+
 test('HydraDB queued batches can settle after the report is already available', async () => {
   const previousFetch = globalThis.fetch
   const previousKey = process.env.HYDRA_DB_API_KEY

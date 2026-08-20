@@ -284,9 +284,16 @@ function LiveRepositoryProgress({ query, events = [], report = null, graphProgre
                 ? `${finding.packageName || 'package'}@${resolvedVersion || 'unresolved'} · outside affected range`
                 : routeEvidenceLabel(finding)
           : event?.detail || 'Waiting for the public lockfile and source sample.'
+        const evidenceMeta = finding
+          ? [
+            finding.sourceCandidateCount != null ? `${finding.sourceSampleSize || 0}/${finding.sourceCandidateCount} source files` : null,
+            `${finding.imports?.length || 0} source import${finding.imports?.length === 1 ? '' : 's'}`,
+            `${finding.evidenceSources?.length || 0} citation${finding.evidenceSources?.length === 1 ? '' : 's'}`,
+          ].filter(Boolean).join(' · ')
+          : event?.sourceUrls?.length ? `${event.sourceUrls.length} public record${event.sourceUrls.length === 1 ? '' : 's'}` : null
         return <div className={`live-repository live-repository-${status} ${finding ? `live-repository-verdict-${String(finding.verdict || 'UNKNOWN').toLowerCase()}` : ''}`} key={repository}>
           <span className="live-repository-index">0{index + 1}</span>
-          <div><strong>{repository}</strong><small>{detail}</small></div>
+          <div><strong>{repository}</strong><small>{detail}</small>{evidenceMeta && <span className="live-repository-evidence">{evidenceMeta}</span>}</div>
           <span className="live-repository-status">{statusLabel}</span>
         </div>
       })}

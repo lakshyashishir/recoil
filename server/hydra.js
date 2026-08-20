@@ -311,6 +311,11 @@ function recallWaitMs() {
   return Number.isFinite(configured) ? Math.min(Math.max(configured, 0), 120000) : 15000
 }
 
+function temporalRecallWaitMs() {
+  const configured = Number.parseInt(process.env.HYDRADB_TEMPORAL_RECALL_WAIT_MS || '30000', 10)
+  return Number.isFinite(configured) ? Math.min(Math.max(configured, 0), 120000) : 30000
+}
+
 function recallPollMs() {
   const configured = Number.parseInt(process.env.HYDRADB_RECALL_POLL_MS || '1500', 10)
   return Number.isFinite(configured) ? Math.min(Math.max(configured, 0), 10000) : 1500
@@ -318,6 +323,13 @@ function recallPollMs() {
 
 function hasRecallResults(result) {
   return (result?.chunks || result?.results || []).length > 0
+}
+
+function hasDatedRecall(result, asOf) {
+  return temporalChunks(recallChunks(result), asOf).some((chunk) => {
+    const metadata = chunkMetadata(chunk)
+    return Boolean(metadata.valid_from || metadata.valid_until)
+  })
 }
 
 function recallChunks(result) {
@@ -372,14 +384,14 @@ function focusedRecallText(queryText) {
     .slice(0, 600)
 }
 
-async function queryAfterIndexing(body, signal) {
+async function queryAfterIndexing(body, signal, { accept = hasRecallResults, waitMs = recallWaitMs() } = {}) {
   let result = await query(body, signal)
-  if (hasRecallResults(result) || recallWaitMs() === 0) return result
-  const deadline = Date.now() + recallWaitMs()
+  if (accept(result) || waitMs === 0) return result
+  const deadline = Date.now() + waitMs
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, recallPollMs()))
     result = await query(body, signal)
-    if (hasRecallResults(result)) return result
+    if (accept(result)) return result
   }
   return result
 }
@@ -702,7 +714,10 @@ export async function recallTemporal(queryText, asOf, signal, { excludeScenarioI
       focusedResult = await queryAfterIndexing({
         ...request,
         query: `Reachability fact ${focusedRecallText(queryText)} as of ${asOf}`,
-      }, signal)
+      }, signal, {
+        accept: (focused) => hasDatedRecall(focused, asOf),
+        waitMs: temporalRecallWaitMs(),
+      })
       rawChunks = mergeRecallChunks(result, focusedResult)
       chunks = temporalChunks(rawChunks, asOf)
     } catch (error) {
