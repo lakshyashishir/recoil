@@ -2230,22 +2230,35 @@ function RepositoriesView({ workspace, onOpenCase, onWatchRepository, onScanWatc
 
 function FocusedFleetGraph({ graph, focus }) {
   const [selectedNodeId, setSelectedNodeId] = useState(null)
+  useEffect(() => setSelectedNodeId(null), [focus?.type, focus?.value])
   const layout = useMemo(() => {
     const nodes = graph?.nodes || []
     const edges = graph?.edges || []
-    const adjacency = new Map()
-    for (const edge of edges) {
-      adjacency.set(edge.source, [...(adjacency.get(edge.source) || []), edge.target])
-      adjacency.set(edge.target, [...(adjacency.get(edge.target) || []), edge.source])
+    const visible = new Set()
+    if (focus?.type === 'repository') {
+      const target = repositoryKey(focus.value).toLowerCase()
+      for (const edge of edges) {
+        if (!(edge.repositories || []).some((repository) => repositoryKey(repository).toLowerCase() === target)) continue
+        visible.add(edge.source)
+        visible.add(edge.target)
+      }
+      for (const node of nodes) {
+        if ((node.repositories || []).some((repository) => repositoryKey(repository).toLowerCase() === target)) visible.add(node.id)
+      }
+    } else if (focus?.type === 'incident') {
+      const target = String(focus.value || '').toUpperCase()
+      const outgoing = new Map()
+      for (const edge of edges) outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target])
+      const seeds = nodes.filter((node) => String(node.id).toUpperCase() === `ADVISORY:${target}` || String(node.label).toUpperCase() === target).map((node) => node.id)
+      for (const id of seeds) visible.add(id)
+      let frontier = [...seeds]
+      for (let depth = 0; depth < 8 && frontier.length && visible.size < 70; depth += 1) {
+        const next = []
+        for (const id of frontier) for (const related of outgoing.get(id) || []) if (!visible.has(related) && visible.size < 70) { visible.add(related); next.push(related) }
+        frontier = next
+      }
     }
-    const seeds = nodes.filter((node) => String(node.id).toUpperCase().includes(String(focus || '').toUpperCase())).map((node) => node.id)
-    const visible = new Set(seeds.length ? seeds : nodes.slice(0, 1).map((node) => node.id))
-    let frontier = [...visible]
-    for (let depth = 0; depth < 8 && frontier.length && visible.size < 70; depth += 1) {
-      const next = []
-      for (const id of frontier) for (const related of adjacency.get(id) || []) if (!visible.has(related) && visible.size < 70) { visible.add(related); next.push(related) }
-      frontier = next
-    }
+    if (!visible.size && nodes[0]) visible.add(nodes[0].id)
     const shown = nodes.filter((node) => visible.has(node.id))
     const columnFor = (type) => ({ advisory: 0, package: 1, lockfile: 2, repository: 3, code: 4, symbol: 5 }[type] ?? 3)
     const groups = new Map()
@@ -2260,7 +2273,7 @@ function FocusedFleetGraph({ graph, focus }) {
     })
     const byId = new Map(positioned.map((node) => [node.id, node]))
     return { width, height, nodes: positioned, edges: edges.filter((edge) => byId.has(edge.source) && byId.has(edge.target)).map((edge) => ({ ...edge, sourceNode: byId.get(edge.source), targetNode: byId.get(edge.target) })) }
-  }, [graph, focus])
+  }, [graph, focus?.type, focus?.value])
   const selected = layout.nodes.find((node) => node.id === selectedNodeId)
   return <div className="fleet-graph-canvas"><svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="Focused evidence graph"><defs><marker id="fleet-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" /></marker></defs>{layout.edges.map((edge, index) => <path className="fleet-edge" key={`${edge.source}-${edge.target}-${index}`} d={`M${edge.sourceNode.x + 168},${edge.sourceNode.y + 20} C${edge.sourceNode.x + 190},${edge.sourceNode.y + 20} ${edge.targetNode.x - 22},${edge.targetNode.y + 20} ${edge.targetNode.x},${edge.targetNode.y + 20}`} markerEnd="url(#fleet-arrow)" />)}{layout.nodes.map((node) => <g className={`fleet-node fleet-node-${node.type} ${node.reached ? 'fleet-node-reached' : ''} ${selectedNodeId === node.id ? 'selected' : ''}`} key={node.id} transform={`translate(${node.x} ${node.y})`} onClick={() => setSelectedNodeId(node.id)} role="button" tabIndex="0"><rect width="168" height="40" rx="4" /><circle cx="13" cy="20" r="3" /><text x="23" y="16">{node.type || 'entity'}</text><text className="fleet-node-label" x="23" y="29">{shorten(node.label || node.id, 23)}</text></g>)}</svg>{selected && <div className="fleet-node-inspector"><span>{selected.type}</span><strong>{selected.label || selected.id}</strong>{selected.sourceUrl ? <SourceLink href={selected.sourceUrl}>Open evidence</SourceLink> : <small>Observed graph entity</small>}</div>}</div>
 }
@@ -2268,16 +2281,23 @@ function FocusedFleetGraph({ graph, focus }) {
 function GraphView({ report, workspace }) {
   const incidents = workspace?.incidents || []
   const repositories = workspace?.repositories || []
-  const initialFocus = incidents.find((incident) => incident.status === 'open')?.id || incidents[0]?.id || repositories[0]?.repository || ''
-  const [focus, setFocus] = useState(initialFocus)
   const graph = workspace?.fleetGraph
-  const focusOptions = [...incidents.map((incident) => ({ value: incident.id, label: incident.id, detail: `${incident.summary.reached} reached` })), ...repositories.map((repository) => ({ value: repository.repository, label: repositoryName(repository.repository), detail: 'repository' }))]
+  const focusOptions = [
+    ...incidents.map((incident) => ({ key: `incident:${incident.id}`, type: 'incident', value: incident.id, label: incident.id, detail: `${incident.summary.reached} reached` })),
+    ...repositories.map((repository) => ({ key: `repository:${repository.repository}`, type: 'repository', value: repository.repository, label: repositoryName(repository.repository), detail: 'latest scan' })),
+  ]
+  const initialFocusKey = focusOptions.find((option) => option.type === 'incident' && incidents.find((incident) => incident.id === option.value)?.status === 'open')?.key || focusOptions[0]?.key || ''
+  const [focusKey, setFocusKey] = useState(initialFocusKey)
+  useEffect(() => {
+    if (focusOptions.length && !focusOptions.some((option) => option.key === focusKey)) setFocusKey(focusOptions[0].key)
+  }, [focusKey, focusOptions])
+  const focus = focusOptions.find((option) => option.key === focusKey) || focusOptions[0]
   if (!graph?.nodes?.length) {
     const findings = report?.repositories || []
     const selectedFinding = findings.find((finding) => finding.verdict === 'REACHED') || findings[0]
     return <div className="console-view console-graph-view"><ConsolePageHeading eyebrow="Evidence graph" title="No fleet graph yet" detail="The current case is shown below. Add repositories to the watchlist to build the cross-scan graph." /><div className="graph-workspace"><div className="graph-workspace-main"><EvidenceMap report={report} selectedFinding={selectedFinding} /></div></div></div>
   }
-  return <div className="console-view console-graph-view"><ConsolePageHeading eyebrow="Fleet evidence graph" title="One incident at a time." detail={`${graph.nodes.length} evidence entities across the latest watched-repository snapshots. Choose a focus to remove unrelated noise.`} /><div className="fleet-graph-layout"><aside className="fleet-focus-list"><div><span>Focus</span><strong>{focusOptions.length}</strong></div>{focusOptions.map((option) => <button type="button" className={focus === option.value ? 'active' : ''} key={`${option.value}-${option.detail}`} onClick={() => setFocus(option.value)}><strong>{option.label}</strong><small>{option.detail}</small></button>)}</aside><section><div className="fleet-graph-toolbar"><span><i className="graph-key graph-key-observed" /> observed</span><span><i className="graph-key graph-key-reached" /> reached source</span><small>Showing the connected evidence neighborhood</small></div><FocusedFleetGraph graph={graph} focus={focus} /></section></div></div>
+  return <div className="console-view console-graph-view"><ConsolePageHeading eyebrow="Fleet evidence graph" title={focus?.type === 'repository' ? `${repositoryName(focus.value)} evidence` : 'Current incident path'} detail={focus?.type === 'repository' ? 'Only entities from this repository’s latest completed scan are shown.' : 'Only downstream paths from this advisory are shown across current repository snapshots.'} /><div className="fleet-graph-layout"><aside className="fleet-focus-list"><div><span>Focus</span><strong>{focusOptions.length}</strong></div>{focusOptions.map((option) => <button type="button" className={focusKey === option.key ? 'active' : ''} key={option.key} onClick={() => setFocusKey(option.key)}><strong>{option.label}</strong><small>{option.detail}</small></button>)}</aside><section><div className="fleet-graph-toolbar"><span><i className="graph-key graph-key-observed" /> observed</span><span><i className="graph-key graph-key-reached" /> reached source</span><small>{focus?.type === 'repository' ? 'Latest repository snapshot' : 'Current advisory blast radius'}</small></div><FocusedFleetGraph graph={graph} focus={focus} /></section></div></div>
 }
 
 function ChangesView({ report, hydra, onRewind }) {

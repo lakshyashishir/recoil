@@ -25,18 +25,37 @@ function advisoryMetadata(report, advisoryId) {
     || {}
 }
 
+function recordRepositoryKeys(record = {}) {
+  const repositories = record.investigation?.evidence?.repositories || record.ingestion?.repositories || []
+  const explicit = repositories.map((repository) => normalizedRepository(repository.repositoryUrl || repository.sourceUrl || repository.repository)).filter(Boolean)
+  if (explicit.length) return [...new Set(explicit)]
+  return [...new Set((record.investigation?.report?.repositories || []).map(findingRepository).filter(Boolean))]
+}
+
 export function buildIncidents(records = []) {
   const latestFindings = new Map()
   const reports = [...records]
     .filter((record) => record.investigation?.status === 'complete' && record.investigation?.report)
     .sort((left, right) => String(right.investigation.completedAt || '').localeCompare(String(left.investigation.completedAt || '')))
 
+  const repositoryBoundaries = new Map()
+  for (const record of reports) {
+    if (record.investigation.report.mode !== 'repository') continue
+    const observedAt = record.investigation.completedAt || record.updatedAt || ''
+    for (const repository of recordRepositoryKeys(record)) {
+      if (!repositoryBoundaries.has(repository)) repositoryBoundaries.set(repository, observedAt)
+    }
+  }
+
   for (const record of reports) {
     const report = record.investigation.report
+    const observedAt = record.investigation.completedAt || record.updatedAt || ''
     for (const finding of report.repositories || []) {
       const advisoryId = String(finding.advisoryId || report.advisory?.id || '').toUpperCase()
       const repository = findingRepository(finding)
       if (!advisoryId || !repository) continue
+      const repositoryBoundary = repositoryBoundaries.get(repository)
+      if (repositoryBoundary && repositoryBoundary > observedAt) continue
       const key = `${advisoryId}:${repository}`
       if (latestFindings.has(key)) continue
       latestFindings.set(key, {
@@ -100,21 +119,72 @@ function edgeParts(edge) {
   return [edge?.source || edge?.from, edge?.target || edge?.to, edge?.predicate || edge?.label || null]
 }
 
+function nodeBelongsToRepository(node = {}, repository = '') {
+  const target = normalizedRepository(repository)
+  if (!target) return false
+  if (normalizedRepository(node.meta?.repository) === target) return true
+  if (normalizedRepository(node.label) === target) return true
+  const haystack = `${node.id || ''} ${node.sourceUrl || ''}`.toLowerCase()
+  return haystack.includes(target)
+}
+
+function repositoryGraph(graph = {}, repository = '') {
+  const nodes = graph.nodes || []
+  const edges = (graph.edges || []).map((edge) => {
+    const [source, target, predicate] = edgeParts(edge)
+    return { source, target, predicate }
+  }).filter((edge) => edge.source && edge.target)
+  const byId = new Map(nodes.map((node) => [node.id, node]))
+  const incoming = new Map()
+  const outgoing = new Map()
+  for (const edge of edges) {
+    incoming.set(edge.target, [...(incoming.get(edge.target) || []), edge.source])
+    outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge.target])
+  }
+  const seeds = nodes.filter((node) => node.type === 'repository' && nodeBelongsToRepository(node, repository)).map((node) => node.id)
+  const visible = new Set(seeds)
+  let frontier = [...seeds]
+  for (let depth = 0; depth < 8 && frontier.length; depth += 1) {
+    const next = []
+    for (const id of frontier) for (const parent of incoming.get(id) || []) if (!visible.has(parent)) { visible.add(parent); next.push(parent) }
+    frontier = next
+  }
+  frontier = [...visible].filter((id) => nodeBelongsToRepository(byId.get(id), repository) || byId.get(id)?.type === 'repository')
+  for (let depth = 0; depth < 8 && frontier.length; depth += 1) {
+    const next = []
+    for (const id of frontier) {
+      for (const child of outgoing.get(id) || []) {
+        if (visible.has(child) || !nodeBelongsToRepository(byId.get(child), repository)) continue
+        visible.add(child)
+        next.push(child)
+      }
+    }
+    frontier = next
+  }
+  return {
+    nodes: nodes.filter((node) => visible.has(node.id)),
+    edges: edges.filter((edge) => visible.has(edge.source) && visible.has(edge.target)),
+  }
+}
+
 export function buildFleetGraph(records = [], watches = [], incidents = []) {
   const nodes = new Map()
   const edges = new Map()
-  const latestCaseIds = new Set(watches.map((watch) => watch.latestCaseId).filter(Boolean))
-  const selected = records.filter((record) => latestCaseIds.has(record.id) && record.investigation?.report)
-  const sourceRecords = selected.length ? selected : records.filter((record) => record.investigation?.report).slice(-5)
-  for (const record of sourceRecords) {
-    for (const node of record.investigation.report.graph?.nodes || []) {
+  for (const watch of watches) {
+    const record = records.find((item) => item.id === watch.latestCaseId && item.investigation?.report)
+    if (!record) continue
+    const scoped = repositoryGraph(record.investigation.report.graph, watch.repository)
+    for (const node of scoped.nodes) {
       if (!node?.id || nodes.size >= 180) continue
-      nodes.set(node.id, { ...node })
+      const current = nodes.get(node.id)
+      nodes.set(node.id, { ...current, ...node, repositories: [...new Set([...(current?.repositories || []), watch.repository])], caseIds: [...new Set([...(current?.caseIds || []), record.id])] })
     }
-    for (const edge of record.investigation.report.graph?.edges || []) {
+    for (const edge of scoped.edges) {
       const [source, target, predicate] = edgeParts(edge)
       if (!source || !target || !nodes.has(source) || !nodes.has(target) || edges.size >= 260) continue
-      edges.set(`${source}|${target}|${predicate || ''}`, { source, target, predicate })
+      const key = `${source}|${target}|${predicate || ''}`
+      const current = edges.get(key)
+      edges.set(key, { source, target, predicate, repositories: [...new Set([...(current?.repositories || []), watch.repository])], caseIds: [...new Set([...(current?.caseIds || []), record.id])] })
     }
   }
   const reachedNodeIds = new Set(incidents.flatMap((incident) => incident.findings)
@@ -137,29 +207,13 @@ export function buildIncidentGraph(records = [], advisoryId = '') {
   const target = String(advisoryId).toUpperCase()
   const nodes = new Map()
   const edges = new Map()
-  for (const record of records) {
-    const report = record.investigation?.report
-    if (!report || !(report.repositories || []).some((finding) => String(finding.advisoryId || report.advisory?.id).toUpperCase() === target)) continue
-    const graph = report.graph || { nodes: [], edges: [] }
-    const adjacency = new Map()
-    for (const edge of graph.edges || []) {
-      const [source, destination] = edgeParts(edge)
-      if (!source || !destination) continue
-      adjacency.set(source, [...(adjacency.get(source) || []), destination])
-      adjacency.set(destination, [...(adjacency.get(destination) || []), source])
-    }
-    const seeds = (graph.nodes || []).filter((node) => node.type === 'advisory' && String(node.label || node.id).toUpperCase().includes(target)).map((node) => node.id)
-    const visible = new Set(seeds)
-    let frontier = seeds
-    for (let depth = 0; depth < 8 && frontier.length; depth += 1) {
-      const next = []
-      for (const id of frontier) for (const related of adjacency.get(id) || []) if (!visible.has(related)) { visible.add(related); next.push(related) }
-      frontier = next
-    }
-    for (const node of graph.nodes || []) if (visible.has(node.id) && nodes.size < 140) nodes.set(node.id, node)
-    for (const edge of graph.edges || []) {
-      const [source, destination, predicate] = edgeParts(edge)
-      if (nodes.has(source) && nodes.has(destination) && edges.size < 220) edges.set(`${source}|${destination}|${predicate || ''}`, { source, target: destination, predicate })
+  const incident = buildIncidents(records).find((item) => item.id === target)
+  for (const finding of incident?.findings || []) {
+    const record = records.find((item) => item.id === finding.caseId)
+    const graph = repositoryGraph(record?.investigation?.report?.graph, finding.repositoryKey)
+    for (const node of graph.nodes) if (nodes.size < 140) nodes.set(node.id, node)
+    for (const edge of graph.edges) {
+      if (nodes.has(edge.source) && nodes.has(edge.target) && edges.size < 220) edges.set(`${edge.source}|${edge.target}|${edge.predicate || ''}`, edge)
     }
   }
   return { nodes: [...nodes.values()], edges: [...edges.values()], truncated: nodes.size >= 140 || edges.size >= 220 }
