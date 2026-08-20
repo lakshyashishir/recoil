@@ -376,8 +376,8 @@ asks the viewer to assemble the product's mental model themselves.
 7. The output is a report, not a memorable event. There is no strong “this one
    advisory produced three different truths” moment, no clear path closure, and
    no single result the audience can repeat afterward.
-8. The CLI currently feels like a one-shot command. Its real value—the same
-   evidence contract and portable receipt—does not appear as part of one
+8. The CLI currently feels like a one-shot command. Its real value-the same
+   evidence contract and portable receipt-does not appear as part of one
    coherent product loop.
 
 ## What Strix does well publicly
@@ -424,7 +424,7 @@ time through HydraDB.
 
 ## Candidate product framing to evaluate
 
-### Working direction: Recoil — dependency incident replay
+### Working direction: Recoil - dependency incident replay
 
 > Turn a CVE into a replayable evidence case: which code was exposed, when it
 > became exposed, and what closes the path.
@@ -445,7 +445,7 @@ an incident replay.
 The final experience should make one verified three-repository case feel like a
 small investigation with a beginning, reveal, and closure.
 
-### Act 1 — Open the case
+### Act 1 - Open the case
 
 The landing screen has one primary action, one preloaded judge-safe example,
 and one sentence explaining the answer. The default case is the tested
@@ -458,7 +458,7 @@ one advisory + three repositories
 The user can replace the case, but the winning demo never starts by asking the
 judge to understand four URLs and a package selector.
 
-### Act 2 — Watch evidence become a case
+### Act 2 - Watch evidence become a case
 
 The live view shows one clear question:
 
@@ -478,7 +478,7 @@ repo B  DECLARED_ONLY   affected version, no sampled import
 repo C  NOT_AFFECTED    resolved version outside the advisory range
 ```
 
-### Act 3 — Change the question
+### Act 3 - Change the question
 
 The report presents a large plain-language answer first, then a three-row
 outcome strip. Selecting a repository opens one route, not an entire graph.
@@ -491,7 +491,7 @@ advisory → resolved version → lockfile → source import → first observed 
 The audience should never need to understand SVG layout, graph density, or
 internal terms such as “local report.”
 
-### Act 4 — Rewind and close the path
+### Act 4 - Rewind and close the path
 
 One deliberate control rewinds to the advisory publication boundary. The
 selected route changes because the dated evidence changes. A second deliberate
@@ -504,7 +504,7 @@ current evidence: path reached
 after fixed version: path closed / manifest change required
 ```
 
-### Act 5 — Preserve the proof
+### Act 5 - Preserve the proof
 
 HydraDB is shown as the durable evidence layer only after the result is clear:
 
@@ -635,7 +635,7 @@ Also explicitly decide:
 - which existing capabilities must remain accessible but disappear from the
   default view.
 
-## Accepted implementation order — 2026-08-20
+## Accepted implementation order - 2026-08-20
 
 The superior review is accepted as the product direction. Recoil is now
 packaged as repository-first reachability triage, while the explicit
@@ -645,7 +645,7 @@ case.
 ### The promise
 
 > Recoil reads your repository, finds the advisories that apply, and proves
-> which ones actually reach your source code — with the lockfile line, the
+> which ones actually reach your source code - with the lockfile line, the
 > importer, and the date the path appeared.
 
 ### Five-day build order

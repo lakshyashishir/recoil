@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowLeft, ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, FileText, GitBranch, History, Inbox, LoaderCircle, Moon, PackageCheck, Plus, RotateCcw, Search, ShieldCheck, Sun, Terminal, Waypoints } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Check, CircleAlert, CircleCheck, Clock3, Copy, Database, Download, ExternalLink, FileCode2, FileText, GitBranch, History, Inbox, LoaderCircle, Moon, PackageCheck, Plus, RotateCcw, RouteOff, Search, ShieldCheck, Sun, Terminal, Waypoints } from 'lucide-react'
 import { recordingBlockers as getRecordingBlockers } from './core/recording.js'
 import '@fontsource/outfit/latin-400.css'
 import '@fontsource/outfit/latin-500.css'
@@ -142,6 +142,11 @@ function Verdict({ value, compact = false }) {
   return <span className={`verdict verdict-${String(value || 'UNKNOWN').toLowerCase()} ${compact ? 'verdict-compact' : ''}`}>{icon}{label}</span>
 }
 
+function RecoilBrand({ console: inConsole = false }) {
+  const className = inConsole ? 'console-brand' : 'brand'
+  return <div className={className}><span className="brand-mark"><RouteOff size={15} strokeWidth={2} aria-hidden="true" /></span><span>RECOIL</span></div>
+}
+
 function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme, workspace, onOpenCase }) {
   const textareaRef = useRef(null)
   const advisory = value.match(/(?:GHSA|CVE)-[A-Z0-9-]+/i)?.[0]
@@ -157,24 +162,24 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme,
   }
   return <main className="landing-page">
     <header className="landing-header">
-      <div className="brand"><span className="brand-mark" /> RECOIL</div>
+      <RecoilBrand />
       <div className="landing-header-tools"><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div>
     </header>
     <section className="landing-grid">
       <div className="landing-intro">
-        <h1>Watch repositories for vulnerabilities that reach code.</h1>
-        <p>Add a public repository once. Recoil inventories it now, keeps it on watch, and opens an incident only when evidence reaches source.</p>
+        <h1>Find which vulnerabilities reach your code.</h1>
+        <p>Add a public GitHub repository. Recoil checks its dependencies, traces vulnerable paths to source, and keeps watching for changes.</p>
       </div>
       <div className="landing-form-wrap">
         <form className="investigate-form" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-          <label htmlFor="investigation-input">Repository to watch</label>
-          <textarea ref={textareaRef} id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (ready && !busy) onSubmit() } }} placeholder={'https://github.com/org/repository\nOR\nGHSA-xvch-5gv4-984h https://github.com/org/repository'} rows={5} />
+          <label htmlFor="investigation-input">GitHub repository</label>
+          <textarea ref={textareaRef} id="investigation-input" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (ready && !busy) onSubmit() } }} placeholder={'https://github.com/org/repository\nOptional: add a GHSA or CVE to investigate one advisory'} rows={3} />
           <div className="form-footer">
-            <span>{repositoryScan ? 'Adds a durable watch and runs the first inventory' : 'Focused advisory comparison · Ctrl/⌘↵'}</span>
-            <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Reading</> : <>{repositoryScan ? 'Watch repository' : 'Investigate advisory'} <ArrowUpRight size={15} /></>}</button>
+            <span>{repositoryScan ? 'Runs the first scan and keeps watching' : target ? 'Checks this advisory against the repository' : 'Paste a public GitHub repository'}</span>
+            <button type="submit" disabled={busy || !ready}>{busy ? <><LoaderCircle className="spin" size={15} /> Scanning</> : <>{repositoryScan ? 'Add repository' : 'Check advisory'} <ArrowUpRight size={15} /></>}</button>
           </div>
         </form>
-        <div className="landing-shortcuts"><button type="button" onClick={() => chooseExample(INVESTIGATION_EXAMPLES[0])}>Load comparison example</button>{latestCase && <button type="button" onClick={() => onOpenCase(latestCase.id)}>Return to workspace <ArrowUpRight size={12} /></button>}</div>
+        <div className="landing-shortcuts"><button type="button" onClick={() => chooseExample(INVESTIGATION_EXAMPLES[0])}>Load demo case</button>{latestCase && <button type="button" onClick={() => onOpenCase(latestCase.id)}>Open workspace <ArrowUpRight size={12} /></button>}</div>
         {error && <div className="error-banner" role="alert"><CircleAlert size={15} /> {error}</div>}
       </div>
     </section>
@@ -196,7 +201,7 @@ function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleT
     ? report.mode === 'repository' ? 'Repository evidence' : 'Evidence record'
     : state
   return <header className="product-header">
-    <div className="brand"><span className="brand-mark" /> RECOIL</div>
+    <RecoilBrand />
     <div className="header-case"><strong>{id}</strong><span>{report?.package ? `${report.package} · ${state.toLowerCase()}` : state}</span></div>
     <div className="header-actions"><div className="header-status" aria-label={hydraLabel} title={hydraLabel}><span className={`connection-mark ${hydraReadFailed || hydra?.status === 'failed' ? 'is-failed' : hydraLive ? 'is-live' : ''}`} /><span className="header-status-full">{headerRecordLabel}</span><span className="header-status-short">Record</span></div><ThemeToggle theme={theme} onToggle={onToggleTheme} />{onNewCase && <button className="header-new-case" type="button" onClick={onNewCase}>New case <RotateCcw size={13} /></button>}</div>
   </header>
@@ -2118,7 +2123,7 @@ function findingKey(finding = {}, index = 0) {
 function ConsoleSidebar({ activeView, onNavigate, onNewCase, workspace, theme, onToggleTheme }) {
   const metrics = workspace?.metrics || {}
   return <aside className="console-sidebar">
-    <div className="console-brand"><span className="brand-mark" /><span>RECOIL</span></div>
+    <RecoilBrand console />
     <button className="console-new" type="button" onClick={onNewCase}><Plus size={14} /> Add repository</button>
     <nav className="console-nav" aria-label="Workspace">
       {CONSOLE_NAVIGATION.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" className={activeView === item.id ? 'active' : ''} onClick={() => onNavigate(item.id)}><Icon size={15} /><span><strong>{item.label}</strong><small>{item.detail}</small></span>{item.id === 'incidents' && Number(metrics.needsAction) > 0 && <em>{metrics.needsAction}</em>}</button> })}

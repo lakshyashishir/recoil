@@ -1,4 +1,4 @@
-# Recoil — superior-model product review brief
+# Recoil - superior-model product review brief
 
 > **Archived review input.** This brief captured the pre-redesign arena prototype on 19 August 2026.
 > The fictional Red/Blue runtime described below was removed from the shipped product. For the current
@@ -153,7 +153,7 @@ Judge this against Hack Hydra Track 2 as a whole, not only Track 2A. Other parti
 
 Does “adaptive Red/Blue cyber range for supply-chain blast radius” have a meaningful wedge, or is it a thin layer over a deterministic graph simulator?
 
-If it is weak, propose the sharper framing. Examples of possible reframings to evaluate—not assumptions to accept:
+If it is weak, propose the sharper framing. Examples of possible reframings to evaluate-not assumptions to accept:
 
 - an autonomous incident-response rehearsal for a real package compromise;
 - a graph-native “prove the fix” system that executes attack and regression probes;
@@ -277,16 +277,16 @@ Give a blunt score for the current project and a score for the recommended versi
 
 Return the review in this exact structure:
 
-1. **Verdict in one paragraph** — Is Recoil worth continuing, and what is it really?
-2. **The one recommended product** — one sentence and one paragraph.
-3. **What to kill immediately** — concrete UI, architecture, and scope cuts.
-4. **The autonomous state machine** — states, transitions, and what the user sees.
-5. **The Red/Blue agent contract** — tools, permissions, model responsibilities, deterministic validation, and HydraDB role.
-6. **The killer demo** — exact scenario, timeline, spoken narration, and visible proof.
-7. **The new UI wireframe** — plain-text layout for landing, running, and final states.
-8. **Hackathon positioning** — track fit, judging advantages, and likely objections.
-9. **Implementation plan** — ordered tasks for the next 24 hours, with what not to build.
-10. **Risks and falsification tests** — how we can discover quickly if this idea is not working.
-11. **Final decision** — continue Recoil, pivot Recoil, or abandon it; do not hedge.
+1. **Verdict in one paragraph** - Is Recoil worth continuing, and what is it really?
+2. **The one recommended product** - one sentence and one paragraph.
+3. **What to kill immediately** - concrete UI, architecture, and scope cuts.
+4. **The autonomous state machine** - states, transitions, and what the user sees.
+5. **The Red/Blue agent contract** - tools, permissions, model responsibilities, deterministic validation, and HydraDB role.
+6. **The killer demo** - exact scenario, timeline, spoken narration, and visible proof.
+7. **The new UI wireframe** - plain-text layout for landing, running, and final states.
+8. **Hackathon positioning** - track fit, judging advantages, and likely objections.
+9. **Implementation plan** - ordered tasks for the next 24 hours, with what not to build.
+10. **Risks and falsification tests** - how we can discover quickly if this idea is not working.
+11. **Final decision** - continue Recoil, pivot Recoil, or abandon it; do not hedge.
 
 Do not recommend adding more dashboards, more decorative agent cards, generic chat, arbitrary exploit execution, or an RL training system unless you can show exactly why it improves the product and can be demonstrated reliably.

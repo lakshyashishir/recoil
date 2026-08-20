@@ -3738,3 +3738,87 @@ body { background: var(--bg); color: var(--text); letter-spacing: var(--tracking
   .ask-workbench { grid-template-columns: 1fr; }
   .ask-scope { min-height: 46px; border-top: 1px solid var(--console-line); border-left: 0; }
 }
+
+/* Landing identity and final alignment ------------------------------------ */
+.brand,
+.console-brand {
+  gap: 9px;
+}
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  flex: 0 0 24px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--line));
+  border-radius: 5px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.console-brand .brand-mark {
+  border-color: color-mix(in srgb, var(--console-accent) 46%, var(--console-line));
+  color: var(--console-accent);
+  background: color-mix(in srgb, var(--console-accent) 7%, var(--console-sidebar-bg));
+}
+.landing-grid {
+  width: min(760px, 100%);
+  gap: 26px;
+  padding: clamp(64px, 11vh, 108px) 0 clamp(44px, 8vh, 76px);
+}
+.landing-intro,
+.landing-form-wrap {
+  width: 100%;
+}
+.landing-intro h1 {
+  max-width: 700px;
+  margin: 0 0 14px;
+  font-size: clamp(40px, 4.6vw, 58px);
+  font-weight: 600;
+  letter-spacing: -.042em;
+  line-height: 1.04;
+  text-wrap: pretty;
+}
+.landing-intro > p:last-child {
+  max-width: 620px;
+  font-size: 15px;
+  line-height: 1.52;
+}
+.landing-form-wrap {
+  max-width: 760px;
+}
+.investigate-form {
+  width: 100%;
+  box-shadow: none;
+}
+[data-theme="dark"] .investigate-form {
+  box-shadow: none;
+}
+.investigate-form textarea {
+  min-height: 104px;
+  resize: none;
+}
+.form-footer > span {
+  max-width: 360px;
+}
+.form-footer button {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .landing-grid {
+    gap: 22px;
+    padding: 54px 0 44px;
+  }
+  .landing-intro h1 {
+    font-size: clamp(36px, 10.4vw, 48px);
+  }
+  .investigate-form textarea {
+    min-height: 116px;
+  }
+  .form-footer {
+    align-items: flex-end;
+  }
+  .form-footer > span {
+    max-width: 190px;
+  }
+}

@@ -19,7 +19,7 @@ dependency scanners collapse into one alert:
   application source. The same proof works across npm/JavaScript and Cargo/Rust repositories.
 - **Source impact, not just package presence:** for a reached import, Recoil follows a bounded cone of
   resolved local-import edges through the sampled files and links each observed file back to its public
-  source. It labels this precisely as static source context—not a runtime call graph or execution trace.
+  source. It labels this precisely as static source context-not a runtime call graph or execution trace.
 - **A dated answer:** the lockfile’s public history and the advisory publication date produce a
   pre-disclosure rewind. The question becomes “was this path already present when the advisory was
   published?” rather than “is this package somewhere in the tree?”
@@ -155,7 +155,7 @@ changed; repositories without comparable prior snapshots are omitted from the de
 
 When a dated reconstruction is opened, the History view also compares its observed graph with the current
 case graph. It reports added and removed evidence entities and relationships, with labels taken from the
-two collected snapshots. This is a temporal graph diff over Recoil evidence—not a simulated attack route
+two collected snapshots. This is a temporal graph diff over Recoil evidence-not a simulated attack route
 and not a claim about runtime infrastructure.
 
 ## Run locally
@@ -307,7 +307,7 @@ temporal evidence, fix checks, HydraDB summary, limits, and execution boundary, 
 second verdict or copy raw HydraDB chunks.
 
 Each repository finding also carries a compact provenance chain. It maps the readable path to the exact
-public source for each hop—advisory, lockfile resolution, repository history, sampled import or validated
+public source for each hop-advisory, lockfile resolution, repository history, sampled import or validated
 symbol, and first observation date. The observed import line is included inline so a reviewer can verify
 the reachability claim without leaving the report. A missing or unobserved hop is shown as such; it is
 never replaced by a generic source list or a confident inference. The same chain is included in the
@@ -421,6 +421,6 @@ been changed. This is useful in a review or CI job where the evidence artifact m
 
 ## Evidence boundary
 
-Repository files, lockfiles, advisory records, registry metadata, source imports, and commit dates are observed public evidence. Source-level reachability is bounded by the sampled files that GitHub makes available. It is not proof of runtime execution. Recoil preserves source failures—and treats an empty source sample as `UNKNOWN`—rather than converting missing evidence into a confident negative result.
+Repository files, lockfiles, advisory records, registry metadata, source imports, and commit dates are observed public evidence. Source-level reachability is bounded by the sampled files that GitHub makes available. It is not proof of runtime execution. Recoil preserves source failures-and treats an empty source sample as `UNKNOWN`-rather than converting missing evidence into a confident negative result.
 
 See [PLAN.md](PLAN.md), [the demo runbook](docs/DEMO.md), and [the evidence proof contract](docs/ATTACK-DEFENSE.md) for the implementation and presentation plan.

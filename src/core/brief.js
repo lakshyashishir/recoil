@@ -3,7 +3,7 @@ function text(value, fallback = 'not available') {
   return normalized || fallback
 }
 
-function cell(value, fallback = '—') {
+function cell(value, fallback = '-') {
   return text(value, fallback).replaceAll('|', '\\|')
 }
 
@@ -121,7 +121,7 @@ export function buildEvidenceBrief({ scenarioId, query, report, hydra } = {}) {
       const proof = (finding.proof || []).filter((step) => step.kind !== 'temporal')
       const path = findingPath(finding)
       const sourceLines = proof.length
-        ? proof.map((step) => `  - ${cell(step.label)} — ${step.source ? sourceLink(step.source) : 'source unavailable'}`)
+        ? proof.map((step) => `  - ${cell(step.label)} - ${step.source ? sourceLink(step.source) : 'source unavailable'}`)
         : [`  - ${cell(path)}`]
       return [`### ${cell(repositoryName(finding.repository))} · ${cell(verdictLabel(finding.verdict))}`, '', `**Path:** \`${path}\``, ...sourceLines, '', `**Reason:** ${text(finding.reason)}`, '']
     }),

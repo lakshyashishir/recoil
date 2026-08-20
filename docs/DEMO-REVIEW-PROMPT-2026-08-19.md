@@ -1,4 +1,4 @@
-# Recoil — second demo/product review brief
+# Recoil - second demo/product review brief
 
 **Date:** 19 August 2026  
 **Ask:** Make the working product feel like a decisive, visible investigation rather than a text report.
@@ -48,10 +48,10 @@ axios/axios@v1.x                → NOT_AFFECTED
 
 One input and one action. After submit, the app autonomously reveals a case in four visible beats:
 
-1. **Read** — advisory, registry, and repository records appear as evidence sources.
-2. **Map** — a real graph is drawn from advisory → package/version → lockfile → import/source file → repository.
-3. **Test** — the system highlights each repository’s route and explains why it is reached, declared-only, or safe.
-4. **Prove the fix** — the same route is shown before and after the OSV fixed version, with HydraDB’s dated memory
+1. **Read** - advisory, registry, and repository records appear as evidence sources.
+2. **Map** - a real graph is drawn from advisory → package/version → lockfile → import/source file → repository.
+3. **Test** - the system highlights each repository’s route and explains why it is reached, declared-only, or safe.
+4. **Prove the fix** - the same route is shown before and after the OSV fixed version, with HydraDB’s dated memory
    and graph context visible as proof rather than as a status chip.
 
 The judge should understand this in ten seconds:
@@ -122,7 +122,7 @@ Do not defend the current layout. Give one recommendation, not a menu of generic
 
 ## Required response format
 
-1. Verdict — what Recoil is and why the current demo is weak.
+1. Verdict - what Recoil is and why the current demo is weak.
 2. One recommended product framing.
 3. Killer visual and interaction model.
 4. Exact graph entities, edges, and state transitions to show.

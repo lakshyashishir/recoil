@@ -262,7 +262,7 @@ The spoken sequence:
 The visual product is a calm investigation timeline and a result-first report. The judge should never need to operate an arena, understand a fictional deployment graph, or interpret an exposure percentage.
 
 The competitive claim is intentionally narrow: Recoil turns “package appears in the dependency tree” into
-three auditable outcomes across real repositories—reached source, declared-only noise, or already safe—then
+three auditable outcomes across real repositories-reached source, declared-only noise, or already safe-then
 rewinds the same evidence and proves whether the advisory’s fixed version is admissible. The graph and
 HydraDB are the evidence substrate; they are not a decorative score or a simulated production environment.
 
@@ -293,72 +293,72 @@ Manual checks:
 
 ## Checkpoint history
 
-- `f1a0cc8` — isolate mocked public responses from the live evidence cache
-- `d52eac9` — graph-link shared package resolutions across repositories
-- `a755e08` — expose the Red → Blue → Red proof loop across browser, CLI, and TUI
-- `d8534c7` — add offline SHA-256 receipt verification
-- `fc5fdbe` — print observed proof excerpts and prior-case summaries in the CLI
-- `f0f76d9` — show bounded observed import excerpts in evidence proof chains
-- `29fe29e` — surface sanitized prior evidence from HydraDB recall
-- `8705c86` — cache bounded raw GitHub source reads
-- `830aa05` — benchmark shared-resolution evidence and UNKNOWN overlap
-- `c12ce52` — surface cross-repository resolution evidence across clients and HydraDB
-- `57cf931` — explain model-scope fallback without overstating failure
-- `2a83f36` — make the browser's new-case action reset server state
-- `4313dcd` — surface evidence paths in the OpenTUI report pane
-- `b080e77` — retain verified smoke receipts outside version control
-- `f46817d` — explain resolved dependency paths in HydraDB temporal memories
-- `7370f34` — cite transitive dependency hops in reports and receipts
-- `b62adaa` — preserve observed transitive dependency paths across graph and receipt surfaces
-- `62b5786` — preserve real package reachability evidence
-- `be9455d` — autonomous evidence investigation flow
-- `97f19ad` — autonomous evidence investigation and CLI
-- `f3b377f` — source reachability and fix-proof benchmark
-- `b4f99b6` — shared evidence quality in report, CLI, browser, and receipt
-- `b941677` — incomplete reports use non-definitive language
-- `d5d82bc` — progress stream labels evidence gaps
-- `618b37a` — inconsistent snapshots cannot bypass the recording gate
-- `b1e0801` — TUI shares the evidence recording gate
-- `32c396b` — preserve all resolved package versions in the graph
-- `2b14446` — mark the pre-redesign review brief archived
-- `86c1f0d` — persist observed topology through HydraDB BYOG
-- `d1b38d2` — use HydraDB v2 REST query field names
-- `cd21bcd` — bound optional advisory-scope model calls
-- `60920c3` — wait for HydraDB graph indexing before recall
-- `645eab9` — expose the sanitized HydraDB graph receipt in the final report
-- `7a00cd3` — record the graph receipt checkpoint
-- `98f520f` — cover strict recording preflight with a no-network regression test
-- `c8e311a` — expose sanitized HydraDB graph context in the CLI and portable receipt
-- `131c1ce` — normalize HydraDB memory acknowledgements across response shapes
-- `a3090f8` — normalize asynchronous HydraDB status identities
-- `4bd53fb` — make JSON CLI runs fail on incomplete evidence
-- `9c476aa` — require completed HydraDB indexing and temporal recall in recording smoke
-- `32868b1` — load project `.env` from the CLI entrypoint
-- `4ceb322` — align browser metadata with the evidence-proof product claim
-- `2a24a9a` — distinguish HydraDB writes from temporal-read failures across surfaces
-- `87f45f8` — expose the recording contract in API health
-- `2987888` — record the API health checkpoint
-- `642cdc5` — require non-empty HydraDB temporal proof
-- `a0b9c43` — expose strict recording requirements
-- `7439468` — prefer raw GitHub source reads for bounded source sampling
-- `6d10e24` — remove inferred deployment surfaces
-- `48255fe` — keep generated fixes out of temporal proof
-- `ef7a122` — require complete HydraDB memory acknowledgement
-- `17be7f9` — keep partial HydraDB writes queued across all clients
-- `852675e` — reject investigations without repository evidence before collection
-- `dc1cfed` — surface HydraDB read status and graph triplets in the TUI
-- `003661d` — attach a per-hop evidence provenance chain to findings and receipts
-- `594ff00` — expose provenance-hop summaries and expansion in the CLI
-- `43fc7ce` — record provenance checkpoints
-- `6937360` — add recording preflight doctor
-- `59b82d2` — enforce strict recording mode in the CLI
-- `eae4387` — share strict recording blockers between CLI and smoke
-- `168b01b` — preserve HydraDB graph triplets across report surfaces
-- `8ba1a10` — make strict recording workflow explicit in the demo runbook
-- `0298623` — surface API startup failures in the browser
-- `2635831` — defer HydraDB writes for incomplete evidence
-- `87f45f8` — expose recording contract in API health
-- `3d955a5` — batch HydraDB evidence ingestion and verify the live persistence gate
+- `f1a0cc8` - isolate mocked public responses from the live evidence cache
+- `d52eac9` - graph-link shared package resolutions across repositories
+- `a755e08` - expose the Red → Blue → Red proof loop across browser, CLI, and TUI
+- `d8534c7` - add offline SHA-256 receipt verification
+- `fc5fdbe` - print observed proof excerpts and prior-case summaries in the CLI
+- `f0f76d9` - show bounded observed import excerpts in evidence proof chains
+- `29fe29e` - surface sanitized prior evidence from HydraDB recall
+- `8705c86` - cache bounded raw GitHub source reads
+- `830aa05` - benchmark shared-resolution evidence and UNKNOWN overlap
+- `c12ce52` - surface cross-repository resolution evidence across clients and HydraDB
+- `57cf931` - explain model-scope fallback without overstating failure
+- `2a83f36` - make the browser's new-case action reset server state
+- `4313dcd` - surface evidence paths in the OpenTUI report pane
+- `b080e77` - retain verified smoke receipts outside version control
+- `f46817d` - explain resolved dependency paths in HydraDB temporal memories
+- `7370f34` - cite transitive dependency hops in reports and receipts
+- `b62adaa` - preserve observed transitive dependency paths across graph and receipt surfaces
+- `62b5786` - preserve real package reachability evidence
+- `be9455d` - autonomous evidence investigation flow
+- `97f19ad` - autonomous evidence investigation and CLI
+- `f3b377f` - source reachability and fix-proof benchmark
+- `b4f99b6` - shared evidence quality in report, CLI, browser, and receipt
+- `b941677` - incomplete reports use non-definitive language
+- `d5d82bc` - progress stream labels evidence gaps
+- `618b37a` - inconsistent snapshots cannot bypass the recording gate
+- `b1e0801` - TUI shares the evidence recording gate
+- `32c396b` - preserve all resolved package versions in the graph
+- `2b14446` - mark the pre-redesign review brief archived
+- `86c1f0d` - persist observed topology through HydraDB BYOG
+- `d1b38d2` - use HydraDB v2 REST query field names
+- `cd21bcd` - bound optional advisory-scope model calls
+- `60920c3` - wait for HydraDB graph indexing before recall
+- `645eab9` - expose the sanitized HydraDB graph receipt in the final report
+- `7a00cd3` - record the graph receipt checkpoint
+- `98f520f` - cover strict recording preflight with a no-network regression test
+- `c8e311a` - expose sanitized HydraDB graph context in the CLI and portable receipt
+- `131c1ce` - normalize HydraDB memory acknowledgements across response shapes
+- `a3090f8` - normalize asynchronous HydraDB status identities
+- `4bd53fb` - make JSON CLI runs fail on incomplete evidence
+- `9c476aa` - require completed HydraDB indexing and temporal recall in recording smoke
+- `32868b1` - load project `.env` from the CLI entrypoint
+- `4ceb322` - align browser metadata with the evidence-proof product claim
+- `2a24a9a` - distinguish HydraDB writes from temporal-read failures across surfaces
+- `87f45f8` - expose the recording contract in API health
+- `2987888` - record the API health checkpoint
+- `642cdc5` - require non-empty HydraDB temporal proof
+- `a0b9c43` - expose strict recording requirements
+- `7439468` - prefer raw GitHub source reads for bounded source sampling
+- `6d10e24` - remove inferred deployment surfaces
+- `48255fe` - keep generated fixes out of temporal proof
+- `ef7a122` - require complete HydraDB memory acknowledgement
+- `17be7f9` - keep partial HydraDB writes queued across all clients
+- `852675e` - reject investigations without repository evidence before collection
+- `dc1cfed` - surface HydraDB read status and graph triplets in the TUI
+- `003661d` - attach a per-hop evidence provenance chain to findings and receipts
+- `594ff00` - expose provenance-hop summaries and expansion in the CLI
+- `43fc7ce` - record provenance checkpoints
+- `6937360` - add recording preflight doctor
+- `59b82d2` - enforce strict recording mode in the CLI
+- `eae4387` - share strict recording blockers between CLI and smoke
+- `168b01b` - preserve HydraDB graph triplets across report surfaces
+- `8ba1a10` - make strict recording workflow explicit in the demo runbook
+- `0298623` - surface API startup failures in the browser
+- `2635831` - defer HydraDB writes for incomplete evidence
+- `87f45f8` - expose recording contract in API health
+- `3d955a5` - batch HydraDB evidence ingestion and verify the live persistence gate
 
 Keep committing after each green validation gate. Never commit `.env`, GitHub cache contents, or HydraDB response data containing credentials.
 
