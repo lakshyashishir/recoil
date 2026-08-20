@@ -158,7 +158,7 @@ function Landing({ value, setValue, onSubmit, busy, error, theme, onToggleTheme 
 
 function InvestigationHeader({ investigation, hydra, onNewCase, theme, onToggleTheme }) {
   const report = investigation?.report
-  const id = report?.advisory?.id || investigation?.evidence?.target?.advisoryId || 'investigation'
+  const id = report?.advisory?.id || investigation?.evidence?.target?.advisoryId || investigation?.query?.match(/(?:GHSA|CVE)-[A-Z0-9-]+/i)?.[0] || 'investigation'
   const state = investigation?.status === 'complete' ? 'Complete' : investigation?.status === 'failed' ? 'Incomplete' : investigation?.status === 'finalizing' ? 'Storing history' : 'Reading'
   const hydraReadFailed = hydra?.recall?.status === 'failed'
   const hydraRecalled = hydra?.recall?.status === 'recalled'
@@ -1506,7 +1506,7 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
 }
 
 function CaseNavigator({ finding, activeTab, onTabChange, tabMeta = {} }) {
-  const tabs = [{ id: 'graph', label: 'Map' }, { id: 'proof', label: 'Fix' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Evidence' }]
+  const tabs = [{ id: 'graph', label: 'Paths' }, { id: 'proof', label: 'Fix' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Evidence' }]
   return <nav className="case-navigator" aria-label="Case views">
     <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
@@ -1576,7 +1576,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const primaryChallenge = report?.challenge?.find((item) => item.repository === primaryFinding?.repository)
   const primaryReachIndex = findings.findIndex((finding) => finding.verdict === 'REACHED')
   const tabMeta = {
-    graph: report?.graph?.nodes?.length ? `${report.graph.nodes.length} nodes` : null,
+    graph: findings.length ? `${findings.length} path${findings.length === 1 ? '' : 's'}` : null,
     proof: historical ? 'current hidden' : summary.fixSurvives ? `${summary.fixSurvives} verified` : summary.reached ? 'review' : 'no change',
     history: report?.rewind?.beforeAdvisory ? summary.exposureDays != null ? `${summary.exposureDays.toLocaleString()}d` : 'dated' : 'not dated',
     audit: report?.sources?.length ? `${report.sources.length} sources` : null,
