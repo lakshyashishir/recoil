@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --bg: #f4f5f7;
@@ -1464,42 +1464,41 @@ body { font-family: var(--sans); line-height: 1.45; }
 .trace-fix-status.is-verified { color: var(--green); }
 .case-proof-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; color: var(--accent); background: transparent; font-size: 11px; }
 
-/* Console color contract. The workspace uses cold graphite neutrals and one
-   blue interaction color; red, green and amber are reserved for evidence
-   state. Keeping these semantic tokens local prevents theme drift. */
+/* Console color contract. Elegant Luxury registry tokens are mapped onto
+   Recoil's operational semantics; green remains reserved for verified state. */
 .console-shell {
-  --console-bg: #111318;
-  --console-sidebar-bg: #171a1f;
-  --console-panel: #1b1f25;
-  --console-raised: #22272e;
-  --console-hover: #252b33;
-  --console-line: #2d343d;
-  --console-line-soft: #242a31;
-  --console-text: #eef0f3;
-  --console-muted: #a1aab5;
-  --console-faint: #737d89;
-  --console-accent: #83a7df;
-  --console-danger: #df8076;
-  --console-safe: #7ab497;
-  --console-warning: #d0ad72;
+  --console-bg: oklch(0.2161 0.0061 56.0434);
+  --console-sidebar-bg: oklch(0.2291 0.006 56.0708);
+  --console-panel: oklch(0.2685 0.0063 34.2976);
+  --console-raised: oklch(0.3 0.007 45);
+  --console-hover: oklch(0.32 0.009 56);
+  --console-line: oklch(0.3741 0.0087 67.5582);
+  --console-line-soft: oklch(0.31 0.007 60);
+  --console-text: oklch(0.9699 0.0013 106.4238);
+  --console-muted: oklch(0.8687 0.0043 56.366);
+  --console-faint: oklch(0.68 0.006 56);
+  --console-accent: oklch(0.6368 0.2078 25.3313);
+  --console-danger: oklch(0.7106 0.1661 22.2162);
+  --console-safe: oklch(0.72 0.095 153);
+  --console-warning: oklch(0.8369 0.1644 84.4286);
   background: var(--console-bg);
   color: var(--console-text);
 }
 [data-theme="light"] .console-shell {
-  --console-bg: #f4f5f7;
-  --console-sidebar-bg: #eceff3;
-  --console-panel: #fcfcfd;
-  --console-raised: #e9edf2;
-  --console-hover: #e2e7ed;
-  --console-line: #d1d7de;
-  --console-line-soft: #e1e5ea;
-  --console-text: #1b2026;
-  --console-muted: #59636f;
-  --console-faint: #7b8591;
-  --console-accent: #35649f;
-  --console-danger: #a9473e;
-  --console-safe: #307355;
-  --console-warning: #886329;
+  --console-bg: oklch(0.9779 0.0042 56.3756);
+  --console-sidebar-bg: oklch(0.9431 0.0068 53.4442);
+  --console-panel: oklch(0.99 0.002 56);
+  --console-raised: oklch(0.9625 0.0385 89.0943);
+  --console-hover: oklch(0.952 0.027 86);
+  --console-line: oklch(0.9355 0.0324 80.9937);
+  --console-line-soft: oklch(0.9431 0.0068 53.4442);
+  --console-text: oklch(0.2178 0 0);
+  --console-muted: oklch(0.4444 0.0096 73.639);
+  --console-faint: oklch(0.58 0.012 74);
+  --console-accent: oklch(0.465 0.147 24.9381);
+  --console-danger: oklch(0.4437 0.1613 26.8994);
+  --console-safe: oklch(0.48 0.09 153);
+  --console-warning: oklch(0.4732 0.1247 46.2007);
   background: var(--console-bg);
   color: var(--console-text);
 }
@@ -2769,43 +2768,45 @@ textarea { caret-color: var(--accent); }
   }
 }
 
-/* Product pass: one graphite reading surface, with evidence revealed in
- * layers instead of competing for the first screen. */
+/* Elegant Luxury theme experiment, adapted from the tweakcn registry. The
+ * product keeps one sans family and reserves color for interaction/state. */
 :root {
   color-scheme: light;
-  --bg: #f1f0ec;
-  --surface: #faf9f6;
-  --surface-raised: #e8e6df;
-  --surface-soft: #dedbd2;
-  --line: #cbc8bf;
-  --line-soft: #dedbd3;
-  --text: #252623;
-  --muted: #696a65;
-  --faint: #92928b;
-  --accent: #876437;
-  --green: #557b65;
-  --red: #a55d53;
-  --blue: #876437;
-  --button-text: #fbfaf7;
-  --radius: 4px;
+  --bg: oklch(0.9779 0.0042 56.3756);
+  --surface: oklch(0.99 0.002 56);
+  --surface-raised: oklch(0.9431 0.0068 53.4442);
+  --surface-soft: oklch(0.9625 0.0385 89.0943);
+  --line: oklch(0.9355 0.0324 80.9937);
+  --line-soft: oklch(0.9431 0.0068 53.4442);
+  --text: oklch(0.2178 0 0);
+  --muted: oklch(0.4444 0.0096 73.639);
+  --faint: oklch(0.58 0.012 74);
+  --accent: oklch(0.465 0.147 24.9381);
+  --green: oklch(0.48 0.09 153);
+  --red: oklch(0.4437 0.1613 26.8994);
+  --blue: oklch(0.465 0.147 24.9381);
+  --button-text: oklch(1 0 0);
+  --sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  --radius: 6px;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #141716;
-  --surface: #1b1e1c;
-  --surface-raised: #242825;
-  --surface-soft: #2c302c;
-  --line: #3b403b;
-  --line-soft: #2c302d;
-  --text: #ecebe4;
-  --muted: #a7a79d;
-  --faint: #777a73;
-  --accent: #c7a06a;
-  --green: #86a68f;
-  --red: #d07a6d;
-  --blue: #c7a06a;
-  --button-text: #171815;
+  --bg: oklch(0.2161 0.0061 56.0434);
+  --surface: oklch(0.2685 0.0063 34.2976);
+  --surface-raised: oklch(0.3 0.007 45);
+  --surface-soft: oklch(0.2291 0.006 56.0708);
+  --line: oklch(0.3741 0.0087 67.5582);
+  --line-soft: oklch(0.31 0.007 60);
+  --text: oklch(0.9699 0.0013 106.4238);
+  --muted: oklch(0.8687 0.0043 56.366);
+  --faint: oklch(0.68 0.006 56);
+  --accent: oklch(0.6368 0.2078 25.3313);
+  --green: oklch(0.72 0.095 153);
+  --red: oklch(0.7106 0.1661 22.2162);
+  --blue: oklch(0.6368 0.2078 25.3313);
+  --button-text: oklch(0.9779 0.0042 56.3756);
 }
 
 body { background: var(--bg); color: var(--text); }
