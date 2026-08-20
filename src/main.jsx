@@ -1768,11 +1768,11 @@ function EvidenceTrace({ finding, challenge, historical, onInspectProof }) {
 }
 
 function CaseNavigator({ finding, activeTab, onTabChange, tabMeta = {} }) {
-  const tabs = [{ id: 'graph', label: 'Paths' }, { id: 'proof', label: 'Fix' }, { id: 'history', label: 'History' }, { id: 'audit', label: 'Evidence' }]
+  const tabs = [{ id: 'graph', label: 'Source paths', title: 'Cited dependency and source paths' }, { id: 'proof', label: 'Fix check', title: 'Version-level remediation proof' }, { id: 'history', label: 'Timeline', title: 'Dated repository evidence' }, { id: 'audit', label: 'Sources', title: 'Collected records and limits' }]
   return <nav className="case-navigator" aria-label="Case views">
     <div className="case-navigator-selection">{finding && <><span>Selected route</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></>}</div>
     <div className="case-navigator-links" role="tablist" aria-label="Case views">
-      {tabs.map((tab) => <button key={tab.id} id={`case-tab-${tab.id}`} type="button" role="tab" aria-controls="case-tab-panel" aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'active' : ''} onClick={() => onTabChange(tab.id)}><span>{tab.label}</span>{tabMeta[tab.id] && <small>{tabMeta[tab.id]}</small>}</button>)}
+      {tabs.map((tab) => <button key={tab.id} id={`case-tab-${tab.id}`} title={tab.title} type="button" role="tab" aria-controls="case-tab-panel" aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} className={activeTab === tab.id ? 'active' : ''} onClick={() => onTabChange(tab.id)}><span>{tab.label}</span>{tabMeta[tab.id] && <small>{tabMeta[tab.id]}</small>}</button>)}
     </div>
   </nav>
 }
