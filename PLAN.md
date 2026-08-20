@@ -44,6 +44,7 @@ observed path → proposed fix → residual re-check
 - [x] HydraDB temporal evidence memories with dated metadata, chunking, retries, and indexing status.
 - [x] HydraDB temporal recall surfaced in the final report.
 - [x] Show a real before/current HydraDB graph delta when a dated reconstruction is loaded.
+- [x] Show a repository-wide remediation queue with source-backed next actions and copyable package commands.
 - [x] Autonomous browser flow: one input, progress timeline, result report.
 - [x] Autonomous CLI flow using the same API state machine.
 - [x] Network-free integration test with mocked public records.

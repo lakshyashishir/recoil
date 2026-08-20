@@ -32,6 +32,9 @@ dependency scanners collapse into one alert:
 - **An actionable handoff:** the fix proof includes a package-manager-aware command for the observed
   lockfile, plus a copyable evidence note. The command is only a suggestion; Recoil never edits or
   executes the repository.
+- **A remediation queue:** the Fix Check view rolls the same proof up across every supplied repository,
+  showing the observed resolution, the next action, the source record, and a copyable command only when
+  the advisory-backed version check supports one.
 - **HydraDB as the evidence timeline:** HydraDB stores the advisory, observed paths, graph provenance,
   change impact, and fix proofs as dated memories. Recoil recalls prior related cases, while the local
   source-cited classifier remains the verdict authority.

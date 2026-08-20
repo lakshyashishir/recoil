@@ -965,6 +965,41 @@ function FixProof({ finding, challenge }) {
   </section>
 }
 
+function remediationActionLabel(finding, challenge, historical = false) {
+  if (historical) return 'Current proof hidden'
+  if (!challenge) return 'Review evidence'
+  if (challenge.status === 'FIX_SURVIVES') return `Upgrade to ${challenge.proposedVersion}`
+  if (challenge.status === 'ALREADY_SAFE') return 'No change required'
+  if (challenge.status === 'MANIFEST_CHANGE_REQUIRED') return 'Change declared range'
+  if (challenge.status === 'NO_REACHABLE_PATH') return challenge.proposedVersion ? `Consider ${challenge.proposedVersion}` : 'Defense-in-depth review'
+  return 'Review evidence'
+}
+
+function RemediationQueue({ findings = [], challenges = [], historical = false }) {
+  if (!findings.length) return null
+  const challengeByRepository = new Map(challenges.map((challenge) => [challenge.repository, challenge]))
+  const verified = challenges.filter((challenge) => challenge.status === 'FIX_SURVIVES').length
+  const alreadySafe = challenges.filter((challenge) => challenge.status === 'ALREADY_SAFE').length
+  const review = Math.max(0, findings.length - verified - alreadySafe)
+  return <section className="remediation-queue" aria-label="Repository remediation queue">
+    <div className="remediation-queue-heading"><div><span className="section-kicker">Remediation queue</span><h2>{historical ? 'Current remediation is hidden in this dated view.' : verified ? `${verified} fix${verified === 1 ? '' : 'es'} verified across the case.` : 'No repository fix is verified yet.'}</h2><p>{historical ? 'Return to current evidence to inspect present-day version checks.' : 'Each next action comes from the advisory’s fixed version and the repository’s observed range. Recoil does not edit or execute any repository.'}</p></div><span>{findings.length} repositories</span></div>
+    <div className="remediation-queue-summary"><span><strong>{verified}</strong><small>fix verified</small></span><span><strong>{alreadySafe}</strong><small>already safe</small></span><span><strong>{review}</strong><small>review required</small></span></div>
+    <div className="remediation-queue-list">{findings.map((finding, index) => {
+      const challenge = challengeByRepository.get(finding.repository)
+      const command = !historical && challenge?.status !== 'ALREADY_SAFE' ? packageFixCommand(finding, challenge) : null
+      const currentVersion = finding.resolvedVersion || finding.resolvedVersions?.join(', ') || 'unresolved'
+      const lockfileSource = finding.lockfileSource || finding.evidenceSources?.[0]
+      return <article className="remediation-queue-row" key={finding.repository || index}>
+        <div className="remediation-queue-repository"><span>{String(index + 1).padStart(2, '0')}</span><strong>{repositoryName(finding.repository)}</strong><Verdict value={finding.verdict} compact /></div>
+        <div className="remediation-queue-observed"><span>Observed</span><strong>{finding.packageName || 'package'}@{currentVersion}</strong><small>{finding.verdict === 'REACHED' ? `${finding.imports?.length || 0} sampled import${finding.imports?.length === 1 ? '' : 's'}` : routeEvidenceLabel(finding)}</small></div>
+        <div className="remediation-queue-action"><span>Next action</span><strong>{remediationActionLabel(finding, challenge, historical)}</strong><small>{challenge?.detail || 'The available evidence does not support a stronger remediation claim.'}</small></div>
+        {command && <CopyFixCommand command={command} compact />}
+        {lockfileSource && <SourceLink href={lockfileSource}>Open lockfile</SourceLink>}
+      </article>
+    })}</div>
+  </section>
+}
+
 function ChangeProof({ finding }) {
   const change = finding?.changeEvidence
   if (!change?.importerFilesChanged?.length) return null
@@ -1909,7 +1944,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>
       {activeTab === 'graph' && <><div className={`case-workspace ${graphView && !historical ? 'case-workspace-graph' : 'case-workspace-paths'}`} id="case-graph"><EvidenceMap report={{ ...report, repositories: findings, graph: historical ? report?.rewind?.graph || { nodes: [], edges: [] } : report?.graph }} selectedFinding={selectedFinding} onSelectFinding={setSelectedIndex} onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId} proofFirst={!graphView && !historical} historical={historical} onToggleGraph={() => setGraphView((value) => !value)} onReplay={graphView && !historical ? () => setGraphReplayToken((value) => value + 1) : null} replayToken={graphReplayToken} /><RouteList findings={findings} selectedIndex={selectedIndex} onSelect={(index) => { setSelectedIndex(index); setSelectedNodeId(null) }} challenges={historical ? [] : report?.challenge || []} correlations={report?.crossRepositoryCorrelations || []} historical={historical} compact={!graphView && !historical} onInspectProof={() => inspectProof(selectedIndex)} /></div><EvidenceTrace finding={selectedFinding} challenge={challenge} historical={historical} onInspectProof={() => inspectProof(selectedIndex)} /></>}
-      {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
+      {activeTab === 'proof' && <><TemporalHighlight report={report} summary={summary} finding={selectedFinding} challenge={challenge} earliestReached={selectedFinding?.verdict === 'REACHED' ? selectedFinding : null} onInspectProof={() => inspectProof(selectedIndex)} onOpenHistory={!historical && report?.rewind?.beforeAdvisory ? openHistory : null} historyLoading={historyLoading} historical={historical} /><RemediationQueue findings={findings} challenges={historical ? [] : report?.challenge || []} historical={historical} /><RouteProof finding={selectedFinding} challenge={challenge} /></>}
       {activeTab === 'history' && <><CaseChronology finding={selectedFinding} report={report} challenge={challenge} historical={historical} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} /><TemporalProof report={report} onRewind={rewindTo} loading={historyLoading} loadingTarget={historyTarget} /></>}
       {activeTab === 'audit' && <IntegrityDetails report={report} hydra={hydra} evidenceStatus={evidenceStatus} />}
     </div>
