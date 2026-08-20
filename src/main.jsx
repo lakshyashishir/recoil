@@ -1794,6 +1794,85 @@ function CaseNavigator({ finding, activeTab, onTabChange, tabMeta = {} }) {
   </nav>
 }
 
+function CaseOutcomeStrip({ report, findings = [], summary = {}, hydra, historical = false, onInspectProof, onOpenHistory }) {
+  const packageName = report?.package || 'the affected package'
+  const reached = findings.filter((finding) => finding.verdict === 'REACHED').length
+  const declaredOnly = findings.filter((finding) => finding.verdict === 'DECLARED_ONLY').length
+  const notAffected = findings.filter((finding) => finding.verdict === 'NOT_AFFECTED').length
+  const unknown = findings.filter((finding) => ['UNKNOWN', 'NOT_YET_OBSERVED'].includes(finding.verdict)).length
+  const primaryFinding = findings.find((finding) => finding.verdict === 'REACHED') || findings[0]
+  const challenge = historical ? null : report?.challenge?.find((item) => item.repository === primaryFinding?.repository)
+  const importer = primaryFinding?.imports?.[0]
+  const repository = primaryFinding ? repositoryName(primaryFinding.repository) : 'No repository selected'
+  const location = importer ? `${importer.path}${importer.line ? `:${importer.line}` : ''}` : 'sampled source evidence'
+  const memory = report?.rewind?.memory || hydra?.recall || {}
+  const graphVerification = hydra?.graphVerification
+
+  let actionTitle = 'No source-backed path reaches the package.'
+  let actionDetail = 'The checked records do not support an affected import path.'
+  let action = null
+  if (historical) {
+    actionTitle = 'Return to the current case for remediation.'
+    actionDetail = `This view is reconstructed as of ${report?.rewind?.asOf?.slice(0, 10) || 'a past date'}.`
+    action = onOpenHistory ? { label: 'Return to current', onClick: onOpenHistory } : null
+  } else if (unknown) {
+    actionTitle = `${unknown} ${unknown === 1 ? 'repository needs' : 'repositories need'} more evidence.`
+    actionDetail = 'Recoil will not convert an incomplete source sample into a reachability claim.'
+  } else if (primaryFinding && challenge?.status === 'FIX_SURVIVES') {
+    actionTitle = `Upgrade ${packageName} to ${challenge.proposedVersion}.`
+    actionDetail = `${repository} · ${location}. The version-level fix check survives the observed path.`
+    action = onInspectProof ? { label: 'Open fix proof', onClick: onInspectProof } : null
+  } else if (primaryFinding && challenge?.status === 'MANIFEST_CHANGE_REQUIRED') {
+    actionTitle = `Change the declared range for ${packageName}.`
+    actionDetail = `${repository} · ${challenge.proposedVersion || 'fixed version not established'} is not admitted by the current declaration.`
+    action = onInspectProof ? { label: 'Open fix proof', onClick: onInspectProof } : null
+  } else if (primaryFinding && challenge?.status === 'ALREADY_SAFE') {
+    actionTitle = `${repository} needs no version change.`
+    actionDetail = `${packageName} resolves outside the affected range in the observed record.`
+    action = onInspectProof ? { label: 'Open evidence', onClick: onInspectProof } : null
+  } else if (primaryFinding && challenge?.status === 'NO_REACHABLE_PATH') {
+    actionTitle = `No sampled path reaches ${packageName}.`
+    actionDetail = `${repository} lists the package, but no source import was observed in the sampled files.`
+    action = onInspectProof ? { label: 'Open evidence', onClick: onInspectProof } : null
+  } else if (reached) {
+    actionTitle = `${reached} reachable path${reached === 1 ? '' : 's'} need review.`
+    actionDetail = `${repository} · ${location}. A surviving fixed-version path is not proven yet.`
+    action = onInspectProof ? { label: 'Open fix proof', onClick: onInspectProof } : null
+  }
+
+  const reachability = unknown
+    ? `${unknown} need review`
+    : `${reached} reached`
+  const reachabilityDetail = `${declaredOnly} listed only · ${notAffected} outside range`
+  const timing = historical
+    ? 'Past snapshot'
+    : summary.exposureDays != null
+      ? `${summary.exposureDays.toLocaleString()} days before disclosure`
+      : 'No dated path'
+  const timingDetail = historical ? 'Current evidence is hidden in this view.' : 'Repository history against advisory publication.'
+  const memoryValue = historical
+    ? 'Dated reconstruction'
+    : memory.status === 'recalled'
+      ? `${memory.datedChunkCount || 0} facts recalled`
+      : hydra?.status === 'persisted'
+        ? 'Case stored'
+        : hydra?.status === 'queued'
+          ? 'Indexing'
+          : 'Local record'
+  const memoryDetail = graphVerification?.status === 'verified'
+    ? `${graphVerification.tripletCount || 0} current graph relations verified`
+    : memory.status === 'recalled'
+      ? 'HydraDB supplied dated context'
+      : 'History was not confirmed'
+
+  return <section className="case-outcome-strip" aria-label="Case outcome summary">
+    <div className="case-outcome-action"><span className="case-outcome-label">Recommended next step</span><strong>{actionTitle}</strong><small>{actionDetail}</small>{action && <button type="button" onClick={action.onClick}>{action.label}<ArrowUpRight size={12} /></button>}</div>
+    <div className="case-outcome-fact"><span className="case-outcome-label">Reachability</span><strong>{reachability}</strong><small>{reachabilityDetail}</small></div>
+    <div className="case-outcome-fact"><span className="case-outcome-label">Timing</span><strong>{timing}</strong><small>{timingDetail}</small>{onOpenHistory && <button type="button" onClick={onOpenHistory}>{historical ? 'Return to current' : 'Open timeline'}<ArrowUpRight size={12} /></button>}</div>
+    <div className="case-outcome-fact"><span className="case-outcome-label">Durable history</span><strong>{memoryValue}</strong><small>{memoryDetail}</small></div>
+  </section>
+}
+
 function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   const [selectedIndex, setSelectedIndex] = useState(() => {
     const reachedIndex = report?.repositories?.findIndex((finding) => finding.verdict === 'REACHED') ?? -1
@@ -1853,8 +1932,6 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
         ? `${summary.reached === 1 ? 'One repository needs attention.' : `${summary.reached} repositories need attention.`} ${contrastText}.`
         : 'A package can be present without being used. Recoil shows the source-backed path, its timing, and the fix check.'
   const earliestReached = findings.filter((finding) => finding.verdict === 'REACHED' && finding.pathObservedAt).sort((left, right) => new Date(left.pathObservedAt) - new Date(right.pathObservedAt))[0]
-  const primaryFinding = findings.find((finding) => finding.verdict === 'REACHED') || selectedFinding
-  const primaryChallenge = report?.challenge?.find((item) => item.repository === primaryFinding?.repository)
   const primaryReachIndex = findings.findIndex((finding) => finding.verdict === 'REACHED')
   const tabMeta = {
     graph: findings.length ? `${findings.length} path${findings.length === 1 ? '' : 's'}` : null,
@@ -1898,9 +1975,7 @@ function FinalReport({ report, hydra, evidenceStatus, onRewind, scenarioId }) {
   }
   return <main className="case-page">
     <section className={`case-hero ${historical ? 'case-hero-historical' : ''}`}><div><span className="section-kicker">{historical ? 'Historical evidence' : 'Evidence report'}</span><h1>{headline}</h1><div className="case-advisory"><strong>{report?.advisory?.id || 'Advisory unavailable'}</strong><span>{summaryLine}</span></div><p>{resultExplanation}</p><CaseTemporalSignal report={report} hydra={hydra} historical={historical} onOpenHistory={historyAction} /><CaseScopeLine report={report} hydra={hydra} historical={historical} /></div><div className="case-actions"><span className={`case-state ${reportState.className}`}><StatusIcon status={reportState.icon} /> {reportState.label}</span><div className="case-export-actions"><CopyCaseHandoff report={report} findings={findings} summary={summary} historical={historical} /><BriefLink scenarioId={scenarioId} /><ReceiptLink scenarioId={scenarioId} /></div></div></section>
-    <CaseDecisionCallout findings={findings} challenges={historical ? [] : report?.challenge || []} packageName={report?.package} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historical ? () => rewindTo(report?.rewind?.currentAsOf) : null} compact />
-    <CaseFactsLine summary={summary} packageName={report?.package} finding={primaryFinding} challenge={primaryChallenge} hydra={hydra} historical={historical} onOpenProof={() => inspectProof()} onOpenHistory={historyAction} />
-    {!historical && <HydraComparisonLine findings={findings} challenges={report?.challenge || []} report={report} hydra={hydra} onOpenHistory={historyAction} />}
+    <CaseOutcomeStrip report={report} findings={findings} summary={summary} hydra={hydra} historical={historical} onInspectProof={() => inspectProof()} onOpenHistory={historyAction} />
     {!graphView && <CaseContrast findings={findings} selectedIndex={selectedIndex} historical={historical} onSelect={selectRepositoryFromSummary} />}
     <CaseNavigator finding={selectedFinding} activeTab={activeTab} onTabChange={changeTab} tabMeta={tabMeta} />
     <div className="case-tab-panel" id="case-tab-panel" role="tabpanel" aria-labelledby={`case-tab-${activeTab}`}>

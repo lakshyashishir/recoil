@@ -1786,3 +1786,88 @@ body { font-family: var(--sans); line-height: 1.45; }
   .audit-graph-verification { align-items: flex-start; flex-direction: column; gap: 7px; }
   .audit-graph-verification p { white-space: normal; }
 }
+
+/* One decision line replaces the old stack of repeated summary panels. It is
+   intentionally flat: the action is prominent, while every supporting fact
+   points to a deeper report view rather than pretending to be a dashboard. */
+.case-outcome-strip {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.45fr) repeat(3, minmax(145px, .78fr));
+  gap: 0;
+  margin: 0 0 16px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.case-outcome-action,
+.case-outcome-fact {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 17px 15px;
+}
+.case-outcome-action {
+  padding-left: 0;
+  border-left: 2px solid var(--accent);
+}
+.case-outcome-fact + .case-outcome-fact,
+.case-outcome-action + .case-outcome-fact {
+  border-left: 1px solid var(--line-soft);
+}
+.case-outcome-label {
+  color: var(--muted);
+  font: 10px/1 var(--mono);
+}
+.case-outcome-action .case-outcome-label { color: var(--accent); }
+.case-outcome-strip strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.case-outcome-action strong { font-size: 14px; }
+.case-outcome-strip small {
+  max-width: 520px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.case-outcome-strip button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  margin-top: 2px;
+  padding: 0;
+  color: var(--accent);
+  background: transparent;
+  font-size: 10px;
+}
+.case-outcome-strip button:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 980px) {
+  .case-outcome-strip { grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(120px, .8fr)); }
+  .case-outcome-action, .case-outcome-fact { padding-right: 12px; padding-left: 12px; }
+  .case-outcome-action { padding-left: 0; }
+}
+
+@media (max-width: 720px) {
+  .case-outcome-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .case-outcome-action { grid-column: 1 / -1; padding: 13px 0 14px; border-left: 0; border-bottom: 1px solid var(--line-soft); }
+  .case-outcome-fact { padding: 13px 0; }
+  .case-outcome-fact:nth-child(3) { border-left: 1px solid var(--line-soft); }
+  .case-outcome-fact:nth-child(4) { border-top: 1px solid var(--line-soft); }
+  .case-outcome-fact:nth-child(4) { border-left: 0; }
+  .case-outcome-fact:nth-child(5) { border-top: 1px solid var(--line-soft); border-left: 1px solid var(--line-soft); }
+  .case-outcome-strip small, .case-outcome-strip strong { white-space: normal; }
+}
