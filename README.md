@@ -2,7 +2,7 @@
 
 **Prove the path. Prove the fix.**
 
-Recoil is an evidence-backed software-supply-chain investigation tool. Give it an OSV/GHSA/CVE advisory and one to four public GitHub repositories. It reads public advisory, registry, lockfile, repository, source-import, and commit-history evidence, then answers:
+Recoil is an evidence-backed software-supply-chain investigation tool. Give it one public GitHub repository for an inventory-first scan, or an OSV/GHSA/CVE advisory plus one to four repositories for a focused comparison. It reads public advisory, registry, lockfile, repository, source-import, and commit-history evidence, then answers:
 
 1. Does the affected version actually reach sampled application code?
 2. When did that path first appear in the repository history?
@@ -44,6 +44,10 @@ dependency scanners collapse into one alert:
 - **Separate case sessions:** each browser submission creates a new case record, so a completed
   investigation is never overwritten by the next one. Receipts and briefs follow that case ID,
   while HydraDB keeps the durable cross-case history.
+- **Repository-first handoff:** a judge can paste any public repository without knowing its package or
+  advisory. Recoil inventories its recorded manifests and lockfiles, checks bounded package versions
+  against OSV in one batch, and returns a complete negative result or expands only the affected advisory
+  paths. No prepared package selector is required.
 
 This positions Recoil as a **cross-ecosystem reachability and remediation proof layer** for Track 2:
 Track 2A’s supply-chain blast radius is the entry point, while Cargo/Rust source proof, changed-symbol
@@ -53,7 +57,7 @@ not claim a runtime compromise; the strength is that every displayed hop can be 
 ## The product loop
 
 ```text
-advisory → affected package/version → real lockfile → source import
+repository → recorded dependency inventory → advisory match → real lockfile → source import
        → REACHED / DECLARED_ONLY / NOT_AFFECTED / UNKNOWN
        → temporal rewind → OSV fixed version → residual-path fix proof
 ```
@@ -141,7 +145,7 @@ cp .env.example .env
 npm run start
 ```
 
-The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` and point `RECOIL_API_URL` at the reachable API address when serving the app from a container or hosted environment. Verify that the API reports `product: evidence-proof` before recording. `GET /api/health` also exposes the recording contract: the required three verdicts, HydraDB persistence and temporal-recall requirements, and whether partial HydraDB writes have been explicitly enabled.
+The browser runs at `http://127.0.0.1:5173`; the API runs at `http://127.0.0.1:8787`. Set `RECOIL_HOST=0.0.0.0` and point `RECOIL_API_URL` at the reachable API address when serving the app from a container or hosted environment. `GET /api/health` exposes the product capability and recording contract: the required three verdicts, HydraDB persistence and temporal-recall requirements, and whether partial HydraDB writes have been explicitly enabled.
 
 Repository source sampling reads the GitHub tree once, then prefers `raw.githubusercontent.com` for the
 bounded source files so a three-repository recording does not spend one API request per source file. Raw
@@ -199,7 +203,13 @@ To enable the optional advisory-scope pass, provide `OPENAI_API_KEY` and set `RE
 
 ## Browser and terminal clients
 
-With the API running, the browser accepts an advisory plus repository URLs:
+With the API running, the browser accepts either a repository-first scan:
+
+```text
+https://github.com/owner/repository
+```
+
+or a focused advisory comparison:
 
 ```text
 GHSA-xxxx-yyyy-zzzz
@@ -207,10 +217,11 @@ https://github.com/owner/repository-a
 https://github.com/owner/repository-b
 ```
 
-The advisory or package selector must identify the dependency being compared. The browser, API, and
-CLI reject repository-only input before collection because there is no advisory range against which to
-prove reachability. A package selector is useful for exploratory collection; strict recording still
-requires a GHSA/CVE advisory so exposure dates and fixed-version proofs are dated and auditable.
+Repository-first input inventories recorded package versions and discovers affected advisories through a
+bounded OSV batch. If no affected advisory matches, Recoil presents that as a complete negative result;
+if one does match, only those advisory/package/repository paths are classified. A package selector remains
+useful for exploratory collection. Strict recording still requires a GHSA/CVE advisory so exposure dates,
+fixed-version proofs, and the three-way contrast are dated and auditable.
 
 Pin a repository to a public historical snapshot with a GitHub `/tree/<tag-or-commit>` or `/commit/<sha>` URL when a reproducible before/after comparison is useful. Recoil records that ref in source URLs and uses it for manifest, lockfile, source, tree, and commit-history reads.
 
@@ -222,6 +233,10 @@ npm run cli -- "CVE-2021-4229 https://github.com/owner/repository-a https://gith
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --json
 # Expand every advisory → lockfile → import/date proof hop in terminal output
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository" --proof
+# Let a judge hand over any public repository; no advisory or package selector is needed
+npm run cli -- --direct --fast "https://github.com/owner/repository"
+# Canonical positive-path reference case used for the proof/receipt demo
+npm run cli -- --direct --fast --proof "GHSA-xvch-5gv4-984h https://github.com/http-party/http-server/tree/v13.0.2"
 # Enforce the three-way contrast plus completed HydraDB write/read proof
 npm run cli -- "GHSA-xxxx-yyyy-zzzz https://github.com/owner/repository-a https://github.com/owner/repository-b https://github.com/owner/repository-c" --recording
 ```

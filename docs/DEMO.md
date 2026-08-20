@@ -16,6 +16,29 @@ npm run start
 
 Open `http://127.0.0.1:5173`. The API and browser are started together.
 
+## Fast judge handoff
+
+The first handoff should be repository-first. Ask the judge for any public repository and paste only its
+URL; Recoil inventories the recorded dependency versions and discovers affected advisories through OSV.
+This keeps a clean repository honest: it will show a complete negative result rather than manufacturing a
+graph. Then use the positive reference below to show the full evidence path.
+
+```bash
+# Any-repository handoff
+npm run cli -- --direct --fast "https://github.com/owner/repository"
+
+# Positive path: advisory → lockfile → source import → dated origin → fix proof
+npm run cli -- --direct --fast --proof "GHSA-xvch-5gv4-984h https://github.com/http-party/http-server/tree/v13.0.2"
+
+# Verify the exported artifact without contacting the network
+npm run cli -- --verify-receipt .recoil-recordings/<case-id>.json
+```
+
+The positive reference currently resolves `minimist@1.2.5` as `REACHED` at
+`bin/http-server:11`, dates the first collected lockfile evidence to commit `b1b266c82b81`, and proves
+`minimist@1.2.6` as `FIX_SURVIVES`. The run is static evidence collection only: no package code is installed
+or executed.
+
 ## Input
 
 Use a verified advisory and real public repositories. Do not use placeholder repository URLs in the recording.
