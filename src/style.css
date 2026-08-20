@@ -1609,6 +1609,16 @@ body { font-family: var(--sans); line-height: 1.45; }
 .audit-graph-verification-verified .section-kicker, .audit-graph-verification-verified > span { color: var(--green); }
 .audit-graph-verification-not_found .section-kicker, .audit-graph-verification-indexed_no_relations .section-kicker { color: var(--muted); }
 
+/* The full graph is an inspection view. Keep the selected, source-backed
+   route visually primary while leaving every observed relationship available
+   for context. */
+.case-workspace-graph .map-edge:not(.map-edge-selected) { opacity: .28; transition: opacity .2s ease; }
+.case-workspace-graph .map-node:not(.node-selected) { opacity: .58; transition: opacity .2s ease; }
+.case-workspace-graph .map-node.node-selectable:hover,
+.case-workspace-graph .map-node.node-selectable:focus { opacity: 1; }
+.case-workspace-graph .map-node.node-selected,
+.case-workspace-graph .map-edge-selected { opacity: 1; }
+
 @media (max-width: 720px) {
   .case-facts-line { grid-template-columns: 1fr; margin-top: 12px; }
   .case-fact, .case-fact + .case-fact { padding: 13px 0; border-left: 0; }

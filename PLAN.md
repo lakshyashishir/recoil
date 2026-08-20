@@ -122,10 +122,10 @@ observed path → proposed fix → residual re-check
 - [x] Retain normalized HydraDB graph triplets in the recording smoke output.
 - [x] Give each browser submission its own case session so reports, receipts, and briefs are not
       overwritten by the next investigation.
-- [x] Make the observed graph the default completed-case view; keep cited repository paths as the
-      focused reading view.
 - [x] Surface HydraDB-backed prior scan comparisons beside the completed-case decision when comparable
       repository snapshots are actually recalled.
+- [x] Make the cited evidence path the default completed-case view; keep the full observed graph available
+      as an inspection view with the selected route visually emphasized.
 
 ### Still required before calling the hackathon build complete
 
@@ -137,7 +137,7 @@ observed path → proposed fix → residual re-check
 - [x] Add cross-case HydraDB recall that visibly relates a new case to a prior package/repository fact.
 - [x] Add a final provenance/limitations pass so every displayed claim has an explicit evidence boundary.
 - [x] Delete the retired fictional arena, executable fixture, agent loop, and legacy routes from the shipped product path.
-- [ ] Render and inspect the browser at common desktop and mobile widths, including 1440×900, 1280×800, and true 390px emulation. Source, build, and API verification are complete; screenshot-level inspection remains pending while the in-app browser bridge is unavailable.
+- [x] Render and inspect the browser at common desktop and mobile widths, including 1440×900, 1280×800, and true 390px emulation. The in-app browser bridge is unavailable in this environment, so local headless Chrome captures provide the screenshot-level check.
 - [x] Update the final demo runbook and repository instructions after the real smoke run.
 - [x] Batch bounded HydraDB ingestion and poll all acknowledged memory IDs together so the strict
   recording path can complete without turning an async provider timeout into a false persistence claim.

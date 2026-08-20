@@ -89,13 +89,14 @@ Checking the real fixed version against each declared range
 Writing and recalling dated HydraDB evidence
 ```
 
-The final report opens with a plain-language decision derived from the findings—for the prepared case,
-“Upgrade minimist to 1.2.6 in http-party/http-server.” It then presents one Graph view: the observed graph
-and the repository comparison beside it. Select a repository or node to inspect the cited relationship;
-the selected route exposes the exact source-backed hops and fix status. The remaining views have one job
-each: Fix shows the version proof, History shows chronology plus temporal rewind and HydraDB recall, and
-Audit shows the recording boundary. This keeps the report useful without repeating the same repository
-list in multiple rails.
+The final report opens with a plain-language decision derived from the findings and one cited path per
+repository. For the prepared case, the first screen shows the `REACHED`, `DECLARED_ONLY`, and
+`NOT_AFFECTED` contrast together with the advisory → version → lockfile → repository → source hops. The
+full observed graph is available through **Open graph view** when a reviewer wants to inspect the wider
+topology. Select a repository or node to inspect the cited relationship; the selected route exposes the
+exact source-backed hops and fix status. The remaining views have one job each: Fix shows the version
+proof, History shows chronology plus temporal rewind and HydraDB recall, and Audit shows the recording
+boundary. This keeps the report useful without repeating the same repository list in multiple rails.
 
 The report still shows the observed import line, repository verdict, exposure window, fixed-version result,
 residual-path status, source links, and limits. Raw HydraDB chunks remain hidden; the interface exposes only
@@ -107,8 +108,8 @@ additional cited hop.
 
 1. “Most tools stop at ‘this dependency is vulnerable’. Recoil asks whether the vulnerable code is actually reached.”
 2. Submit the advisory and three repositories.
-3. “Recoil has already turned that into a decision: upgrade `minimist` to `1.2.6` in the repository with a real source import.” Point to the decision line and open **Inspect fix proof**.
-4. “The graph is read left to right: advisory, resolved package, repository, then sampled source.” Select the `REACHED` repository and open the source link.
+3. “Recoil has already turned that into a decision: one repository reaches the code, one only declares it, and one is already outside the affected range.” Point to the three cited paths.
+4. “The path is read left to right: advisory, resolved package, lockfile, repository, then sampled source.” Select the `REACHED` repository and open the source link. Open **Open graph view** only if the judge wants the wider topology.
 5. “This second repository declares the package but does not import it, so it is `DECLARED_ONLY`, not a fabricated compromise.” Select it in the repository comparison.
 6. If present, “The latest public commit touched the importing file; Recoil links the commit and owners without turning that into a runtime claim.”
 7. Open **History**: “This is the temporal question: the lockfile path existed before the advisory was public.” Click **Before advisory**.
