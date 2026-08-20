@@ -2240,7 +2240,8 @@ function ConnectView({ report, scenarioId }) {
   const cli = `npm run cli -- ${JSON.stringify(query)}`
   const json = `${cli} --json`
   const verify = `npm run cli -- --verify-receipt .recoil-recordings/${scenarioId}.json`
-  return <div className="console-view"><ConsolePageHeading eyebrow="Agent and terminal handoff" title="Use the same evidence contract outside the browser" detail="The CLI, JSON output, brief, and receipt are generated from the same computed report." /><div className="connect-grid">{[
+  const mcpConfig = JSON.stringify({ mcpServers: { recoil: { command: 'npm', args: ['run', 'mcp'], cwd: '/absolute/path/to/recoil' } } }, null, 2)
+  return <div className="console-view"><ConsolePageHeading eyebrow="Agent and terminal handoff" title="Put the proof engine inside your coding agent" detail="MCP and CLI use the same classifier, evidence graph, HydraDB history, and fix checks as this console." /><section className="mcp-bridge"><div className="mcp-bridge-copy"><span>Recoil MCP</span><h2>Eight tools. One can start a scan.</h2><p>Agents can inspect exact source paths, owners, introducing commits, verified fixes, graph changes, and integrity receipts. Seven tools are read-only; <code>scan_repository</code> is the only write.</p><div><span>source-backed paths</span><span>HydraDB history</span><span>verified handoffs</span></div></div><div className="mcp-bridge-config"><div><span>Client config</span><button type="button" onClick={() => copyText(mcpConfig)}><Copy size={13} /> Copy</button></div><pre>{mcpConfig}</pre></div></section><div className="connect-grid">{[
     ['Human-readable CLI', cli, 'Run the same investigation from a terminal.'],
     ['Machine-readable result', json, 'Return structured findings for an agent or CI step.'],
     ['Verify a receipt', verify, 'Check the integrity address without contacting Recoil.'],

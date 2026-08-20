@@ -564,7 +564,11 @@ async function route(req, res) {
   return json(res, 404, { error: 'Not found' })
 }
 
-export { route, getOrCreate, snapshot }
+function findScenario(id) {
+  return scenarios.get(id) || null
+}
+
+export { route, getOrCreate, findScenario, snapshot, workspaceSnapshot }
 
 const runningAsEntryPoint = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
 if (runningAsEntryPoint) {

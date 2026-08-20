@@ -293,6 +293,22 @@ downloadable receipt.
 When a real lockfile exposes a transitive chain, the default CLI summary prints it; `--proof` expands
 the individual dependency hop and its source URL.
 
+### Coding-agent MCP
+
+Recoil also ships an official-SDK stdio MCP server. It exposes eight tools over the same investigation
+state used by the browser and CLI: one explicit write tool starts a public repository scan, while seven
+read tools return retained cases, source-backed paths, CODEOWNERS and introducing commits, verified fix
+plans, HydraDB graph history, observed graph evidence, and portable handoffs.
+
+```bash
+npm run mcp
+npm run smoke:mcp
+```
+
+Unlike a generic graph-query wrapper, the MCP tools preserve Recoil's evidence boundary and return the
+exact cited rows behind each conclusion. See [docs/MCP.md](docs/MCP.md) for client configuration and the
+tool contract.
+
 For a repeatable external smoke against the configured `.env` (defaulting to the real bytes advisory and HydraDB repository), run `npm run smoke:real`. Set `RECOIL_SMOKE_QUERY` to use a different advisory/repository set. The command exits nonzero when collection is partial, a finding is `UNKNOWN`, or HydraDB fails, so an incomplete demo cannot look green.
 When the smoke gate passes, it writes the sanitized receipt to `.recoil-recordings/<scenario-id>.json`
 (ignored by git). Set `RECOIL_SMOKE_RECEIPT` to choose another output path; no raw HydraDB chunks,
