@@ -273,7 +273,17 @@ async function readGitHubCommitHistory(repository, path) {
   }
 }
 
-async function collectSourceFiles(repository, knownPaths = undefined, knownError = null) {
+function packageSourceEntrypoints(packageJson = {}) {
+  const entries = [packageJson.main, packageJson.module, typeof packageJson.browser === 'string' ? packageJson.browser : null]
+  if (typeof packageJson.bin === 'string') entries.push(packageJson.bin)
+  else if (packageJson.bin && typeof packageJson.bin === 'object') entries.push(...Object.values(packageJson.bin))
+  return [...new Set(entries
+    .filter((path) => typeof path === 'string')
+    .map((path) => path.replace(/^\.\//, '').replace(/\\/g, '/'))
+    .filter(Boolean))]
+}
+
+async function collectSourceFiles(repository, knownPaths = undefined, knownError = null, preferredPaths = []) {
   const configuredLimit = Number.parseInt(process.env.RECOIL_SOURCE_FILE_LIMIT || '48', 10)
   const sourceLimit = Number.isFinite(configuredLimit) ? Math.min(Math.max(configuredLimit, 1), 240) : 48
   let paths = Array.isArray(knownPaths) ? knownPaths : []
@@ -288,8 +298,9 @@ async function collectSourceFiles(repository, knownPaths = undefined, knownError
       error = cause.message
     }
   }
+  const preferred = new Set(preferredPaths)
   const eligiblePaths = paths
-    .filter((path) => /(?:^|\/)(?:src|lib|app|packages|crates|bin|cmd|cli)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
+    .filter((path) => preferred.has(path) || /(?:^|\/)(?:src|lib|app|packages|crates|bin|cmd|cli)\//.test(path) || /^(?:index|main|lib)\.(?:js|ts|rs)$/.test(path))
     .filter((path) => isAnalyzableSourcePath(path))
     .filter((path) => !/(?:node_modules|target|dist|build|vendor)\//.test(path))
   const sourceGroups = new Map()
@@ -306,7 +317,8 @@ async function collectSourceFiles(repository, knownPaths = undefined, knownError
       return entryScore(left) - entryScore(right) || left.localeCompare(right)
     })
   }
-  const candidates = []
+  const candidates = eligiblePaths.filter((path) => preferred.has(path)).slice(0, sourceLimit)
+  const selected = new Set(candidates)
   const queues = [...sourceGroups.entries()].sort(([left], [right]) => {
     const rootScore = (group) => group === 'src' || group === 'lib' || group === 'app' ? 0 : 1
     return rootScore(left) - rootScore(right) || left.localeCompare(right)
@@ -314,7 +326,10 @@ async function collectSourceFiles(repository, knownPaths = undefined, knownError
   while (candidates.length < sourceLimit && queues.some((queue) => queue.length)) {
     for (const queue of queues) {
       const next = queue.shift()
-      if (next) candidates.push(next)
+      if (next && !selected.has(next)) {
+        candidates.push(next)
+        selected.add(next)
+      }
       if (candidates.length >= sourceLimit) break
     }
   }
@@ -884,7 +899,7 @@ export async function collectRepository(repository, requestedPackage) {
     cargoDependencyKinds = mergedCargo.dependencyKinds
     if (!cargoManifest?.name && cargoWorkspaceManifests.length === 1) inferredPackage = requestedPackage || cargoWorkspaceManifests[0].name || repository.name
   }
-  const sourceResult = await collectSourceFiles(repository, treePaths, treeError)
+  const sourceResult = await collectSourceFiles(repository, treePaths, treeError, packageJson ? packageSourceEntrypoints(packageJson) : [])
   const sourceFiles = sourceResult.files
   const codeownersFile = await collectCodeowners(repository)
   let codeGraph = buildCodeGraph(sourceFiles, { maxFiles: sourceResult.limit || sourceFiles.length || 24 })

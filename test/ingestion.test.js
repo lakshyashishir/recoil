@@ -597,7 +597,7 @@ test('npm ingestion resolves a nested package from a legacy npm lockfile', async
   }
 })
 
-test('npm ingestion resolves an affected package from a Yarn lock and extensionless entrypoint', async () => {
+test('npm ingestion resolves an affected package from a Yarn lock and root package entrypoint', async () => {
   const previousFetch = globalThis.fetch
   const previousCache = process.env.RECOIL_CACHE_DIR
   process.env.RECOIL_CACHE_DIR = '/dev/null'
@@ -608,7 +608,7 @@ test('npm ingestion resolves an affected package from a Yarn lock and extensionl
     affected: [{ package: { ecosystem: 'npm', name: 'minimist' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.2.6' }] }] }],
     sourceUrl: 'https://api.osv.dev/v1/vulns/ghsa-yarn-1234-5678',
   }
-  const manifest = JSON.stringify({ name: 'yarn-app', dependencies: { minimist: '^1.2.0' } })
+  const manifest = JSON.stringify({ name: 'yarn-app', bin: { 'yarn-app': 'cli.js' }, dependencies: { minimist: '^1.2.0' } })
   const yarnLock = `minimist@^1.2.0:\n  version "1.2.5"\n  resolved "https://registry.npmjs.org/minimist/-/minimist-1.2.5.tgz"\n`
   const source = "#!/usr/bin/env node\nconst minimist = require('minimist')\nmodule.exports = () => minimist(process.argv)"
 
@@ -620,14 +620,14 @@ test('npm ingestion resolves an affected package from a Yarn lock and extensionl
       const path = url.pathname.split('/').slice(4).join('/')
       if (path === 'package.json') return response(manifest)
       if (path === 'yarn.lock') return response(yarnLock)
-      if (path === 'bin/http-server') return response(source)
+      if (path === 'cli.js') return response(source)
       return response({}, 404)
     }
     if (url.hostname !== 'api.github.com') return response({}, 404)
     const match = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/(.*)$/)
     if (!match || match[1] !== 'example/yarn-app') return response({}, 404)
     const operation = match[2]
-    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'bin/http-server' }] })
+    if (operation.startsWith('git/trees/')) return response({ tree: [{ type: 'blob', path: 'cli.js' }] })
     if (operation.startsWith('commits')) {
       if (url.searchParams.has('path')) return response([{ html_url: 'https://github.com/example/yarn-app/commit/oldest', commit: { author: { date: '2025-01-01T00:00:00Z' } } }])
       return response([])
@@ -642,7 +642,7 @@ test('npm ingestion resolves an affected package from a Yarn lock and extensionl
     assert.equal(repository.manifest.lockfile, 'yarn.lock')
     assert.equal(repository.manifest.resolved.minimist, '1.2.5')
     assert.equal(finding.verdict, 'REACHED')
-    assert.equal(finding.imports[0].path, 'bin/http-server')
+    assert.equal(finding.imports[0].path, 'cli.js')
     assert.deepEqual(finding.dependencyPath.map((item) => `${item.name}@${item.version}`), ['minimist@1.2.5'])
   } finally {
     globalThis.fetch = previousFetch

@@ -38,8 +38,8 @@ function networkError(url, error) {
 }
 
 function requestTimeoutMs() {
-  const configured = Number.parseInt(process.env.HYDRADB_REQUEST_TIMEOUT_MS || '15000', 10)
-  return Number.isFinite(configured) ? Math.min(Math.max(configured, 1000), 120000) : 15000
+  const configured = Number.parseInt(process.env.HYDRADB_REQUEST_TIMEOUT_MS || '30000', 10)
+  return Number.isFinite(configured) ? Math.min(Math.max(configured, 1000), 120000) : 30000
 }
 
 function requestSignal(parentSignal) {
