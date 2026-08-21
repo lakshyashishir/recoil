@@ -217,6 +217,10 @@ npm run cli -- --direct --fast --proof \
   "GHSA-xvch-5gv4-984h https://github.com/http-party/http-server/tree/v13.0.2"
 ```
 
+<img src="docs/images/recoil-cli.webp" alt="Recoil CLI collecting public evidence, proving source reachability, and challenging the fixed version" />
+
+<sub>One command runs the same evidence engine used by the web console and agent tools.</sub>
+
 Receipt verification:
 
 ```bash
