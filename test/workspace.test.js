@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { answerWorkspaceQuestion, buildFleetGraph, buildIncidentGraph, buildIncidents, normalizedRepository } from '../server/workspace.js'
+import { answerWorkspaceQuestion, buildFleetGraph, buildIncidentGraph, buildIncidents, normalizedRepository, repositoryIdentity } from '../server/workspace.js'
+
+function repositoryUrl(repository) {
+  const match = String(repository).match(/^([^/]+\/[^@]+)@(.+)$/)
+  return match ? `https://github.com/${match[1]}/tree/${match[2]}` : `https://github.com/${repository}`
+}
 
 function record(id, completedAt, verdict, repository = 'acme/app', advisoryId = 'GHSA-AAAA-BBBB-CCCC') {
   return {
@@ -8,14 +13,14 @@ function record(id, completedAt, verdict, repository = 'acme/app', advisoryId = 
     investigation: {
       status: 'complete',
       completedAt,
-      evidence: { repositories: [{ repository, repositoryUrl: `https://github.com/${repository}` }] },
+      evidence: { repositories: [{ repository, repositoryUrl: repositoryUrl(repository) }] },
       report: {
         mode: 'advisory',
         advisory: { id: advisoryId, summary: 'Prototype pollution', sourceUrl: `https://osv.dev/vulnerability/${advisoryId}` },
         advisories: [{ id: advisoryId, summary: 'Prototype pollution', sourceUrl: `https://osv.dev/vulnerability/${advisoryId}` }],
         repositories: [{
           repository,
-          repositoryUrl: `https://github.com/${repository}`,
+          repositoryUrl: repositoryUrl(repository),
           advisoryId,
           packageName: 'minimist',
           resolvedVersion: '1.2.5',
@@ -51,6 +56,8 @@ function repositorySnapshot(id, completedAt, repository, graph) {
 test('repository identity remains stable across URLs and refs', () => {
   assert.equal(normalizedRepository('https://github.com/Acme/App/tree/v1.0.0'), 'acme/app')
   assert.equal(normalizedRepository('acme/app@v1.0.0'), 'acme/app')
+  assert.equal(repositoryIdentity('https://github.com/Acme/App/tree/v1.0.0'), 'acme/app@v1.0.0')
+  assert.equal(repositoryIdentity('acme/app@v1.0.0'), 'acme/app@v1.0.0')
 })
 
 test('incidents retain only the latest verdict for each repository', () => {
@@ -74,6 +81,31 @@ test('a newer repository inventory retires advisory findings absent from that sn
     }),
   ]
   assert.deepEqual(buildIncidents(records), [])
+})
+
+test('a historical release and the current branch retain separate incident verdicts', () => {
+  const incidents = buildIncidents([
+    record('historical', '2026-08-19T00:00:00Z', 'REACHED', 'acme/app@v1.0.0'),
+    record('current', '2026-08-20T00:00:00Z', 'NOT_AFFECTED', 'acme/app'),
+  ])
+  assert.equal(incidents.length, 1)
+  assert.equal(incidents[0].status, 'open')
+  assert.equal(incidents[0].summary.reached, 1)
+  assert.equal(incidents[0].summary.notAffected, 1)
+  assert.deepEqual(new Set(incidents[0].repositories), new Set(['acme/app@v1.0.0', 'acme/app']))
+})
+
+test('a current inventory does not retire evidence for a historical release', () => {
+  const records = [
+    record('historical', '2026-08-19T00:00:00Z', 'REACHED', 'acme/app@v1.0.0'),
+    repositorySnapshot('current-inventory', '2026-08-20T00:00:00Z', 'acme/app', {
+      nodes: [{ id: 'repo:acme/app', label: 'acme/app', type: 'repository' }],
+      edges: [],
+    }),
+  ]
+  const incidents = buildIncidents(records)
+  assert.equal(incidents[0].status, 'open')
+  assert.equal(incidents[0].findings[0].repositoryKey, 'acme/app@v1.0.0')
 })
 
 test('fleet graph uses each watch latest case without leaking a stale sibling repository', () => {

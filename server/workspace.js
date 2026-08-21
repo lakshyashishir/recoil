@@ -8,8 +8,22 @@ function normalizedRepository(value = '') {
     .toLowerCase()
 }
 
+function repositoryReference(value = '') {
+  const text = String(value).trim()
+  const github = text.match(/github\.com\/([^/\s]+)\/([^/#?\s]+)\/(?:tree|commit)\/([^#?\s]+)/i)
+  if (github?.[3]) return github[3].replace(/[),.;]+$/, '').toLowerCase()
+  const shorthand = text.match(/^[^/\s]+\/[^/@\s]+@(.+)$/)
+  return shorthand?.[1]?.replace(/[),.;]+$/, '').toLowerCase() || null
+}
+
+export function repositoryIdentity(value = '', explicitRef = null) {
+  const repository = normalizedRepository(value)
+  const ref = String(explicitRef || repositoryReference(value) || '').trim().toLowerCase()
+  return repository && ref ? `${repository}@${ref}` : repository
+}
+
 function findingRepository(finding = {}) {
-  return normalizedRepository(finding.repositoryUrl || finding.repository)
+  return repositoryIdentity(finding.repositoryUrl || finding.repository)
 }
 
 function incidentStatus(summary = {}) {
@@ -27,7 +41,7 @@ function advisoryMetadata(report, advisoryId) {
 
 function recordRepositoryKeys(record = {}) {
   const repositories = record.investigation?.evidence?.repositories || record.ingestion?.repositories || []
-  const explicit = repositories.map((repository) => normalizedRepository(repository.repositoryUrl || repository.sourceUrl || repository.repository)).filter(Boolean)
+  const explicit = repositories.map((repository) => repositoryIdentity(repository.repositoryUrl || repository.sourceUrl || repository.repository, repository.ref)).filter(Boolean)
   if (explicit.length) return [...new Set(explicit)]
   return [...new Set((record.investigation?.report?.repositories || []).map(findingRepository).filter(Boolean))]
 }
@@ -240,10 +254,10 @@ function scopeWorkspace(workspace = {}, scope = {}) {
     const selected = incidents.filter((incident) => incident.id === id)
     const repositories = new Set(selected.flatMap((incident) => incident.repositories || []))
     const caseIds = new Set(selected.flatMap((incident) => incident.cases || []))
-    return { ...workspace, incidents: selected, repositories: watches.filter((watch) => repositories.has(watch.repository)), cases: cases.filter((item) => caseIds.has(item.id) || String(item.advisoryId || '').toUpperCase() === id) }
+    return { ...workspace, incidents: selected, repositories: watches.filter((watch) => repositories.has(repositoryIdentity(watch.repositoryUrl || watch.repository, watch.ref))), cases: cases.filter((item) => caseIds.has(item.id) || String(item.advisoryId || '').toUpperCase() === id) }
   }
   if (scope.type === 'repository') {
-    const repository = normalizedRepository(scope.value)
+    const repository = repositoryIdentity(scope.value)
     const selected = incidents.map((incident) => {
       const findings = incident.findings.filter((finding) => finding.repositoryKey === repository)
       if (!findings.length) return null
@@ -253,8 +267,8 @@ function scopeWorkspace(workspace = {}, scope = {}) {
     return {
       ...workspace,
       incidents: selected,
-      repositories: watches.filter((watch) => watch.repository === repository),
-      cases: cases.filter((item) => (item.scannedRepositories || []).some((entry) => normalizedRepository(entry.repositoryUrl || entry.repository) === repository) || (item.repositories || []).some((entry) => normalizedRepository(entry.repositoryUrl || entry.repository) === repository)),
+      repositories: watches.filter((watch) => repositoryIdentity(watch.repositoryUrl || watch.repository, watch.ref) === repository),
+      cases: cases.filter((item) => (item.scannedRepositories || []).some((entry) => repositoryIdentity(entry.repositoryUrl || entry.repository, entry.ref) === repository) || (item.repositories || []).some((entry) => repositoryIdentity(entry.repositoryUrl || entry.repository) === repository)),
     }
   }
   return workspace

@@ -10,7 +10,7 @@ import { parseInvestigationInput } from './collectors.js'
 import { buildEvidenceReceipt } from '../src/core/receipt.js'
 import { buildEvidenceBrief } from '../src/core/brief.js'
 import { summarizeGraphContext } from '../src/core/graph-context.js'
-import { answerWorkspaceQuestion, buildFleetGraph, buildIncidentGraph, buildIncidents, normalizedRepository } from './workspace.js'
+import { answerWorkspaceQuestion, buildFleetGraph, buildIncidentGraph, buildIncidents, normalizedRepository, repositoryIdentity } from './workspace.js'
 import { createWorkspaceStore } from './workspace-store.js'
 
 const port = Number(process.env.RECOIL_PORT || process.env.PORT || 8787)
@@ -232,22 +232,23 @@ function serializableRecord(record) {
 }
 
 function watchId(repository) {
-  return `repo-${normalizedRepository(repository).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+  return `repo-${repositoryIdentity(repository).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
 }
 
-function watchForRepository(repository) {
-  const normalized = normalizedRepository(repository)
-  return [...watches.values()].find((watch) => normalizedRepository(watch.repository) === normalized) || null
+function watchForRepository(repository, ref = null) {
+  const identity = repositoryIdentity(repository, ref)
+  return [...watches.values()].find((watch) => repositoryIdentity(watch.repositoryUrl || watch.repository, watch.ref) === identity) || null
 }
 
 function createWatch(repository, repositoryUrl, extra = {}) {
   const normalized = normalizedRepository(repositoryUrl || repository)
   if (!normalized || !normalized.includes('/')) return null
-  const existing = watchForRepository(normalized)
+  const identity = repositoryIdentity(repositoryUrl || repository, extra.ref)
+  const existing = watchForRepository(identity, extra.ref)
   if (existing) return existing
   const now = new Date().toISOString()
   const watch = {
-    id: watchId(normalized),
+    id: watchId(identity),
     repository: normalized,
     repositoryUrl: repositoryUrl || `https://github.com/${normalized}`,
     ref: extra.ref || null,
@@ -270,10 +271,12 @@ function deriveWatches(records = []) {
   for (const record of records) {
     const evidenceRepositories = record.investigation?.evidence?.repositories || record.ingestion?.repositories || []
     for (const repository of evidenceRepositories) {
-      const normalized = normalizedRepository(repository.repositoryUrl || repository.repository || repository.sourceUrl)
-      if (!normalized || result.some((watch) => watch.repository === normalized)) continue
+      const source = repository.repositoryUrl || repository.repository || repository.sourceUrl
+      const normalized = normalizedRepository(source)
+      const identity = repositoryIdentity(source, repository.ref)
+      if (!normalized || result.some((watch) => repositoryIdentity(watch.repositoryUrl || watch.repository, watch.ref) === identity)) continue
       result.push({
-        id: watchId(normalized),
+        id: watchId(identity),
         repository: normalized,
         repositoryUrl: repository.repositoryUrl || repository.sourceUrl || `https://github.com/${normalized}`,
         ref: repository.ref || null,
@@ -294,9 +297,16 @@ function deriveWatches(records = []) {
 
 function normalizeWorkspace(payload) {
   const records = Array.isArray(payload?.records) ? payload.records : []
+  const restoredWatches = Array.isArray(payload?.watches) ? payload.watches : deriveWatches(records)
+  const normalizedWatches = restoredWatches.map((watch) => {
+    const parsed = parseInvestigationInput(watch.repositoryUrl || watch.repository).repositories[0]
+    const ref = watch.ref || parsed?.ref || null
+    const identity = repositoryIdentity(watch.repositoryUrl || watch.repository, ref)
+    return { ...watch, id: watchId(identity), repository: normalizedRepository(watch.repositoryUrl || watch.repository), ref }
+  })
   return {
     records,
-    watches: Array.isArray(payload?.watches) ? payload.watches : deriveWatches(records),
+    watches: normalizedWatches,
     createdAt: payload?.createdAt || null,
     lastMonitorAt: payload?.lastMonitorAt || null,
     notifications: Array.isArray(payload?.notifications) ? payload.notifications : [],
@@ -324,16 +334,16 @@ function notifyWorkspaceChanges() {
     .sort((left, right) => String(left.investigation.completedAt || '').localeCompare(String(right.investigation.completedAt || '')))
   for (const record of completed) {
     if (workspaceState.processedCaseIds.has(record.id)) continue
-    const targetRepositories = parseInvestigationInput(record.query).repositories.map((repository) => normalizedRepository(repository.url))
+    const targetRepositories = parseInvestigationInput(record.query).repositories.map((repository) => repositoryIdentity(repository.url, repository.ref))
     const prior = [...completed].reverse().find((candidate) => candidate.id !== record.id
       && String(candidate.investigation.completedAt || '') < String(record.investigation.completedAt || '')
-      && parseInvestigationInput(candidate.query).repositories.some((repository) => targetRepositories.includes(normalizedRepository(repository.url))))
-    const previousVerdicts = new Map((prior?.investigation?.report?.repositories || []).map((finding) => [`${String(finding.advisoryId).toUpperCase()}:${normalizedRepository(finding.repositoryUrl || finding.repository)}`, finding.verdict]))
+      && parseInvestigationInput(candidate.query).repositories.some((repository) => targetRepositories.includes(repositoryIdentity(repository.url, repository.ref))))
+    const previousVerdicts = new Map((prior?.investigation?.report?.repositories || []).map((finding) => [`${String(finding.advisoryId).toUpperCase()}:${repositoryIdentity(finding.repositoryUrl || finding.repository)}`, finding.verdict]))
     const changes = (record.investigation.report.repositories || []).filter((finding) => {
-      const key = `${String(finding.advisoryId).toUpperCase()}:${normalizedRepository(finding.repositoryUrl || finding.repository)}`
+      const key = `${String(finding.advisoryId).toUpperCase()}:${repositoryIdentity(finding.repositoryUrl || finding.repository)}`
       return previousVerdicts.get(key) !== finding.verdict
     })
-    const important = changes.filter((finding) => finding.verdict === 'REACHED' || previousVerdicts.has(`${String(finding.advisoryId).toUpperCase()}:${normalizedRepository(finding.repositoryUrl || finding.repository)}`))
+    const important = changes.filter((finding) => finding.verdict === 'REACHED' || previousVerdicts.has(`${String(finding.advisoryId).toUpperCase()}:${repositoryIdentity(finding.repositoryUrl || finding.repository)}`))
     if (important.length) {
       const notification = {
         id: `change-${record.id}`,
@@ -341,7 +351,7 @@ function notifyWorkspaceChanges() {
         createdAt: record.investigation.completedAt,
         severity: important.some((finding) => finding.verdict === 'REACHED') ? 'action' : 'resolved',
         title: important.some((finding) => finding.verdict === 'REACHED') ? 'New reachable exposure' : 'Exposure changed',
-        detail: important.map((finding) => `${finding.advisoryId} · ${normalizedRepository(finding.repositoryUrl || finding.repository)} · ${finding.verdict}`).join(' | '),
+        detail: important.map((finding) => `${finding.advisoryId} · ${repositoryIdentity(finding.repositoryUrl || finding.repository)} · ${finding.verdict}`).join(' | '),
       }
       workspaceState.notifications = [notification, ...workspaceState.notifications.filter((item) => item.id !== notification.id)].slice(0, 100)
       const webhook = process.env.RECOIL_NOTIFICATION_WEBHOOK_URL
@@ -356,10 +366,11 @@ function syncWatches() {
     .filter((record) => record.query)
     .sort((left, right) => String(left.investigation?.startedAt || left.createdAt || '').localeCompare(String(right.investigation?.startedAt || right.createdAt || '')))
   for (const watch of watches.values()) {
+    const watchIdentity = repositoryIdentity(watch.repositoryUrl || watch.repository, watch.ref)
     const related = cases.filter((record) => {
       if (record.watchId === watch.id) return true
       const parsed = parseInvestigationInput(record.query)
-      return parsed.repositories.some((repository) => normalizedRepository(repository.url) === watch.repository)
+      return parsed.repositories.some((repository) => repositoryIdentity(repository.url, repository.ref) === watchIdentity)
     })
     const latest = related.at(-1)
     const complete = related.filter((record) => record.investigation?.status === 'complete')
@@ -467,7 +478,8 @@ function workspaceSnapshot() {
   const records = [...scenarios.values()]
   const incidents = buildIncidents(records)
   const repositories = [...watches.values()].map((watch) => {
-    const findings = incidents.flatMap((incident) => incident.findings.filter((finding) => finding.repositoryKey === watch.repository))
+    const watchIdentity = repositoryIdentity(watch.repositoryUrl || watch.repository, watch.ref)
+    const findings = incidents.flatMap((incident) => incident.findings.filter((finding) => finding.repositoryKey === watchIdentity))
     const latestCase = cases.find((item) => item.id === watch.latestCaseId)
     return {
       ...watch,
@@ -477,7 +489,7 @@ function workspaceSnapshot() {
       presentOnly: findings.filter((finding) => finding.verdict === 'DECLARED_ONLY').length,
       safe: findings.filter((finding) => finding.verdict === 'NOT_AFFECTED').length,
       needsEvidence: findings.filter((finding) => !['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'].includes(finding.verdict)).length,
-      sourceFiles: latestCase?.scannedRepositories?.find((item) => normalizedRepository(item.repositoryUrl || item.repository) === watch.repository)?.sourceFiles || 0,
+      sourceFiles: latestCase?.scannedRepositories?.find((item) => repositoryIdentity(item.repositoryUrl || item.repository, item.ref) === watchIdentity)?.sourceFiles || 0,
     }
   }).sort((left, right) => String(right.lastScannedAt || right.createdAt || '').localeCompare(String(left.lastScannedAt || left.createdAt || '')))
   const fleetGraph = buildFleetGraph(records, repositories, incidents)
