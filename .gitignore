@@ -2,6 +2,8 @@ node_modules/
 dist/
 .vite/
 .DS_Store
+.agents/
+skills-lock.json
 .recoil-cache/
 .recoil-recordings/
 .recoil-data/

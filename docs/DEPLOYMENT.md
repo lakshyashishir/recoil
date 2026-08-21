@@ -25,7 +25,7 @@ The included `apprunner.yaml` installs the locked dependencies, builds the front
 4. Set a health check to HTTP `/api/health`.
 5. Open the App Runner URL and run one repository scan before adding CloudFront.
 
-The hackathon deployment should run as one instance because it intentionally exposes one tenant. HydraDB is
+The current deployment should run as one instance because it intentionally exposes one tenant. HydraDB is
 the durable temporal evidence record. The operational watchlist, recent cases, monitor state, and
 notifications are mirrored to one private S3 object when `RECOIL_WORKSPACE_S3_BUCKET` is set. The local
 workspace file remains the fast process-local copy. At startup Recoil restores the S3 snapshot before it
@@ -101,22 +101,21 @@ The response must report `workspaceStorage.mode` as `s3`, `durable` as `true`, a
 before the public URL is shared. The health endpoint returns `503` if durable workspace writes enter a
 failed state, allowing the platform health check to remove an unhealthy instance.
 
-## Demo checklist
+## Release checklist
 
-1. Run the strict network doctor with the canonical three-repository query:
+1. Run the network doctor against the configured services:
 
    ```bash
-   npm run doctor -- --recording --network \
-     "GHSA-xvch-5gv4-984h https://github.com/http-party/http-server/tree/v13.0.2 https://github.com/tweenjs/tween.js https://github.com/axios/axios/tree/v1.x"
+   npm run doctor -- --network
    ```
 
-2. Open the verified three-way case once so it is warm in GitHub and HydraDB caches.
-3. Run one repository-only scan on an unfamiliar public repository.
+2. Run one repository-only scan on a public repository.
+3. Confirm the workspace health reports durable S3 storage as ready.
 4. Confirm the issue draft opens on GitHub and the receipt downloads.
 5. Confirm both theme modes and a direct `?case=` link in a private browser window.
 
 The public root opens the latest retained case when the workspace already contains scans. It shows the
-repository onboarding screen only for an empty workspace. Run the canonical real scan once after the first
+repository onboarding screen only for an empty workspace. Run a real scan once after the first
 deployment, then verify that a private browser opens directly into the populated dashboard.
 
 ## Why not Vercel for this build
@@ -124,4 +123,4 @@ deployment, then verify that a private browser opens directly into the populated
 The current engine returns `202 Accepted`, continues collection in the Node process, and runs a scheduled
 watch loop. A normal Vercel function can stop after its response and does not own a durable in-process timer.
 Moving Recoil there would require a queue, resumable jobs, and an external scheduler. App Runner keeps the
-working execution model and is the lower-risk hackathon deployment.
+current execution model without splitting scans across short-lived functions.

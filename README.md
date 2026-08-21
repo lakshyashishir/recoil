@@ -9,18 +9,17 @@
     <a href="#quick-start">Quick start</a> ·
     <a href="#how-it-works">How it works</a> ·
     <a href="#why-hydradb">HydraDB</a> ·
-    <a href="docs/JUDGE-DEMO.md">Demo</a> ·
     <a href="docs/DEPLOYMENT.md">Deploy</a>
   </p>
 </div>
 
 <br />
 
-![Recoil evidence graph](docs/assets/recoil-graph.png)
-
 Recoil watches public GitHub repositories, discovers affected dependency versions, and proves whether they reach sampled application source. It then dates when the path entered the repository and checks whether the advisory's real fixed version removes it.
 
 It is not another vulnerability list. Every verdict is computed from public evidence, every route can be inspected, and missing evidence remains `UNKNOWN`.
+
+Recoil was built for Hack Hydra. HydraDB is the durable graph and temporal-memory layer behind repository history, evidence comparison, and cross-case retrieval.
 
 ## The problem
 
@@ -210,7 +209,7 @@ The MCP server exposes the same cases, findings, graph, history, fix proof, and 
 
 ## Durable workspace
 
-The hackathon deployment is intentionally single tenant and account-free. Its operational workspace contains repository watches, immutable case snapshots, monitor state, and notification history.
+The current deployment is intentionally single tenant and account-free. Its operational workspace contains repository watches, immutable case snapshots, monitor state, and notification history.
 
 - Locally, it is stored atomically at `.recoil-data/workspace.json`.
 - In production, it is mirrored to one private, encrypted, versioned S3 object.
@@ -243,24 +242,21 @@ npm run verify
 
 The gate runs the complete regression suite, the evidence benchmark, the production frontend build, and the OpenTUI compilation.
 
-Before recording or sharing a deployment:
+Before sharing a deployment:
 
 ```bash
-npm run doctor -- --recording --network \
-  "GHSA-xvch-5gv4-984h https://github.com/http-party/http-server/tree/v13.0.2 https://github.com/tweenjs/tween.js https://github.com/axios/axios/tree/v1.x"
+npm run doctor -- --network
 ```
 
-Strict recording requires complete public evidence, three distinct verdicts, a completed HydraDB write, dated temporal recall, and a verified current-case graph relation.
+For a complete case, verify public evidence collection, a completed HydraDB write, dated temporal recall, and a current-case graph relation.
 
 ## Documentation
 
 | Document | Contents |
 | --- | --- |
-| [Judge demo](docs/JUDGE-DEMO.md) | Exact three-minute recording script and preflight |
 | [Deployment](docs/DEPLOYMENT.md) | App Runner, S3, CloudFront, secrets, and health checks |
 | [Ingestion mesh](docs/INGESTION-MESH.md) | Collector and normalization details |
 | [MCP](docs/MCP.md) | Agent tools and shared contracts |
-| [Recording case](docs/RECORDING-CASE.md) | Canonical public evidence case |
 | [Product model](PRODUCT.md) | Scope, guarantees, and non-goals |
 
 ## Scope and honesty
