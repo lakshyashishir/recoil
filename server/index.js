@@ -23,6 +23,7 @@ const scanRateLimit = Math.max(1, Number(process.env.RECOIL_SCAN_RATE_LIMIT || 8
 const scanRateWindowMs = Math.max(60_000, Number(process.env.RECOIL_SCAN_RATE_WINDOW_MS || 15 * 60_000))
 const configuredWatchIntervalMs = Math.max(0, Number(process.env.RECOIL_WATCH_INTERVAL_MS || 0))
 const watchIntervalMs = configuredWatchIntervalMs > 0 ? Math.max(60_000, configuredWatchIntervalMs) : 0
+const shutdownDrainMs = Math.max(0, Number(process.env.RECOIL_SHUTDOWN_DRAIN_MS || 25_000))
 const monitorStartedAt = new Date().toISOString()
 const scanRequests = new Map()
 const workspacePersistenceEnabled = !process.env.NODE_TEST_CONTEXT && process.env.RECOIL_DISABLE_WORKSPACE !== '1'
@@ -47,7 +48,7 @@ const workspaceState = {
 }
 
 function responseHeaders(contentType = 'application/json; charset=utf-8') {
-  return {
+  const headers = {
     'content-type': contentType,
     'access-control-allow-origin': process.env.RECOIL_ALLOWED_ORIGIN || '*',
     'access-control-allow-headers': 'content-type',
@@ -56,7 +57,11 @@ function responseHeaders(contentType = 'application/json; charset=utf-8') {
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'strict-origin-when-cross-origin',
     'x-frame-options': 'DENY',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'content-security-policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
   }
+  if (process.env.NODE_ENV === 'production') headers['strict-transport-security'] = 'max-age=31536000; includeSubDomains'
+  return headers
 }
 
 function json(res, status, payload) {
@@ -125,6 +130,9 @@ function serveStatic(req, res, pathname) {
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'strict-origin-when-cross-origin',
     'x-frame-options': 'DENY',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'content-security-policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+    ...(process.env.NODE_ENV === 'production' ? { 'strict-transport-security': 'max-age=31536000; includeSubDomains' } : {}),
   })
   if (req.method === 'HEAD') res.end()
   else res.end(readFileSync(file))
@@ -609,14 +617,16 @@ async function route(req, res) {
   }
 
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, {
-      ok: true,
+    const workspaceStorage = workspaceStore.status()
+    const storageHealthy = workspaceStorage.status !== 'failed'
+    return json(res, storageHealthy ? 200 : 503, {
+      ok: storageHealthy,
       service: 'recoil-api',
       product: 'evidence-proof',
       version: 'evidence-v1',
       mode: 'autonomous',
       hydra: hydraStatus(),
-      workspaceStorage: workspaceStore.status(),
+      workspaceStorage,
       advisoryScopeAgent: advisoryAgentStatus(),
       recordingContract: {
         requiresAdvisoryId: true,
@@ -850,6 +860,10 @@ if (runningAsEntryPoint) {
           console.log(`Recoil workspace restored from s3://${process.env.RECOIL_WORKSPACE_S3_BUCKET}/${process.env.RECOIL_WORKSPACE_S3_KEY || 'recoil/workspace.json'}`)
         }
       } catch (error) {
+        const allowFallback = process.env.RECOIL_WORKSPACE_ALLOW_LOCAL_FALLBACK === '1'
+        if (process.env.NODE_ENV === 'production' && !allowFallback) {
+          throw new Error(`Recoil refused to start without its configured S3 workspace: ${error.message}`)
+        }
         console.warn(`Recoil could not restore its S3 workspace; continuing with the local snapshot: ${error.message}`)
       }
     }
@@ -866,16 +880,45 @@ if (runningAsEntryPoint) {
       process.exitCode = 1
     })
 
+    let monitorTimer = null
+    let stopping = false
+    const shutdown = async (signal) => {
+      if (stopping) return
+      stopping = true
+      if (monitorTimer) clearInterval(monitorTimer)
+      console.log(`Recoil received ${signal}; flushing workspace state`)
+      if (server.listening) await new Promise((resolveClose) => server.close(resolveClose))
+      const drainDeadline = Date.now() + shutdownDrainMs
+      while (activeInvestigationCount() > 0 && Date.now() < drainDeadline) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, 250))
+      }
+      if (activeInvestigationCount() > 0) {
+        console.warn(`${activeInvestigationCount()} investigation(s) remained active at shutdown deadline`)
+      }
+      try {
+        persistWorkspace()
+        await workspaceStore.flush()
+      } catch (error) {
+        console.error(`Recoil workspace flush failed: ${error.message}`)
+        process.exitCode = 1
+      }
+    }
+    process.once('SIGTERM', () => { void shutdown('SIGTERM') })
+    process.once('SIGINT', () => { void shutdown('SIGINT') })
+
     server.listen(port, host, () => {
       persistWorkspace()
       console.log(`Recoil API listening on http://${host}:${port}`)
       if (watchIntervalMs > 0) {
         console.log(`Repository monitor enabled every ${watchIntervalMs}ms`)
-        const timer = setInterval(() => scanAllWatches(), Math.max(60_000, watchIntervalMs))
-        timer.unref()
+        monitorTimer = setInterval(() => scanAllWatches(), Math.max(60_000, watchIntervalMs))
+        monitorTimer.unref()
       }
     })
   }
 
-  void startServer()
+  void startServer().catch((error) => {
+    console.error(error.message)
+    process.exitCode = 1
+  })
 }

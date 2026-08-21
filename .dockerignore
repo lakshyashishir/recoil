@@ -1,5 +1,6 @@
 .git
 .github
+.agents
 .env
 .env.*
 .recoil-cache
@@ -8,6 +9,8 @@
 dist
 docs
 node_modules
+sandbox
+skills-lock.json
 test
 *.log
 .DS_Store

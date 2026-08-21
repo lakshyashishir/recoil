@@ -8,12 +8,16 @@ build:
       - npm run build
 run:
   runtime-version: 22.14.0
-  command: npm run serve
+  command: node --env-file-if-exists=.env server/index.js
   network:
     port: 8787
   env:
     - name: NODE_ENV
       value: production
+    - name: RECOIL_HOST
+      value: 0.0.0.0
+    - name: RECOIL_SERVE_STATIC
+      value: "1"
     - name: RECOIL_MAX_CONCURRENT_INVESTIGATIONS
       value: "3"
     - name: RECOIL_SCAN_RATE_LIMIT

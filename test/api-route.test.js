@@ -204,6 +204,9 @@ test('API route chain starts, completes, rewinds, and exports a receipt', async 
 
     const health = await request('GET', '/api/health')
     assert.equal(health.statusCode, 200)
+    assert.match(health.headers['content-security-policy'], /default-src 'self'/)
+    assert.equal(health.headers['permissions-policy'], 'camera=(), microphone=(), geolocation=(), payment=()')
+    assert.equal(health.headers['x-frame-options'], 'DENY')
     assert.equal(health.body.product, 'evidence-proof')
     assert.deepEqual(health.body.recordingContract.requiredVerdicts, ['REACHED', 'DECLARED_ONLY', 'NOT_AFFECTED'])
     assert.equal(health.body.recordingContract.requiresAdvisoryId, true)

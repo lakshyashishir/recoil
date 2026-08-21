@@ -36,10 +36,24 @@ test('workspace store restores and updates an S3 snapshot', async () => {
   assert.deepEqual(await store.loadRemote(), restored)
   const next = { ...restored, updatedAt: '2026-08-21T00:00:00.000Z' }
   store.save(next)
-  await store.remoteQueue
+  await store.flush()
 
   assert.equal(sent.length, 2)
   assert.equal(store.status().mode, 's3')
   assert.equal(store.status().status, 'ready')
   assert.deepEqual(store.loadLocal(), next)
+})
+
+test('workspace store reports a failed durable flush', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'recoil-workspace-failed-'))
+  const store = new WorkspaceStore({
+    file: join(directory, 'workspace.json'),
+    bucket: 'recoil-demo',
+    client: { send: async () => { throw new Error('s3 unavailable') } },
+  })
+
+  store.save({ schema: 'recoil.workspace/v2', records: [], watches: [] })
+
+  await assert.rejects(store.flush(), /s3 unavailable/)
+  assert.equal(store.status().status, 'failed')
 })

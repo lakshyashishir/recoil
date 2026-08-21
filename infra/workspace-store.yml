@@ -16,7 +16,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !If [HasBucketName, !Ref BucketName, !Ref AWS::NoValue]
+      BucketName: !If [HasBucketName, !Ref BucketName, !Ref 'AWS::NoValue']
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:

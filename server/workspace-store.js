@@ -101,6 +101,13 @@ export class WorkspaceStore {
     }
   }
 
+  async flush() {
+    await this.remoteQueue
+    if (this.bucket && this.remoteStatus === 'failed') {
+      throw new Error(this.remoteError || 'workspace object could not be saved')
+    }
+  }
+
   writeLocal(payload) {
     mkdirSync(dirname(this.file), { recursive: true })
     const temporary = `${this.file}.tmp`

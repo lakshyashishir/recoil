@@ -31,6 +31,13 @@ notifications are mirrored to one private S3 object when `RECOIL_WORKSPACE_S3_BU
 workspace file remains the fast process-local copy. At startup Recoil restores the S3 snapshot before it
 accepts traffic, and every later workspace update is written locally and queued to S3.
 
+Production startup fails closed when a configured S3 workspace cannot be read. This prevents a transient
+restore failure from replacing the durable object with an empty local workspace. Set
+`RECOIL_WORKSPACE_ALLOW_LOCAL_FALLBACK=1` only during an intentional recovery session. On `SIGTERM` or
+`SIGINT`, Recoil stops accepting traffic, gives active investigations a bounded drain window, writes the
+final workspace snapshot, and waits for the queued S3 write to finish. Configure the drain window with
+`RECOIL_SHUTDOWN_DRAIN_MS` when the hosting platform uses a different termination grace period.
+
 Create the private versioned bucket and least-privilege App Runner instance role:
 
 ```bash
@@ -90,9 +97,19 @@ Verify before sharing:
 curl -fsS http://127.0.0.1:8787/api/health
 ```
 
+The response must report `workspaceStorage.mode` as `s3`, `durable` as `true`, and `status` as `ready`
+before the public URL is shared. The health endpoint returns `503` if durable workspace writes enter a
+failed state, allowing the platform health check to remove an unhealthy instance.
+
 ## Demo checklist
 
-1. Run `npm run doctor -- --recording --network` against the deployed environment.
+1. Run the strict network doctor with the canonical three-repository query:
+
+   ```bash
+   npm run doctor -- --recording --network \
+     "GHSA-xvch-5gv4-984h https://github.com/http-party/http-server/tree/v13.0.2 https://github.com/tweenjs/tween.js https://github.com/axios/axios/tree/v1.x"
+   ```
+
 2. Open the verified three-way case once so it is warm in GitHub and HydraDB caches.
 3. Run one repository-only scan on an unfamiliar public repository.
 4. Confirm the issue draft opens on GitHub and the receipt downloads.
