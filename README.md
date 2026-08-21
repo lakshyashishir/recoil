@@ -22,6 +22,27 @@ It is not another vulnerability list. Every verdict is computed from public evid
 
 Recoil was built for Hack Hydra. HydraDB is the durable graph and temporal-memory layer behind repository history, evidence comparison, and cross-case retrieval.
 
+## Product
+
+<a href="https://nacmbw5dea.ap-south-1.awsapprunner.com">
+  <img src="docs/images/recoil-incidents.png" alt="Recoil incident response showing source-backed reachability, verified fixes, and agent handoff" />
+</a>
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/images/recoil-graph.png" alt="Recoil exposure graph from advisory to package, repository, and source" />
+      <br />
+      <sub><strong>Exposure graph.</strong> Observed paths from an advisory to exact source evidence.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/images/recoil-repositories.png" alt="Recoil continuous repository watch workspace" />
+      <br />
+      <sub><strong>Repository watch.</strong> Scheduled checks, incident state, and immutable scan history.</sub>
+    </td>
+  </tr>
+</table>
+
 ## The problem
 
 Most dependency scanners answer one question: is an affected package present?
@@ -222,7 +243,7 @@ The current deployment is intentionally single tenant and account-free. Its oper
 - Shutdown waits for the final queued workspace write.
 - S3 writes are serialized so an older update cannot overtake a newer one.
 
-This is a durable workspace object, not a Cloudflare Durable Object. The contract can later be partitioned by tenant ID without changing the evidence engine.
+The workspace contract can later be partitioned by tenant ID without changing the evidence engine.
 
 ## Deploy
 
@@ -277,6 +298,19 @@ For a complete case, verify public evidence collection, a completed HydraDB writ
 | [Ingestion mesh](docs/INGESTION-MESH.md) | Collector and normalization details |
 | [MCP](docs/MCP.md) | Agent tools and shared contracts |
 | [Product model](PRODUCT.md) | Scope, guarantees, and non-goals |
+
+## Data sources and attribution
+
+Recoil computes its results from public records and the services below. It does not bundle a third-party benchmark dataset or generated vulnerability output.
+
+| Project or service | Use in Recoil |
+| --- | --- |
+| [HydraDB OSS](https://github.com/hydra-db/hydradb) and HydraDB Cloud API | Typed evidence graph, current-case verification, temporal memory, and cross-case recall |
+| [GitHub API](https://docs.github.com/en/rest) | Public repository files, commits, trees, and CODEOWNERS evidence |
+| [OSV](https://osv.dev) | Advisory records, affected version ranges, and fixed versions |
+| [npm Registry](https://www.npmjs.com) and [crates.io](https://crates.io) | Public package and version metadata |
+| [OpenAI API](https://platform.openai.com/docs) | Optional advisory-symbol suggestion before exact local validation |
+| React, Vite, MCP SDK, OpenTUI, Lucide, AWS SDK, and Fontsource | Application runtime, clients, interface, deployment, and fonts; exact versions are recorded in `package.json` and lockfiles |
 
 ## Scope and honesty
 
