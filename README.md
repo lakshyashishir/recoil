@@ -6,6 +6,7 @@
     Source-backed software supply-chain investigations with temporal memory.
   </p>
   <p>
+    <a href="https://nacmbw5dea.ap-south-1.awsapprunner.com">Live demo</a> ·
     <a href="#quick-start">Quick start</a> ·
     <a href="#how-it-works">How it works</a> ·
     <a href="#why-hydradb">HydraDB</a> ·
@@ -63,14 +64,17 @@ flowchart LR
     E --> F[Fix challenge]
     E --> H[Historical reconstruction]
 
-    V --> DB[(HydraDB)]
-    F --> DB
-    H --> DB
+    V --> CASE[Shared evidence contract]
+    F --> CASE
+    H --> CASE
 
-    DB --> WEB[Web console]
-    DB --> CLI[CLI and TUI]
-    DB --> MCP[MCP tools]
-    DB --> ART[Brief and receipt]
+    E -->|typed graph and dated facts| DB[(HydraDB)]
+    DB -->|prior context and graph verification| E
+
+    CASE --> WEB[Web console]
+    CASE --> CLI[CLI and TUI]
+    CASE --> MCP[MCP tools]
+    CASE --> ART[Brief and receipt]
 
     WEB --> WS[Single-tenant workspace]
     WS --> S3[(Versioned S3 object)]
@@ -224,15 +228,30 @@ This is a durable workspace object, not a Cloudflare Durable Object. The contrac
 
 Recoil needs a long-running process because scans return `202 Accepted`, continue collecting evidence, and can run on a recurring watch interval. A normal static or short-lived serverless deployment is not compatible with that execution model.
 
+The public deployment runs one App Runner instance from a private ECR image. Runtime credentials come from Secrets Manager, repository watches and case snapshots survive in a private versioned S3 object, and HydraDB remains the durable graph and temporal-memory layer.
+
+```mermaid
+flowchart LR
+    USER[Browser, CLI, or agent] --> APP[Recoil on App Runner]
+    ECR[Private ECR image] --> APP
+    SEC[Secrets Manager] --> APP
+    APP --> DB[(HydraDB)]
+    APP --> S3[(Versioned S3 workspace)]
+    APP --> PUB[GitHub, OSV, npm, crates.io]
+```
+
+Live deployment: [nacmbw5dea.ap-south-1.awsapprunner.com](https://nacmbw5dea.ap-south-1.awsapprunner.com)
+
 The repository includes:
 
 - a production multi-stage `Dockerfile`;
-- an App Runner source configuration;
+- an App Runner source configuration and private ECR deployment path;
+- Secrets Manager access through the App Runner instance role;
 - a private versioned S3 workspace stack with least-privilege IAM;
-- a CloudFront stack with API caching disabled;
+- an optional CloudFront stack for a future custom domain;
 - concurrency limits, request limits, rate limiting, security headers, health checks, and graceful shutdown.
 
-Use [the deployment runbook](docs/DEPLOYMENT.md) for the exact App Runner, S3, and CloudFront sequence.
+Use [the deployment runbook](docs/DEPLOYMENT.md) for the App Runner, ECR, S3, and optional CloudFront sequence.
 
 ## Validate
 

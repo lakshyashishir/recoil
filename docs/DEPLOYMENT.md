@@ -15,6 +15,18 @@ Configure these in the hosting platform's secret manager, never in the image or 
 
 Keep `HYDRADB_COLLECTION_ID=recoil`. For a judge recording, also set `RECOIL_ADVISORY_AGENT=on` if the optional exact-symbol pass should run.
 
+## Current public deployment
+
+The Hack Hydra deployment uses the production `Dockerfile` and runs as a private ECR image on a single App Runner instance in `ap-south-1`:
+
+- App Runner serves the frontend and API from one HTTPS origin;
+- Secrets Manager provides the HydraDB, GitHub, and optional OpenAI credentials;
+- the `recoil-workspace` CloudFormation stack provides the versioned S3 object and least-privilege runtime roles;
+- App Runner is constrained to one instance so two monitors cannot race to update the shared workspace;
+- CloudFront is optional and is not required when the generated App Runner hostname is acceptable.
+
+Public endpoint: [nacmbw5dea.ap-south-1.awsapprunner.com](https://nacmbw5dea.ap-south-1.awsapprunner.com)
+
 ## App Runner from this repository
 
 The included `apprunner.yaml` installs the locked dependencies, builds the frontend, starts the combined server on port 8787, and applies conservative public-demo limits.
