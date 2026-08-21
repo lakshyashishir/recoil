@@ -46,14 +46,37 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - s3:ListBucket
+                Resource: !GetAtt WorkspaceBucket.Arn
+              - Effect: Allow
+                Action:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub '${WorkspaceBucket.Arn}/recoil/workspace.json'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:recoil/*'
+
+  AppRunnerEcrAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
 
 Outputs:
   WorkspaceBucketName:
     Value: !Ref WorkspaceBucket
   AppRunnerInstanceRoleArn:
     Value: !GetAtt RecoilInstanceRole.Arn
+  AppRunnerEcrAccessRoleArn:
+    Value: !GetAtt AppRunnerEcrAccessRole.Arn
   WorkspaceObjectKey:
     Value: recoil/workspace.json
