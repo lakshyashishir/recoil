@@ -283,3 +283,7 @@ For a complete case, verify public evidence collection, a completed HydraDB writ
 Recoil performs bounded defensive static analysis over public records. A reached source import is not proof that a production service was exploited or that the imported symbol executes at runtime. Recoil preserves that distinction in the UI, CLI, receipts, and documentation.
 
 Synthetic outputs are never used. Incomplete evidence is visible, source limits are recorded, and HydraDB writes that do not finish indexing remain `queued` rather than being called persisted.
+
+## License
+
+Recoil is available under the [MIT License](LICENSE).
